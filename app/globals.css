@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-emerald: #1DB980;
+  --color-brand-purple: #8E24AA;
+  --color-brand-royal: #1E40AF;
+  --color-brand-cyan: #0070F3;
+  --color-brand-dark: #0F172A;
+}
+
+:root {
+  --background: #0F172A;
+  --foreground: #F8FAFC;
+  --emerald: #1DB980;
+  --purple: #8E24AA;
+  --royal: #1E40AF;
+  --cyan: #0070F3;
+}
+
+body {
+  background-color: #0F172A;
+  color: #F8FAFC;
+  min-height: 100vh;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom glowing effects & animations */
+@keyframes pulseSlow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulseSlow 8s ease-in-out infinite;
+}
+
+.glow-card {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glow-card:hover {
+  border-color: rgba(29, 185, 128, 0.4);
+  box-shadow: 0 10px 30px -10px rgba(0, 112, 243, 0.2);
+  transform: translateY(-2px);
+}
