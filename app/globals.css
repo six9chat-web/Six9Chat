@@ -25,31 +25,78 @@ body {
   overflow-x: hidden;
 }
 
-/* Custom glowing effects & animations */
-@keyframes pulseSlow {
+/* Custom Gradient Utilities */
+.bg-gradient-brand {
+  background: linear-gradient(135deg, #1DB980 0%, #8E24AA 35%, #1E40AF 70%, #0070F3 100%);
+}
+
+.bg-gradient-brand-subtle {
+  background: linear-gradient(135deg, rgba(29, 185, 128, 0.15) 0%, rgba(142, 36, 170, 0.15) 40%, rgba(0, 112, 243, 0.15) 100%);
+}
+
+.text-gradient-brand {
+  background: linear-gradient(135deg, #1DB980 0%, #8E24AA 40%, #0070F3 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-glow {
+  background: linear-gradient(90deg, #1DB980 0%, #0070F3 50%, #8E24AA 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Glassmorphism Panels */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel-hover:hover {
+  border-color: rgba(0, 112, 243, 0.4);
+  box-shadow: 0 14px 40px -10px rgba(0, 112, 243, 0.25);
+  transform: translateY(-3px);
+}
+
+/* Glowing Border Gradient Wrapper */
+.gradient-border-box {
+  position: relative;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, rgba(29, 185, 128, 0.5), rgba(142, 36, 170, 0.5), rgba(0, 112, 243, 0.5));
+  padding: 1px;
+}
+
+/* Keyframes & Animations */
+@keyframes float {
   0%, 100% {
-    opacity: 0.4;
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.35;
     transform: scale(1);
   }
   50% {
-    opacity: 0.7;
-    transform: scale(1.05);
+    opacity: 0.65;
+    transform: scale(1.08);
   }
 }
 
-.animate-pulse-slow {
-  animation: pulseSlow 8s ease-in-out infinite;
-}
-
-.glow-card {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glow-card:hover {
-  border-color: rgba(29, 185, 128, 0.4);
-  box-shadow: 0 10px 30px -10px rgba(0, 112, 243, 0.2);
-  transform: translateY(-2px);
+.animate-pulse-glow {
+  animation: pulseGlow 9s ease-in-out infinite;
 }
