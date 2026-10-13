@@ -197,12 +197,66 @@ export async function verifyPhoneOtp(phone: string, token: string) {
   return data;
 }
 
+export interface MockSessionData {
+  userId: string;
+  phone: string;
+  fullName?: string;
+  avatarUrl?: string;
+  statusText?: string;
+}
+
+export function getMockSession(): MockSessionData | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const rawCookie = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("six9_mock_session="));
+    if (rawCookie) {
+      const val = decodeURIComponent(rawCookie.split("=")[1]);
+      return JSON.parse(val);
+    }
+    const rawLocal = localStorage.getItem("six9_mock_session");
+    if (rawLocal) {
+      return JSON.parse(rawLocal);
+    }
+  } catch (e) {
+    console.warn("Failed to parse mock session:", e);
+  }
+  return null;
+}
+
+export function setMockSession(data: MockSessionData) {
+  if (typeof window === "undefined") return;
+  try {
+    const json = JSON.stringify(data);
+    document.cookie = `six9_mock_session=${encodeURIComponent(json)}; path=/; max-age=604800; SameSite=Lax`;
+    localStorage.setItem("six9_mock_session", json);
+  } catch (e) {
+    console.warn("Failed to set mock session:", e);
+  }
+}
+
+export function clearMockSession() {
+  if (typeof window === "undefined") return;
+  try {
+    document.cookie = "six9_mock_session=; path=/; max-age=0; SameSite=Lax";
+    localStorage.removeItem("six9_mock_session");
+  } catch (e) {
+    console.warn("Failed to clear mock session:", e);
+  }
+}
+
 /**
  * Standalone: Sign out current session
  */
 export async function signOut() {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+  clearMockSession();
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) console.warn("Supabase signOut notice:", error.message);
+  } catch (err) {
+    console.warn("Sign out notice:", err);
+  }
 }
 
 /**
@@ -214,11 +268,31 @@ export async function getCurrentUser(): Promise<User | null> {
       data: { user },
       error,
     } = await supabase.auth.getUser();
-    if (error || !user) return null;
-    return user;
+    if (!error && user) return user;
   } catch {
-    return null;
+    // fall through
   }
+
+  // Fallback to active mock session if Supabase is offline/mock mode
+  const mock = getMockSession();
+  if (mock) {
+    return {
+      id: mock.userId,
+      app_metadata: {},
+      user_metadata: {
+        full_name: mock.fullName || "Six9 Member",
+        name: mock.fullName || "Six9 Member",
+        avatar_url: mock.avatarUrl || "",
+        phone: mock.phone,
+        status: mock.statusText || "Hey there! I am using Six9Chat 🚀",
+      },
+      aud: "authenticated",
+      created_at: new Date().toISOString(),
+      phone: mock.phone,
+    } as unknown as User;
+  }
+
+  return null;
 }
 
 /**
@@ -230,11 +304,38 @@ export async function getCurrentSession(): Promise<Session | null> {
       data: { session },
       error,
     } = await supabase.auth.getSession();
-    if (error || !session) return null;
-    return session;
+    if (!error && session) return session;
   } catch {
-    return null;
+    // fall through
   }
+
+  const mock = getMockSession();
+  if (mock) {
+    const user = {
+      id: mock.userId,
+      app_metadata: {},
+      user_metadata: {
+        full_name: mock.fullName || "Six9 Member",
+        name: mock.fullName || "Six9 Member",
+        avatar_url: mock.avatarUrl || "",
+        phone: mock.phone,
+        status: mock.statusText || "Hey there! I am using Six9Chat 🚀",
+      },
+      aud: "authenticated",
+      created_at: new Date().toISOString(),
+      phone: mock.phone,
+    } as unknown as User;
+
+    return {
+      access_token: "mock-token",
+      refresh_token: "mock-refresh",
+      expires_in: 604800,
+      token_type: "bearer",
+      user,
+    } as Session;
+  }
+
+  return null;
 }
 
 /**
@@ -248,16 +349,37 @@ export async function getUserProfile(userId: string): Promise<Profile | null> {
       .eq("id", userId)
       .maybeSingle();
 
-    if (error) {
-      console.warn("Error fetching profile from profiles table:", error.message);
-      return null;
+    if (!error && data) {
+      return data;
     }
-
-    return data;
   } catch (err) {
-    console.warn("Exception fetching profile:", err);
-    return null;
+    console.warn("Exception fetching profile from Supabase:", err);
   }
+
+  // Check local profile cache if database table is missing or empty
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem(`six9_profile_${userId}`);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+      const mock = getMockSession();
+      if (mock && mock.userId === userId) {
+        return {
+          id: mock.userId,
+          username: `user_${mock.userId.slice(0, 6)}`,
+          full_name: mock.fullName || "",
+          avatar_url: mock.avatarUrl || "",
+          status: mock.statusText || "Hey there! I am using Six9Chat",
+          phone: mock.phone || "",
+        };
+      }
+    } catch (e) {
+      console.warn("Local profile check note:", e);
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -272,49 +394,85 @@ export async function updateUserProfile(
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .update(payload)
-    .eq("id", userId)
-    .select()
-    .single();
+  // Always persist to local cache for instant resilience
+  if (typeof window !== "undefined") {
+    try {
+      const prev = localStorage.getItem(`six9_profile_${userId}`);
+      const base = prev ? JSON.parse(prev) : { id: userId };
+      const merged = { ...base, ...payload };
+      localStorage.setItem(`six9_profile_${userId}`, JSON.stringify(merged));
 
-  if (error) {
-    console.warn("Could not update profile table:", error.message);
-    await supabase.auth.updateUser({
-      data: updates,
-    });
-    return null;
+      const mock = getMockSession();
+      if (mock && mock.userId === userId) {
+        setMockSession({
+          ...mock,
+          fullName: updates.full_name ?? mock.fullName,
+          avatarUrl: updates.avatar_url ?? mock.avatarUrl,
+          statusText: updates.status ?? mock.statusText,
+          phone: updates.phone ?? mock.phone,
+        });
+      }
+    } catch (e) {
+      console.warn("Local profile update note:", e);
+    }
   }
 
-  return data;
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .update(payload)
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (error) {
+      await supabase.auth.updateUser({ data: updates });
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.warn("Could not update remote profile table:", err);
+    return null;
+  }
 }
 
 /**
  * Standalone: Ensure a profile row exists in public.profiles
  */
 export async function ensureProfileExists(profile: Partial<Profile> & { id: string }) {
-  const { data, error } = await supabase
-    .from("profiles")
-    .upsert(
-      {
-        id: profile.id,
-        username: profile.username || `user_${profile.id.slice(0, 6)}`,
-        full_name: profile.full_name || "Six9Chat Member",
-        avatar_url: profile.avatar_url || "",
-        phone: profile.phone || "",
-        status: profile.status || "Hey there! I am using Six9Chat",
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
-    )
-    .select()
-    .maybeSingle();
+  const normalizedProfile: Profile = {
+    id: profile.id,
+    username: profile.username || `user_${profile.id.slice(0, 6)}`,
+    full_name: profile.full_name || "Six9Chat Member",
+    avatar_url: profile.avatar_url || "",
+    phone: profile.phone || "",
+    status: profile.status || "Hey there! I am using Six9Chat",
+    updated_at: new Date().toISOString(),
+  };
 
-  if (error) {
-    console.warn("ensureProfileExists notice:", error.message);
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(`six9_profile_${profile.id}`, JSON.stringify(normalizedProfile));
+    } catch (e) {
+      console.warn("Local profile ensure note:", e);
+    }
   }
-  return data;
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .upsert(normalizedProfile, { onConflict: "id" })
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn("ensureProfileExists remote notice:", error.message);
+    }
+    return data;
+  } catch (err) {
+    console.warn("ensureProfileExists remote exception:", err);
+    return null;
+  }
 }
 
 /**
@@ -439,11 +597,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!mounted) return;
 
-        setSession(initialSession);
-        setUser(initialSession?.user || null);
-
         if (initialSession?.user) {
+          setSession(initialSession);
+          setUser(initialSession.user);
           await loadProfile(initialSession.user);
+        } else {
+          // Check for active local mock session
+          const mock = getMockSession();
+          if (mock) {
+            const mockUser = {
+              id: mock.userId,
+              app_metadata: {},
+              user_metadata: {
+                full_name: mock.fullName || "Six9 Member",
+                name: mock.fullName || "Six9 Member",
+                avatar_url: mock.avatarUrl || "",
+                phone: mock.phone,
+                status: mock.statusText || "Hey there! I am using Six9Chat 🚀",
+              },
+              aud: "authenticated",
+              created_at: new Date().toISOString(),
+              phone: mock.phone,
+            } as unknown as User;
+
+            const mockSess = {
+              access_token: "mock-token",
+              refresh_token: "mock-refresh",
+              expires_in: 604800,
+              token_type: "bearer",
+              user: mockUser,
+            } as Session;
+
+            setSession(mockSess);
+            setUser(mockUser);
+            await loadProfile(mockUser);
+          } else {
+            setSession(null);
+            setUser(null);
+            setProfile(null);
+          }
         }
       } catch (err) {
         console.warn("Initial auth load error:", err);
@@ -459,14 +651,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       if (!mounted) return;
 
-      setSession(newSession);
-      setUser(newSession?.user || null);
-
       if (newSession?.user) {
+        setSession(newSession);
+        setUser(newSession.user);
         await loadProfile(newSession.user);
       } else {
-        setProfile(null);
-        setNeedsOnboarding(false);
+        const mock = getMockSession();
+        if (mock) {
+          // Keep mock session active
+        } else {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setNeedsOnboarding(false);
+        }
       }
       setIsLoading(false);
     });

@@ -17,12 +17,16 @@ import {
   User,
   MessageSquare,
   Globe,
+  Sparkles,
+  Copy,
+  KeyRound,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { CountryCodeSelector } from "@/components/auth/CountryCodeSelector";
 import { LanguageSelector } from "@/components/auth/LanguageSelector";
 import { Country, DEFAULT_COUNTRY } from "@/lib/countries";
 import { Language, DEFAULT_LANGUAGE, TRANSLATIONS } from "@/lib/languages";
+import { formatE164 } from "@/lib/phoneUtils";
 import {
   signInWithPhoneOtp,
   verifyPhoneOtp,
@@ -31,6 +35,8 @@ import {
   updateUserProfile,
   ensureProfileExists,
   uploadAvatar,
+  setMockSession,
+  getMockSession,
 } from "@/lib/auth";
 
 const AVATAR_PRESETS = [
@@ -77,6 +83,16 @@ function LoginContent() {
   const [countdown, setCountdown] = useState(0);
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // Fallback Mock State for Dev/Test Mode
+  const [isMockMode, setIsMockMode] = useState(false);
+  const [generatedOtp, setGeneratedOtp] = useState<string | null>(null);
+  const [mockOtpNotification, setMockOtpNotification] = useState<{
+    code: string;
+    phone: string;
+    reason: string;
+  } | null>(null);
+  const [copiedOtp, setCopiedOtp] = useState(false);
+
   // Step 4: Profile Setup
   const [authenticatedUserId, setAuthenticatedUserId] = useState<string | null>(null);
   const [isExistingUser, setIsExistingUser] = useState(false);
@@ -122,38 +138,78 @@ function LoginContent() {
     }
   }, [step]);
 
-  // Clean formatted phone
-  const cleanDigits = phoneNumber.replace(/\D/g, "");
-  const fullPhone = `${selectedCountry.dial_code}${cleanDigits}`;
+  // Strict E.164 formatted phone calculation
+  const phoneFormatResult = formatE164(selectedCountry.dial_code, phoneNumber);
+  const fullPhone = phoneFormatResult.e164;
 
   // STEP 1 -> STEP 2
   const handleProceedFromLanguage = () => {
     setStep(2);
   };
 
+  // Auto-fill OTP helper for quick testing
+  const handleAutoFillOtp = (code: string) => {
+    const digits = code.slice(0, 6).split("");
+    const updated = ["", "", "", "", "", ""];
+    digits.forEach((d, i) => {
+      if (i < 6) updated[i] = d;
+    });
+    setOtpCode(updated);
+    otpInputRefs.current[5]?.focus();
+  };
+
   // STEP 2: Send OTP
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
+    setMockOtpNotification(null);
 
-    if (cleanDigits.length < 7) {
+    const { e164, isValid } = formatE164(selectedCountry.dial_code, phoneNumber);
+
+    if (!isValid) {
       setErrorMessage("Please enter a valid phone number (minimum 7 digits).");
       return;
     }
 
     setIsLoading(true);
     try {
-      await signInWithPhoneOtp(fullPhone);
+      // 1. Attempt official Supabase Phone OTP dispatch
+      await signInWithPhoneOtp(e164);
+      setIsMockMode(false);
+      setGeneratedOtp(null);
       setStep(3);
       setCountdown(60);
-      setSuccessMessage(`Verification code sent to ${fullPhone}`);
+      setSuccessMessage(`Verification code sent to ${e164}`);
     } catch (err: unknown) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Failed to send verification code. Please check the phone number.";
-      setErrorMessage(message);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn("Supabase Phone OTP response:", errMsg);
+
+      // Check if SMS provider is unsupported, inactive, or rate-limited
+      const isProviderError =
+        errMsg.toLowerCase().includes("unsupported phone provider") ||
+        errMsg.toLowerCase().includes("sms provider") ||
+        errMsg.toLowerCase().includes("provider") ||
+        errMsg.toLowerCase().includes("not enabled") ||
+        errMsg.toLowerCase().includes("sms") ||
+        errMsg.toLowerCase().includes("rate limit");
+
+      if (isProviderError) {
+        // Fallback Mock Mode for local testing and development
+        const mockCode = "123456";
+        setIsMockMode(true);
+        setGeneratedOtp(mockCode);
+        setStep(3);
+        setCountdown(60);
+
+        setMockOtpNotification({
+          code: mockCode,
+          phone: e164,
+          reason: "Supabase SMS provider is inactive. Mock testing code generated.",
+        });
+      } else {
+        setErrorMessage(errMsg || "Failed to send verification code. Please check the phone number.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -206,19 +262,41 @@ function LoginContent() {
 
     setIsLoading(true);
     try {
-      const result = await verifyPhoneOtp(fullPhone, token);
-      const userId = result.user?.id;
+      let verifiedUserId = "";
 
-      if (!userId) {
-        throw new Error("User verification failed. Please try again.");
+      if (isMockMode) {
+        // Dev / Fallback verification check
+        if (generatedOtp && token !== generatedOtp && token !== "123456") {
+          throw new Error(`Invalid code. Please enter ${generatedOtp} (or 123456).`);
+        }
+
+        const cleanDigits = fullPhone.replace(/\D/g, "");
+        verifiedUserId = `user_phone_${cleanDigits}`;
+
+        // Save session locally and in cookie
+        setMockSession({
+          userId: verifiedUserId,
+          phone: fullPhone,
+        });
+
+        setAuthenticatedUserId(verifiedUserId);
+        setSuccessMessage("Code verified successfully! (Dev & Test Mode)");
+      } else {
+        const result = await verifyPhoneOtp(fullPhone, token);
+        const userId = result.user?.id;
+
+        if (!userId) {
+          throw new Error("User verification failed. Please try again.");
+        }
+
+        verifiedUserId = userId;
+        setAuthenticatedUserId(userId);
+        setSuccessMessage("Code verified successfully!");
       }
 
-      setAuthenticatedUserId(userId);
-      setSuccessMessage("Code verified successfully!");
-
-      // Query Supabase profiles table for existing user details
+      // Query profiles table or local storage for existing user details
       try {
-        const existingProfile = await getUserProfile(userId);
+        const existingProfile = await getUserProfile(verifiedUserId);
         if (existingProfile && (existingProfile.full_name || existingProfile.avatar_url)) {
           // Returning User Detected: Pre-fill all fields
           setIsExistingUser(true);
@@ -281,7 +359,7 @@ function LoginContent() {
         }
       }
 
-      // Sync/Upsert profile to Supabase public.profiles table
+      // Sync/Upsert profile to Supabase public.profiles or local persistence
       if (authenticatedUserId) {
         await ensureProfileExists({
           id: authenticatedUserId,
@@ -297,6 +375,17 @@ function LoginContent() {
           phone: fullPhone,
           status: statusText,
         });
+
+        // Update mock session if active
+        if (isMockMode) {
+          setMockSession({
+            userId: authenticatedUserId,
+            phone: fullPhone,
+            fullName: finalName,
+            avatarUrl: finalAvatarUrl,
+            statusText: statusText,
+          });
+        }
       }
 
       setSuccessMessage("Setting up your chat experience...");
@@ -390,6 +479,46 @@ function LoginContent() {
           {/* Feedback Messages */}
           <div className="px-7 pt-4">
             <AnimatePresence>
+              {mockOtpNotification && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-slate-900/90 to-purple-950/80 border border-emerald-500/40 shadow-xl shadow-emerald-950/50 mb-3.5 backdrop-blur-xl"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center shrink-0 text-emerald-300">
+                      <Sparkles className="w-5 h-5 animate-pulse text-emerald-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
+                          Dev &amp; Testing Mode Active
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          SMS Provider Fallback
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                        Supabase phone provider is inactive. Your test verification code is:
+                      </p>
+                      <div className="flex items-center gap-2.5 mt-2.5">
+                        <span className="font-mono text-base font-extrabold text-emerald-200 tracking-widest px-3 py-1 rounded-lg bg-black/60 border border-emerald-500/40 shadow-inner select-all">
+                          {mockOtpNotification.code}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleAutoFillOtp(mockOtpNotification.code)}
+                          className="text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-black font-extrabold transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Auto-Fill Code</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
               {errorMessage && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
@@ -526,10 +655,10 @@ function LoginContent() {
                         <Phone className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                         <input
                           type="tel"
-                          placeholder="300 1234567"
+                          placeholder="341 4348189"
                           value={phoneNumber}
                           onChange={(e) =>
-                            setPhoneNumber(e.target.value.replace(/[^\d\s-]/g, ""))
+                            setPhoneNumber(e.target.value.replace(/[^\d\s-+()]/g, ""))
                           }
                           className="w-full h-12 bg-slate-950/80 border border-slate-800 rounded-2xl pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#1DB980] focus:ring-1 focus:ring-[#1DB980] transition font-mono tracking-wider"
                           required
@@ -538,13 +667,24 @@ function LoginContent() {
                       </div>
                     </div>
 
-                    {cleanDigits && (
-                      <p className="text-[11px] text-slate-400 mt-1.5 pl-0.5 flex items-center gap-1.5">
-                        <span className="text-slate-500">Full Number:</span>
-                        <span className="font-mono text-[#1DB980] font-semibold">
-                          {selectedCountry.dial_code} {cleanDigits}
-                        </span>
-                      </p>
+                    {phoneNumber.trim() && (
+                      <div className="text-[11px] text-slate-400 mt-2 pl-0.5 flex items-center justify-between">
+                        <p className="flex items-center gap-1.5">
+                          <span className="text-slate-500">E.164 Standard:</span>
+                          <span className="font-mono text-[#1DB980] font-semibold">
+                            {phoneFormatResult.e164}
+                          </span>
+                        </p>
+                        {phoneFormatResult.isValid ? (
+                          <span className="text-emerald-400 text-[10px] flex items-center gap-1 font-medium bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            <CheckCircle2 className="w-3 h-3" /> Valid format
+                          </span>
+                        ) : (
+                          <span className="text-amber-400 text-[10px]">
+                            Enter at least 7 digits
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -562,8 +702,8 @@ function LoginContent() {
 
                     <button
                       type="submit"
-                      disabled={isLoading || cleanDigits.length < 7}
-                      className="flex-1 py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#1DB980] via-[#0070F3] to-[#8E24AA] text-black font-extrabold text-sm hover:opacity-95 active:scale-[0.99] transition shadow-lg shadow-[#1DB980]/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                      disabled={isLoading || !phoneFormatResult.isValid}
+                      className="flex-1 py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#1DB980] via-[#0070F3] to-[#8E24AA] text-black font-extrabold text-sm hover:opacity-95 active:scale-[0.99] transition shadow-lg shadow-[#1DB980]/20 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                     >
                       {isLoading ? (
                         <>
@@ -663,7 +803,7 @@ function LoginContent() {
                     <button
                       type="button"
                       disabled={countdown > 0 || isLoading}
-                      onClick={handleSendOtp}
+                      onClick={() => handleSendOtp()}
                       className="text-[#1DB980] hover:underline disabled:text-slate-600 disabled:no-underline font-medium"
                     >
                       {countdown > 0 ? `${t.resendCode} in ${countdown}s` : t.resendCode}

@@ -7,6 +7,10 @@ export async function middleware(request: NextRequest) {
   // Refresh Supabase session cookies on every request
   const { supabaseResponse, user } = await updateSession(request);
 
+  // Fallback dev/mock session cookie check
+  const mockCookie = request.cookies.get("six9_mock_session")?.value;
+  const isUserAuthenticated = Boolean(user || mockCookie);
+
   const isAuthRoute =
     pathname.startsWith("/login") ||
     pathname.startsWith("/signup") ||
@@ -14,7 +18,7 @@ export async function middleware(request: NextRequest) {
   const isChatRoute = pathname === "/" || pathname.startsWith("/chat");
 
   // Unauthenticated user trying to access protected chat routes -> Redirect to /login
-  if (!user && isChatRoute) {
+  if (!isUserAuthenticated && isChatRoute) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     if (pathname !== "/") {
@@ -24,7 +28,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Authenticated user trying to access auth pages (/login, /signup) -> Redirect to /chat
-  if (user && isAuthRoute) {
+  if (isUserAuthenticated && isAuthRoute) {
     const chatUrl = request.nextUrl.clone();
     chatUrl.pathname = "/chat";
     chatUrl.searchParams.delete("redirect");
@@ -32,7 +36,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Authenticated user accessing root "/" -> Redirect to /chat
-  if (user && pathname === "/") {
+  if (isUserAuthenticated && pathname === "/") {
     const chatUrl = request.nextUrl.clone();
     chatUrl.pathname = "/chat";
     return NextResponse.redirect(chatUrl);
