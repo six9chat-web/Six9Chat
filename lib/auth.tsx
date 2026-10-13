@@ -178,16 +178,19 @@ export async function verifyPhoneOtp(phone: string, token: string) {
 
   if (data.user) {
     try {
-      await ensureProfileExists({
-        id: data.user.id,
-        username: `user_${data.user.id.slice(0, 6)}`,
-        full_name: "Six9Chat Member",
-        avatar_url: "",
-        phone: formattedPhone,
-        status: "Hey there! I am using Six9Chat",
-      });
+      const existing = await getUserProfile(data.user.id);
+      if (!existing) {
+        await ensureProfileExists({
+          id: data.user.id,
+          username: `user_${data.user.id.slice(0, 6)}`,
+          full_name: "",
+          avatar_url: "",
+          phone: formattedPhone,
+          status: "Hey there! I am using Six9Chat",
+        });
+      }
     } catch (e) {
-      console.warn("Profile upsert notice:", e);
+      console.warn("Profile fetch/upsert notice:", e);
     }
   }
 

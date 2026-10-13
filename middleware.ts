@@ -8,7 +8,9 @@ export async function middleware(request: NextRequest) {
   const { supabaseResponse, user } = await updateSession(request);
 
   const isAuthRoute =
-    pathname.startsWith("/login") || pathname.startsWith("/signup");
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/auth");
   const isChatRoute = pathname === "/" || pathname.startsWith("/chat");
 
   // Unauthenticated user trying to access protected chat routes -> Redirect to /login

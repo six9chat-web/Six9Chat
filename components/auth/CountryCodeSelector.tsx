@@ -9,12 +9,14 @@ interface CountryCodeSelectorProps {
   selectedCountry: Country;
   onSelect: (country: Country) => void;
   disabled?: boolean;
+  variant?: "compact" | "full";
 }
 
 export function CountryCodeSelector({
   selectedCountry,
   onSelect,
   disabled = false,
+  variant = "compact",
 }: CountryCodeSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -30,7 +32,6 @@ export function CountryCodeSelector({
     }
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
-      // Auto-focus search input
       setTimeout(() => {
         searchInputRef.current?.focus();
       }, 50);
@@ -48,25 +49,52 @@ export function CountryCodeSelector({
   );
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className={`relative ${variant === "full" ? "w-full" : ""}`} ref={dropdownRef}>
       {/* Trigger Button */}
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="h-11 px-3 rounded-xl bg-slate-800/90 border border-slate-700/80 hover:border-slate-600 focus:border-[#1DB980] focus:ring-1 focus:ring-[#1DB980] flex items-center gap-2 text-xs font-medium text-slate-200 transition outline-none disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-        title="Select Country Dial Code"
-      >
-        <span className="text-base select-none">{selectedCountry.flag}</span>
-        <span className="font-semibold text-white tracking-wide">
-          {selectedCountry.dial_code}
-        </span>
-        <ChevronDown
-          className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
-            isOpen ? "rotate-180 text-[#1DB980]" : ""
-          }`}
-        />
-      </button>
+      {variant === "full" ? (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setIsOpen((prev) => !prev)}
+          className="w-full h-12 px-4 rounded-2xl bg-slate-800/90 border border-slate-700/80 hover:border-slate-600 focus:border-[#1DB980] focus:ring-1 focus:ring-[#1DB980] flex items-center justify-between text-sm transition outline-none disabled:opacity-50"
+          title="Choose a country"
+        >
+          <div className="flex items-center gap-3 truncate">
+            <span className="text-xl select-none">{selectedCountry.flag}</span>
+            <span className="font-semibold text-white tracking-wide truncate">
+              {selectedCountry.name}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 ml-2">
+            <span className="font-mono text-emerald-400 font-semibold text-xs">
+              {selectedCountry.dial_code}
+            </span>
+            <ChevronDown
+              className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+                isOpen ? "rotate-180 text-[#1DB980]" : ""
+              }`}
+            />
+          </div>
+        </button>
+      ) : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setIsOpen((prev) => !prev)}
+          className="h-11 px-3 rounded-xl bg-slate-800/90 border border-slate-700/80 hover:border-slate-600 focus:border-[#1DB980] focus:ring-1 focus:ring-[#1DB980] flex items-center gap-2 text-xs font-medium text-slate-200 transition outline-none disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          title="Select Country Dial Code"
+        >
+          <span className="text-base select-none">{selectedCountry.flag}</span>
+          <span className="font-semibold text-white tracking-wide">
+            {selectedCountry.dial_code}
+          </span>
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+              isOpen ? "rotate-180 text-[#1DB980]" : ""
+            }`}
+          />
+        </button>
+      )}
 
       {/* Dropdown Menu */}
       <AnimatePresence>
@@ -76,12 +104,14 @@ export function CountryCodeSelector({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute top-full left-0 mt-1.5 w-72 max-w-[90vw] z-50 bg-[#0F172A] border border-slate-700/90 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-2xl"
+            className={`absolute top-full left-0 z-50 bg-[#0F172A] border border-slate-700/90 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-2xl mt-1.5 ${
+              variant === "full" ? "right-0 w-full" : "w-72 max-w-[90vw]"
+            }`}
           >
             {/* Search Input Bar */}
-            <div className="p-2.5 border-b border-slate-800 bg-slate-900/80">
-              <div className="relative flex items-center bg-slate-800/90 rounded-xl px-2.5 py-1.5 border border-slate-700/80 focus-within:border-[#1DB980] transition">
-                <Search className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
+            <div className="p-3 border-b border-slate-800 bg-slate-900/80">
+              <div className="relative flex items-center bg-slate-800/90 rounded-xl px-3 py-2 border border-slate-700/80 focus-within:border-[#1DB980] transition">
+                <Search className="w-4 h-4 text-slate-400 mr-2.5 shrink-0" />
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -112,7 +142,7 @@ export function CountryCodeSelector({
                         setIsOpen(false);
                         setSearch("");
                       }}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition ${
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs transition ${
                         isSelected
                           ? "bg-[#1DB980]/15 text-[#1DB980] font-semibold"
                           : "text-slate-300 hover:bg-slate-800/70 hover:text-white"
