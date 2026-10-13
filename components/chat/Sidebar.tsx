@@ -16,6 +16,10 @@ import {
   Lock,
   LogOut,
   User as UserIcon,
+  MoreVertical,
+  Archive,
+  Star,
+  Settings,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { ChatList } from "@/components/chat/ChatList";
@@ -36,10 +40,12 @@ interface SidebarProps {
   stories: StoryItem[];
   onOpenStories: () => void;
   onOpenNewChat: () => void;
+  onOpenNewGroup?: () => void;
   supabaseStatus: "checking" | "connected" | "pending" | "error";
   channelConnected: boolean;
   onSignOut?: () => void;
   onOpenProfile?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export function Sidebar({
@@ -54,12 +60,16 @@ export function Sidebar({
   stories,
   onOpenStories,
   onOpenNewChat,
+  onOpenNewGroup,
   supabaseStatus,
   channelConnected,
   onSignOut,
   onOpenProfile,
+  onOpenSettings,
 }: SidebarProps) {
   const [showStatusDetails, setShowStatusDetails] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showCommunityNotice, setShowCommunityNotice] = useState(false);
 
   const hasUnreadStories = stories.some((s) => !s.viewed);
 
@@ -71,17 +81,17 @@ export function Sidebar({
   ];
 
   return (
-    <aside className="w-full md:w-[380px] lg:w-[420px] h-full flex flex-col bg-[#0F172A] border-r border-slate-800/80 z-20 shrink-0 select-none">
-      {/* Top Header */}
-      <div className="h-16 px-4 bg-slate-900/80 border-b border-slate-800/80 backdrop-blur-xl flex items-center justify-between shrink-0">
-        {/* Brand & User Profile */}
+    <aside className="w-full md:w-[380px] lg:w-[420px] xl:w-[450px] h-full flex flex-col bg-[#0F172A] border-r border-slate-800/80 z-20 shrink-0 select-none">
+      {/* WhatsApp Left Sidebar Header */}
+      <div className="h-16 px-4 bg-slate-900/90 border-b border-slate-800/80 backdrop-blur-xl flex items-center justify-between shrink-0">
+        {/* Left: User Avatar & Profile drawer trigger */}
         <div className="flex items-center gap-3">
           <div
             onClick={onOpenProfile}
             className="relative group cursor-pointer"
-            title={`${currentUser.name} - Click to view profile`}
+            title={`${currentUser.name} - Click to edit profile`}
           >
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#1DB980] to-[#0070F3] flex items-center justify-center font-bold text-xs text-white shadow-md overflow-hidden">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#1DB980] to-[#0070F3] flex items-center justify-center font-bold text-xs text-white shadow-md overflow-hidden ring-2 ring-transparent group-hover:ring-[#1DB980] transition">
               {currentUser.avatar?.startsWith("data:") ||
               currentUser.avatar?.startsWith("http") ? (
                 <img
@@ -96,66 +106,176 @@ export function Sidebar({
             <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#1DB980] ring-2 ring-slate-900" />
           </div>
 
-          <Logo size={32} showText={true} />
+          <div className="hidden sm:block">
+            <h3 className="text-xs font-bold text-white truncate max-w-[120px]">
+              {currentUser.name}
+            </h3>
+            <span className="text-[10px] text-[#1DB980] font-medium flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#1DB980] animate-pulse" />
+              Online
+            </span>
+          </div>
         </div>
 
-        {/* Action Icons */}
-        <div className="flex items-center gap-1 sm:gap-2">
-          {/* Status Stories Button */}
+        {/* Right: WhatsApp Header Actions (Communities, Status, New Chat, Menu) */}
+        <div className="flex items-center gap-0.5 sm:gap-1 text-slate-300">
+          {/* 1. Communities / Channel Icon */}
+          <button
+            type="button"
+            onClick={() => setShowCommunityNotice((prev) => !prev)}
+            className="p-2.5 rounded-xl hover:text-white hover:bg-slate-800/80 transition cursor-pointer"
+            title="Communities & Channels"
+          >
+            <Users className="w-5 h-5" />
+          </button>
+
+          {/* 2. Status / Story Ring Icon */}
           <button
             type="button"
             onClick={onOpenStories}
-            className="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition"
-            title="Status Stories"
+            className="relative p-2.5 rounded-xl hover:text-white hover:bg-slate-800/80 transition cursor-pointer"
+            title="Status stories"
           >
-            <CircleDashed className="w-5 h-5 text-slate-300" />
+            <CircleDashed className="w-5 h-5" />
             {hasUnreadStories && (
-              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-[#1DB980] ring-2 ring-slate-900 animate-pulse" />
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#1DB980] ring-2 ring-slate-900 animate-pulse" />
             )}
           </button>
 
-          {/* New Chat Button */}
+          {/* 3. New Chat / Add Contact Icon */}
           <button
             type="button"
             onClick={onOpenNewChat}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition"
-            title="New Chat / Contact"
+            className="p-2.5 rounded-xl hover:text-white hover:bg-slate-800/80 transition cursor-pointer text-[#1DB980]"
+            title="New chat"
           >
-            <MessageSquarePlus className="w-5 h-5 text-[#1DB980]" />
+            <MessageSquarePlus className="w-5 h-5" />
           </button>
 
-          {/* Supabase Status Toggle Icon */}
-          <button
-            type="button"
-            onClick={() => setShowStatusDetails((prev) => !prev)}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition"
-            title="Supabase Connection Info"
-          >
-            <Database
-              className={cn(
-                "w-5 h-5 transition-colors",
-                supabaseStatus === "connected"
-                  ? "text-[#1DB980]"
-                  : supabaseStatus === "pending"
-                  ? "text-[#0070F3]"
-                  : "text-amber-400"
-              )}
-            />
-          </button>
-
-          {/* Sign Out Action Button */}
-          {onSignOut && (
+          {/* 4. Menu Icon (Three vertical dots) */}
+          <div className="relative">
             <button
               type="button"
-              onClick={onSignOut}
-              className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition"
-              title="Sign Out of Six9Chat"
+              onClick={() => setShowMenu((prev) => !prev)}
+              className="p-2.5 rounded-xl hover:text-white hover:bg-slate-800/80 transition cursor-pointer"
+              title="Menu"
             >
-              <LogOut className="w-4 h-4" />
+              <MoreVertical className="w-5 h-5" />
             </button>
-          )}
+
+            <AnimatePresence>
+              {showMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setShowMenu(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                    className="absolute right-0 top-12 z-40 w-52 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-2xl py-1.5 text-xs text-slate-200"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMenu(false);
+                        onOpenNewGroup?.();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-800 text-left transition font-medium"
+                    >
+                      <Users className="w-4 h-4 text-[#1DB980]" />
+                      <span>New group</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMenu(false);
+                        onFilterChange("pinned");
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-800 text-left transition font-medium"
+                    >
+                      <Archive className="w-4 h-4 text-slate-400" />
+                      <span>Archived</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMenu(false);
+                        alert("Starred Messages: You have no starred messages currently.");
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-800 text-left transition font-medium"
+                    >
+                      <Star className="w-4 h-4 text-amber-400" />
+                      <span>Starred messages</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMenu(false);
+                        if (onOpenSettings) onOpenSettings();
+                        else if (onOpenProfile) onOpenProfile();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-800 text-left transition font-medium"
+                    >
+                      <Settings className="w-4 h-4 text-slate-400" />
+                      <span>Settings</span>
+                    </button>
+
+                    <div className="h-px bg-slate-800 my-1" />
+
+                    {onSignOut && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMenu(false);
+                          onSignOut();
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-500/10 text-red-400 text-left transition font-semibold"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Log out</span>
+                      </button>
+                    )}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
+
+      {/* Community Announcement Banner */}
+      <AnimatePresence>
+        {showCommunityNotice && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden bg-slate-900/90 border-b border-slate-800 px-4 py-3 text-xs"
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="font-bold text-white flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-[#1DB980]" />
+                Six9Chat Communities & Channels
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowCommunityNotice(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <p className="text-slate-400 text-[11px] leading-relaxed">
+              Stay connected with topic-based channels and group announcements. Full broadcast integration powered by Supabase edge clusters.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Supabase Realtime Info Banner Drawer */}
       <AnimatePresence>

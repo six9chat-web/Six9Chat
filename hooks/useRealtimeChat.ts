@@ -496,6 +496,81 @@ export function useRealtimeChat() {
     };
   }, []);
 
+  // Add a new direct contact or start chat via phone number
+  const addNewContact = useCallback((name: string, phone: string, avatar?: string) => {
+    const id = `contact-${Date.now()}`;
+    const initials = name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "S9";
+
+    const newContact: ChatContact = {
+      id,
+      name,
+      avatar: avatar || initials,
+      avatarColor: "from-[#1DB980] to-[#0070F3]",
+      status: "online",
+      lastSeen: "Online now",
+      about: "Hey there! I am using Six9Chat",
+      phone,
+      unreadCount: 0,
+      lastMessage: {
+        text: "Started a new conversation",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        isSelf: true,
+        status: "read",
+      },
+    };
+
+    setContacts((prev) => [newContact, ...prev]);
+    setActiveContactId(id);
+    return id;
+  }, []);
+
+  // Create a new group conversation with members
+  const createGroup = useCallback(
+    (groupName: string, memberIds: string[], groupAvatar?: string) => {
+      const id = `group-${Date.now()}`;
+      const initials = groupName
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2) || "GP";
+
+      const memberNames = contacts
+        .filter((c) => memberIds.includes(c.id))
+        .map((c) => c.name);
+      memberNames.push("You");
+
+      const newGroup: ChatContact = {
+        id,
+        name: groupName,
+        avatar: groupAvatar || initials,
+        avatarColor: "from-[#1DB980] via-[#0070F3] to-[#8E24AA]",
+        status: "online",
+        lastSeen: `${memberNames.length} members`,
+        about: `Group created by ${currentUser.name}`,
+        isGroup: true,
+        groupMembers: memberNames,
+        unreadCount: 0,
+        lastMessage: {
+          text: `${currentUser.name} created group "${groupName}"`,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          isSelf: true,
+          status: "read",
+        },
+      };
+
+      setContacts((prev) => [newGroup, ...prev]);
+      setActiveContactId(id);
+      return id;
+    },
+    [contacts, currentUser.name]
+  );
+
   const handleSignOut = useCallback(async () => {
     try {
       await authSignOut();
@@ -529,6 +604,8 @@ export function useRealtimeChat() {
     selectContact: handleSelectContact,
     sendMessage,
     addReaction,
+    addNewContact,
+    createGroup,
     supabaseStatus,
     channelConnected,
     signOut: handleSignOut,
