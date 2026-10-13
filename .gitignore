@@ -72,3 +72,6 @@ supabase/.temp/
 [Tt]humbs.db
 [Dd]esktop.ini
 ehthumbs.db
+
+.vercel
+.env*
