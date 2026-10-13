@@ -28,7 +28,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col bg-[#0F172A] text-slate-100 selection:bg-[#1DB980] selection:text-black">
+      <body className="min-h-full flex flex-col bg-[#053b53] text-slate-100 selection:bg-[#97D7FF] selection:text-[#086288]">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

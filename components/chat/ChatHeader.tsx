@@ -44,14 +44,14 @@ export function ChatHeader({
   const [isMuted, setIsMuted] = useState(false);
 
   return (
-    <header className="h-16 px-4 sm:px-6 bg-[#0F172A]/95 border-b border-slate-800/80 backdrop-blur-xl flex items-center justify-between z-20 shrink-0">
+    <header className="h-16 px-4 sm:px-6 bg-[#086288] border-b border-[#4D8DBA]/35 backdrop-blur-xl flex items-center justify-between z-20 shrink-0 select-none">
       {/* Left: Contact Info & Back Button */}
       <div className="flex items-center gap-3 min-w-0">
         {onBackToSidebar && (
           <button
             type="button"
             onClick={onBackToSidebar}
-            className="md:hidden p-1.5 -ml-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="md:hidden p-1.5 -ml-1 rounded-full text-slate-200 hover:text-white hover:bg-[#4D8DBA]/20 transition"
             aria-label="Back to contacts list"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -63,13 +63,13 @@ export function ChatHeader({
           <div
             className={cn(
               "w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md bg-gradient-to-tr",
-              contact.avatarColor || "from-[#1DB980] to-[#0070F3]"
+              contact.avatarColor || "from-[#086288] to-[#4D8DBA]"
             )}
           >
             {contact.avatar}
           </div>
           {contact.status === "online" && (
-            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#1DB980] ring-2 ring-[#0F172A]" />
+            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#97D7FF] ring-2 ring-[#086288]" />
           )}
         </div>
 
@@ -78,7 +78,7 @@ export function ChatHeader({
           <h2 className="text-sm sm:text-base font-bold text-white truncate flex items-center gap-2">
             <span>{contact.name}</span>
             {contact.isGroup && (
-              <span className="text-[10px] uppercase font-semibold px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
+              <span className="text-[10px] uppercase font-semibold px-1.5 py-0.2 rounded bg-[#053b53] text-[#97D7FF] border border-[#4D8DBA]/40">
                 Group
               </span>
             )}
@@ -86,18 +86,18 @@ export function ChatHeader({
 
           <div className="flex items-center gap-1.5 text-xs truncate">
             {isTyping ? (
-              <span className="text-[#1DB980] font-medium flex items-center gap-1 animate-pulse">
+              <span className="text-[#97D7FF] font-medium flex items-center gap-1 animate-pulse">
                 <span>typing</span>
                 <span className="flex gap-0.5">
-                  <span className="w-1 h-1 rounded-full bg-[#1DB980] animate-bounce" />
-                  <span className="w-1 h-1 rounded-full bg-[#1DB980] animate-bounce [animation-delay:0.2s]" />
-                  <span className="w-1 h-1 rounded-full bg-[#1DB980] animate-bounce [animation-delay:0.4s]" />
+                  <span className="w-1 h-1 rounded-full bg-[#97D7FF] animate-bounce" />
+                  <span className="w-1 h-1 rounded-full bg-[#97D7FF] animate-bounce [animation-delay:0.2s]" />
+                  <span className="w-1 h-1 rounded-full bg-[#97D7FF] animate-bounce [animation-delay:0.4s]" />
                 </span>
               </span>
             ) : contact.status === "online" ? (
-              <span className="text-[#1DB980] font-medium">Online</span>
+              <span className="text-[#97D7FF] font-medium">Online</span>
             ) : (
-              <span className="text-slate-400">{contact.lastSeen || "Offline"}</span>
+              <span className="text-slate-300">{contact.lastSeen || "Offline"}</span>
             )}
           </div>
         </div>
@@ -119,13 +119,13 @@ export function ChatHeader({
                 onChange={(e) => onSearchChange?.(e.target.value)}
                 placeholder="Search in conversation..."
                 autoFocus
-                className="w-full bg-slate-800/90 border border-slate-700/80 rounded-full px-4 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#0070F3]"
+                className="w-full bg-[#053b53] border border-[#4D8DBA]/40 rounded-full px-4 py-1.5 text-xs text-white placeholder-slate-300 focus:outline-none focus:border-[#97D7FF]"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => onSearchChange?.("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-white"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -141,8 +141,8 @@ export function ChatHeader({
           type="button"
           onClick={onToggleSearchInChat}
           className={cn(
-            "p-2 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-800/80",
-            isSearchOpen && "text-[#0070F3] bg-slate-800"
+            "p-2 rounded-xl transition text-slate-200 hover:text-[#97D7FF] hover:bg-[#4D8DBA]/25",
+            isSearchOpen && "text-[#97D7FF] bg-[#4D8DBA]/30"
           )}
           title="Search in chat"
         >
@@ -152,7 +152,7 @@ export function ChatHeader({
         <button
           type="button"
           onClick={onVoiceCall}
-          className="p-2 rounded-xl transition text-slate-400 hover:text-emerald-400 hover:bg-slate-800/80"
+          className="p-2 rounded-xl transition text-slate-200 hover:text-[#97D7FF] hover:bg-[#4D8DBA]/25"
           title="Voice Call"
         >
           <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -161,7 +161,7 @@ export function ChatHeader({
         <button
           type="button"
           onClick={onVideoCall}
-          className="p-2 rounded-xl transition text-slate-400 hover:text-cyan-400 hover:bg-slate-800/80"
+          className="p-2 rounded-xl transition text-slate-200 hover:text-[#97D7FF] hover:bg-[#4D8DBA]/25"
           title="Video Call"
         >
           <Video className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -172,7 +172,7 @@ export function ChatHeader({
           <button
             type="button"
             onClick={() => setShowMenu((prev) => !prev)}
-            className="p-2 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-800/80"
+            className="p-2 rounded-xl transition text-slate-200 hover:text-white hover:bg-[#4D8DBA]/25"
             title="More options"
           >
             <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -189,7 +189,7 @@ export function ChatHeader({
                   initial={{ opacity: 0, scale: 0.95, y: -4 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="absolute right-0 top-11 z-40 w-52 rounded-xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-xl py-1.5 text-xs text-slate-200"
+                  className="absolute right-0 top-11 z-40 w-52 rounded-xl bg-[#086288] border border-[#4D8DBA]/60 shadow-2xl backdrop-blur-xl py-1.5 text-xs text-slate-100"
                 >
                   <button
                     type="button"
@@ -197,9 +197,9 @@ export function ChatHeader({
                       alert(`Contact: ${contact.name}\nPhone: ${contact.phone || "N/A"}\nAbout: ${contact.about || "Six9Chat User"}`);
                       setShowMenu(false);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-slate-800 text-left transition"
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-[#4D8DBA]/30 text-left transition"
                   >
-                    <UserCheck className="w-4 h-4 text-[#1DB980]" />
+                    <UserCheck className="w-4 h-4 text-[#97D7FF]" />
                     <span>Contact Info</span>
                   </button>
 
@@ -209,9 +209,9 @@ export function ChatHeader({
                       setIsMuted((prev) => !prev);
                       setShowMenu(false);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-slate-800 text-left transition"
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-[#4D8DBA]/30 text-left transition"
                   >
-                    <BellOff className="w-4 h-4 text-amber-400" />
+                    <BellOff className="w-4 h-4 text-[#FFEFC4]" />
                     <span>{isMuted ? "Unmute Notifications" : "Mute Notifications"}</span>
                   </button>
 
@@ -221,13 +221,13 @@ export function ChatHeader({
                       alert("Messages encrypted with Supabase RLS security.");
                       setShowMenu(false);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-slate-800 text-left transition"
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-[#4D8DBA]/30 text-left transition"
                   >
-                    <Shield className="w-4 h-4 text-[#0070F3]" />
+                    <Shield className="w-4 h-4 text-[#FFEFC4]" />
                     <span>Encryption Details</span>
                   </button>
 
-                  <div className="h-px bg-slate-800 my-1" />
+                  <div className="h-px bg-[#4D8DBA]/40 my-1" />
 
                   <button
                     type="button"
@@ -237,7 +237,7 @@ export function ChatHeader({
                       }
                       setShowMenu(false);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-rose-950/40 text-rose-400 text-left transition"
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-rose-500/20 text-rose-300 text-left transition"
                   >
                     <Trash2 className="w-4 h-4" />
                     <span>Clear Messages</span>

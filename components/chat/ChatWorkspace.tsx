@@ -88,18 +88,18 @@ export function ChatWorkspace() {
   // Loading Splash State
   if (isAuthLoading) {
     return (
-      <div className="relative w-screen h-[100dvh] bg-[#0A0F1D] flex flex-col items-center justify-center text-slate-100 select-none">
-        <div className="pointer-events-none absolute w-[400px] h-[400px] rounded-full bg-[#1DB980]/15 blur-[120px] animate-pulse-glow" />
+      <div className="relative w-screen h-[100dvh] bg-[#053b53] flex flex-col items-center justify-center text-slate-100 select-none">
+        <div className="pointer-events-none absolute w-[400px] h-[400px] rounded-full bg-[#4D8DBA]/25 blur-[120px] animate-pulse-glow" />
         <AuthLogo size={64} />
         <div className="mt-6 flex flex-col items-center gap-3 relative z-10">
-          <div className="w-48 h-1 rounded-full bg-slate-800 overflow-hidden">
+          <div className="w-48 h-1 rounded-full bg-[#086288] overflow-hidden">
             <motion.div
-              className="h-full bg-gradient-to-r from-[#1DB980] via-[#0070F3] to-[#8E24AA]"
+              className="h-full bg-gradient-to-r from-[#086288] via-[#4D8DBA] to-[#97D7FF]"
               animate={{ x: ["-100%", "100%"] }}
               transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
             />
           </div>
-          <p className="text-xs text-slate-400 font-medium tracking-wide">
+          <p className="text-xs text-[#97D7FF]/80 font-medium tracking-wide">
             Connecting to Six9Chat Realtime Engine...
           </p>
         </div>
@@ -110,17 +110,17 @@ export function ChatWorkspace() {
   const activeUser = profile || currentUser;
 
   return (
-    <div className="relative w-screen h-[100dvh] bg-[#0A0F1D] text-slate-100 overflow-hidden flex flex-row font-sans selection:bg-[#1DB980] selection:text-black">
+    <div className="relative w-screen h-[100dvh] bg-[#053b53] text-slate-100 overflow-hidden flex flex-row font-sans selection:bg-[#97D7FF] selection:text-[#086288]">
       {/* Dynamic Ambient Background Glow Elements */}
-      <div className="pointer-events-none absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-[#1DB980]/15 blur-[140px] animate-pulse-glow" />
-      <div className="pointer-events-none absolute top-1/3 -right-32 w-[550px] h-[550px] rounded-full bg-[#0070F3]/20 blur-[150px]" />
-      <div className="pointer-events-none absolute -bottom-32 left-1/3 w-[480px] h-[480px] rounded-full bg-[#8E24AA]/15 blur-[140px]" />
+      <div className="pointer-events-none absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-[#086288]/40 blur-[140px] animate-pulse-glow" />
+      <div className="pointer-events-none absolute top-1/3 -right-32 w-[550px] h-[550px] rounded-full bg-[#4D8DBA]/25 blur-[150px]" />
+      <div className="pointer-events-none absolute -bottom-32 left-1/3 w-[480px] h-[480px] rounded-full bg-[#97D7FF]/15 blur-[140px]" />
 
       {/* Main Full-Screen WhatsApp Dual-Pane Layout (100vw x 100vh) */}
       <div className="flex w-full h-full overflow-hidden relative z-20">
         {/* Left Pane: WhatsApp Sidebar */}
         <div
-          className={`h-full shrink-0 border-r border-slate-800/80 transition-all duration-200 ${
+          className={`h-full shrink-0 border-r border-[#4D8DBA]/35 transition-all duration-200 ${
             mobileView === "chat"
               ? "hidden md:flex md:w-[380px] lg:w-[420px] xl:w-[450px]"
               : "w-full md:w-[380px] lg:w-[420px] xl:w-[450px] flex"
@@ -149,7 +149,7 @@ export function ChatWorkspace() {
 
         {/* Right Pane: WhatsApp Conversation Window */}
         <div
-          className={`flex-1 h-full bg-[#0F172A] transition-all duration-200 ${
+          className={`flex-1 h-full bg-[#053b53] transition-all duration-200 ${
             mobileView === "sidebar" ? "hidden md:flex" : "flex"
           }`}
         >

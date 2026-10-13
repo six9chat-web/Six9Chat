@@ -129,7 +129,7 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
   return (
     <div className="w-full space-y-4">
       {/* Toggle Tab: Sign In vs Create Account */}
-      <div className="relative p-1 rounded-xl bg-slate-800/90 border border-slate-700/80 grid grid-cols-2 text-xs font-semibold">
+      <div className="relative p-1 rounded-xl bg-[#053b53] border border-[#4D8DBA]/50 grid grid-cols-2 text-xs font-bold">
         <button
           type="button"
           onClick={() => {
@@ -137,13 +137,13 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
             setAuthError(null);
           }}
           className={`relative z-10 py-1.5 rounded-lg text-center transition ${
-            mode === "signin" ? "text-white" : "text-slate-400 hover:text-slate-200"
+            mode === "signin" ? "text-[#086288]" : "text-[#FFEFC4]/80 hover:text-white"
           }`}
         >
           {mode === "signin" && (
             <motion.div
               layoutId="emailAuthModeActivePill"
-              className="absolute inset-0 bg-[#0070F3] rounded-lg shadow-md"
+              className="absolute inset-0 bg-[#97D7FF] rounded-lg shadow-md"
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
             />
           )}
@@ -157,13 +157,13 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
             setAuthError(null);
           }}
           className={`relative z-10 py-1.5 rounded-lg text-center transition ${
-            mode === "signup" ? "text-white" : "text-slate-400 hover:text-slate-200"
+            mode === "signup" ? "text-[#086288]" : "text-[#FFEFC4]/80 hover:text-white"
           }`}
         >
           {mode === "signup" && (
             <motion.div
               layoutId="emailAuthModeActivePill"
-              className="absolute inset-0 bg-[#0070F3] rounded-lg shadow-md"
+              className="absolute inset-0 bg-[#97D7FF] rounded-lg shadow-md"
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
             />
           )}
@@ -181,7 +181,7 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-[#FFEFC4] mb-1">
               Your Name
             </label>
             <div className="relative">
@@ -190,16 +190,16 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Alex Rivers"
-                className="w-full h-10 px-3.5 pl-9 rounded-xl bg-slate-800/90 border border-slate-700/80 hover:border-slate-600 focus:border-[#0070F3] focus:ring-1 focus:ring-[#0070F3] text-xs text-white placeholder-slate-400 outline-none transition"
+                className="w-full h-10 px-3.5 pl-9 rounded-xl bg-[#053b53] border border-[#4D8DBA]/50 hover:border-[#4D8DBA] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] text-xs text-white placeholder-slate-400 outline-none transition"
               />
-              <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <User className="w-4 h-4 text-[#4D8DBA] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </motion.div>
         )}
 
         {/* Email Address */}
         <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1">
+          <label className="block text-xs font-semibold text-[#FFEFC4] mb-1">
             Email Address
           </label>
           <div className="relative">
@@ -211,13 +211,13 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
                 setAuthError(null);
               }}
               placeholder="alex@six9chat.com"
-              className={`w-full h-10 px-3.5 pl-9 pr-8 rounded-xl bg-slate-800/90 border text-xs text-white placeholder-slate-400 outline-none transition ${
+              className={`w-full h-10 px-3.5 pl-9 pr-8 rounded-xl bg-[#053b53] border text-xs text-white placeholder-slate-400 outline-none transition ${
                 email && isEmailValid
                   ? "border-emerald-500/80 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  : "border-slate-700/80 hover:border-slate-600 focus:border-[#0070F3] focus:ring-1 focus:ring-[#0070F3]"
+                  : "border-[#4D8DBA]/50 hover:border-[#4D8DBA] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF]"
               }`}
             />
-            <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Mail className="w-4 h-4 text-[#4D8DBA] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             {email && isEmailValid && (
               <CheckCircle2 className="w-4 h-4 text-emerald-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
             )}
@@ -227,7 +227,7 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
         {/* Password */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="block text-xs font-semibold text-slate-300">
+            <label className="block text-xs font-semibold text-[#FFEFC4]">
               Password
             </label>
             {mode === "signin" && (
@@ -238,7 +238,7 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
                     "Password reset: Enter your registered email to request a reset link from Supabase Auth."
                   )
                 }
-                className="text-[11px] text-[#0070F3] hover:text-blue-400 transition"
+                className="text-[11px] text-[#97D7FF] hover:text-[#b4e3ff] transition font-medium"
               >
                 Forgot password?
               </button>
@@ -253,9 +253,9 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
                 setAuthError(null);
               }}
               placeholder="••••••••"
-              className="w-full h-10 px-3.5 pl-9 pr-9 rounded-xl bg-slate-800/90 border border-slate-700/80 hover:border-slate-600 focus:border-[#0070F3] focus:ring-1 focus:ring-[#0070F3] text-xs text-white placeholder-slate-400 font-mono outline-none transition"
+              className="w-full h-10 px-3.5 pl-9 pr-9 rounded-xl bg-[#053b53] border border-[#4D8DBA]/50 hover:border-[#4D8DBA] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] text-xs text-white placeholder-slate-400 font-mono outline-none transition"
             />
-            <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Lock className="w-4 h-4 text-[#4D8DBA] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
@@ -298,7 +298,7 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-[#FFEFC4] mb-1">
               Confirm Password
             </label>
             <div className="relative">
@@ -310,15 +310,15 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
                   setAuthError(null);
                 }}
                 placeholder="••••••••"
-                className={`w-full h-10 px-3.5 pl-9 pr-9 rounded-xl bg-slate-800/90 border text-xs text-white placeholder-slate-400 font-mono outline-none transition ${
+                className={`w-full h-10 px-3.5 pl-9 pr-9 rounded-xl bg-[#053b53] border text-xs text-white placeholder-slate-400 font-mono outline-none transition ${
                   confirmPassword && !passwordsMatch
                     ? "border-rose-500 focus:ring-1 focus:ring-rose-500"
                     : confirmPassword && passwordsMatch
                     ? "border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                    : "border-slate-700/80 hover:border-slate-600 focus:border-[#0070F3]"
+                    : "border-[#4D8DBA]/50 hover:border-[#4D8DBA] focus:border-[#97D7FF]"
                 }`}
               />
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Lock className="w-4 h-4 text-[#4D8DBA] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               {confirmPassword && passwordsMatch && (
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 absolute right-3 top-1/2 -translate-y-1/2" />
               )}
@@ -354,7 +354,7 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
         <button
           type="submit"
           disabled={isLoading || !email || !password || (mode === "signup" && !passwordsMatch)}
-          className="w-full h-11 rounded-xl bg-gradient-to-r from-[#0070F3] to-[#8E24AA] hover:from-[#0070F3]/90 hover:to-[#8E24AA]/90 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-blue-500/30 active:scale-[0.99]"
+          className="w-full h-11 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#086288]/30 transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99] cursor-pointer"
         >
           {isLoading ? (
             <>
@@ -372,8 +372,8 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
 
       {/* Social Divider */}
       <div className="relative flex items-center justify-center pt-1">
-        <div className="w-full border-t border-slate-800" />
-        <span className="absolute px-3 bg-[#0F172A] text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+        <div className="w-full border-t border-[#4D8DBA]/35" />
+        <span className="absolute px-3 bg-[#086288] text-[11px] font-semibold text-[#FFEFC4] uppercase tracking-wider">
           Or continue with
         </span>
       </div>
@@ -385,7 +385,7 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
           type="button"
           disabled={Boolean(isSocialLoading)}
           onClick={() => handleSocialAuth("github")}
-          className="h-10 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/80 border border-slate-700/80 hover:border-slate-600 text-white text-xs font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50"
+          className="h-10 px-3 rounded-xl bg-[#053b53] hover:bg-[#086288] border border-[#4D8DBA]/50 hover:border-[#97D7FF] text-white text-xs font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50"
         >
           {isSocialLoading === "github" ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -402,7 +402,7 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
           type="button"
           disabled={Boolean(isSocialLoading)}
           onClick={() => handleSocialAuth("google")}
-          className="h-10 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/80 border border-slate-700/80 hover:border-slate-600 text-white text-xs font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50"
+          className="h-10 px-3 rounded-xl bg-[#053b53] hover:bg-[#086288] border border-[#4D8DBA]/50 hover:border-[#97D7FF] text-white text-xs font-semibold flex items-center justify-center gap-2 transition disabled:opacity-50"
         >
           {isSocialLoading === "google" ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />

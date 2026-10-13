@@ -1,57 +1,124 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-emerald: #1DB980;
-  --color-brand-purple: #8E24AA;
-  --color-brand-royal: #1E40AF;
-  --color-brand-cyan: #0070F3;
-  --color-brand-dark: #0F172A;
+  --color-brand-primary: #086288;
+  --color-brand-secondary: #4D8DBA;
+  --color-brand-light: #97D7FF;
+  --color-brand-cream: #FFEFC4;
+  --color-brand-dark: #086288;
+  --color-brand-darker: #053b53;
+  --color-brand-deep: #032535;
+
+  /* Legacy alias mappings for seamless backward compatibility */
+  --color-brand-emerald: #97D7FF;
+  --color-brand-purple: #4D8DBA;
+  --color-brand-royal: #086288;
+  --color-brand-cyan: #97D7FF;
 }
 
 :root {
-  --background: #0F172A;
+  --background: #086288;
   --foreground: #F8FAFC;
-  --emerald: #1DB980;
-  --purple: #8E24AA;
-  --royal: #1E40AF;
-  --cyan: #0070F3;
+  --primary-dark: #086288;
+  --secondary-blue: #4D8DBA;
+  --light-accent: #97D7FF;
+  --cream-yellow: #FFEFC4;
+  --dark-panel: #053b53;
+  --deep-canvas: #032535;
 }
 
 body {
-  background-color: #0F172A;
+  background-color: #053b53;
   color: #F8FAFC;
   min-height: 100vh;
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
 }
 
-/* Custom Gradient Utilities */
+/* Custom Color Utilities */
+.bg-brand-primary {
+  background-color: #086288;
+}
+
+.bg-brand-secondary {
+  background-color: #4D8DBA;
+}
+
+.bg-brand-light {
+  background-color: #97D7FF;
+}
+
+.bg-brand-cream {
+  background-color: #FFEFC4;
+}
+
+.text-brand-primary {
+  color: #086288;
+}
+
+.text-brand-secondary {
+  color: #4D8DBA;
+}
+
+.text-brand-light {
+  color: #97D7FF;
+}
+
+.text-brand-cream {
+  color: #FFEFC4;
+}
+
+.border-brand-primary {
+  border-color: #086288;
+}
+
+.border-brand-secondary {
+  border-color: #4D8DBA;
+}
+
+.border-brand-light {
+  border-color: #97D7FF;
+}
+
+.border-brand-cream {
+  border-color: #FFEFC4;
+}
+
+/* Custom Gradients */
 .bg-gradient-brand {
-  background: linear-gradient(135deg, #1DB980 0%, #8E24AA 35%, #1E40AF 70%, #0070F3 100%);
+  background: linear-gradient(135deg, #086288 0%, #4D8DBA 55%, #97D7FF 100%);
 }
 
 .bg-gradient-brand-subtle {
-  background: linear-gradient(135deg, rgba(29, 185, 128, 0.15) 0%, rgba(142, 36, 170, 0.15) 40%, rgba(0, 112, 243, 0.15) 100%);
+  background: linear-gradient(135deg, rgba(8, 98, 136, 0.35) 0%, rgba(77, 141, 186, 0.2) 50%, rgba(151, 215, 255, 0.15) 100%);
+}
+
+.bg-gradient-accent {
+  background: linear-gradient(135deg, #4D8DBA 0%, #97D7FF 60%, #FFEFC4 100%);
+}
+
+.bg-gradient-warm {
+  background: linear-gradient(135deg, #97D7FF 0%, #FFEFC4 100%);
 }
 
 .text-gradient-brand {
-  background: linear-gradient(135deg, #1DB980 0%, #8E24AA 40%, #0070F3 100%);
+  background: linear-gradient(135deg, #97D7FF 0%, #4D8DBA 50%, #FFEFC4 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .text-gradient-glow {
-  background: linear-gradient(90deg, #1DB980 0%, #0070F3 50%, #8E24AA 100%);
+  background: linear-gradient(90deg, #97D7FF 0%, #FFEFC4 50%, #97D7FF 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 /* Glassmorphism Panels */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.72);
+  background: rgba(8, 98, 136, 0.78);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(77, 141, 186, 0.35);
 }
 
 .glass-panel-hover {
@@ -59,8 +126,8 @@ body {
 }
 
 .glass-panel-hover:hover {
-  border-color: rgba(0, 112, 243, 0.4);
-  box-shadow: 0 14px 40px -10px rgba(0, 112, 243, 0.25);
+  border-color: rgba(151, 215, 255, 0.6);
+  box-shadow: 0 14px 40px -10px rgba(8, 98, 136, 0.5);
   transform: translateY(-3px);
 }
 
@@ -68,8 +135,27 @@ body {
 .gradient-border-box {
   position: relative;
   border-radius: 1rem;
-  background: linear-gradient(135deg, rgba(29, 185, 128, 0.5), rgba(142, 36, 170, 0.5), rgba(0, 112, 243, 0.5));
+  background: linear-gradient(135deg, rgba(8, 98, 136, 0.8), rgba(77, 141, 186, 0.7), rgba(151, 215, 255, 0.6));
   padding: 1px;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(5, 59, 83, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(77, 141, 186, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(151, 215, 255, 0.7);
 }
 
 /* Keyframes & Animations */

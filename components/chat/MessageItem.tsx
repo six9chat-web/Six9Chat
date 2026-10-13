@@ -48,17 +48,17 @@ export function MessageItem({
   const renderStatusTicks = (status: MessageStatus) => {
     switch (status) {
       case "sending":
-        return <Clock className="w-3 h-3 text-slate-300 animate-spin" />;
+        return <Clock className="w-3 h-3 text-[#086288]/80 animate-spin" />;
       case "sent":
-        return <Check className="w-3.5 h-3.5 text-slate-300/80" />;
+        return <Check className="w-3.5 h-3.5 text-[#086288]/80" />;
       case "delivered":
-        return <CheckCheck className="w-3.5 h-3.5 text-slate-300/80" />;
+        return <CheckCheck className="w-3.5 h-3.5 text-[#086288]/80" />;
       case "read":
         return (
-          <CheckCheck className="w-3.5 h-3.5 text-sky-300 drop-shadow-[0_0_4px_rgba(56,189,248,0.5)]" />
+          <CheckCheck className="w-3.5 h-3.5 text-[#086288] font-bold drop-shadow-[0_0_2px_rgba(8,98,136,0.5)]" />
         );
       default:
-        return <CheckCheck className="w-3.5 h-3.5 text-slate-400" />;
+        return <CheckCheck className="w-3.5 h-3.5 text-[#086288]/70" />;
     }
   };
 
@@ -82,31 +82,34 @@ export function MessageItem({
             <div
               className={cn(
                 "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shadow-md bg-gradient-to-tr",
-                message.senderColor || "from-[#8E24AA] to-[#0070F3]"
+                message.senderColor || "from-[#086288] to-[#4D8DBA]"
               )}
             >
               {message.senderAvatar}
             </div>
           ) : (
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs text-slate-300">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#086288] flex items-center justify-center text-xs text-[#97D7FF] font-semibold border border-[#4D8DBA]/50">
               {message.senderName.slice(0, 2).toUpperCase()}
             </div>
           )}
         </div>
       )}
 
-      {/* Bubble Container */}
+      {/* Bubble Container:
+          - Sent: #97D7FF with dark readable text #05364b
+          - Received: #FFEFC4 with dark readable text #2b2106
+      */}
       <div
         className={cn(
-          "relative max-w-[85%] sm:max-w-[70%] md:max-w-[62%] rounded-2xl shadow-lg transition-all",
+          "relative max-w-[85%] sm:max-w-[70%] md:max-w-[62%] rounded-2xl shadow-md transition-all",
           message.isSelf
-            ? "bg-gradient-to-r from-[#1DB980] to-[#0070F3] text-white rounded-br-xs shadow-[#0070F3]/20"
-            : "bg-slate-800/90 text-slate-100 rounded-bl-xs border border-slate-700/60 backdrop-blur-md shadow-slate-950/40"
+            ? "bg-[#97D7FF] text-[#05364b] rounded-br-xs border border-[#80c8f8] shadow-[#086288]/15"
+            : "bg-[#FFEFC4] text-[#2b2106] rounded-bl-xs border border-[#f5dfa6] shadow-[#086288]/15"
         )}
       >
         {/* Sender Name in group / received header */}
         {!message.isSelf && isFirstInGroup && (
-          <div className="px-3.5 pt-2 pb-0.5 text-xs font-bold text-[#1DB980] flex items-center gap-1.5">
+          <div className="px-3.5 pt-2 pb-0.5 text-xs font-bold text-[#086288] flex items-center gap-1.5">
             <span>{message.senderName}</span>
           </div>
         )}
@@ -114,15 +117,15 @@ export function MessageItem({
         {/* Media: Image Card Preview */}
         {message.mediaType === "image" && (
           <div className="p-1.5 pb-0">
-            <div className="relative rounded-xl overflow-hidden bg-slate-900 border border-white/10 group/img">
-              <div className="aspect-video w-full bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex flex-col items-center justify-center p-4 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#1DB980] to-[#0070F3] flex items-center justify-center shadow-lg mb-2">
-                  <span className="font-extrabold text-white text-base">S9</span>
+            <div className="relative rounded-xl overflow-hidden bg-[#086288] border border-black/10 group/img">
+              <div className="aspect-video w-full bg-gradient-to-br from-[#086288] via-[#053b53] to-[#032535] flex flex-col items-center justify-center p-4 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#4D8DBA] to-[#97D7FF] flex items-center justify-center shadow-lg mb-2">
+                  <span className="font-extrabold text-[#086288] text-base">S9</span>
                 </div>
-                <span className="text-xs font-semibold text-slate-200">
+                <span className="text-xs font-semibold text-[#97D7FF]">
                   {message.mediaMeta?.fileName || "Six9Chat Asset Preview"}
                 </span>
-                <span className="text-[10px] text-slate-400 mt-0.5">
+                <span className="text-[10px] text-slate-300 mt-0.5">
                   {message.mediaMeta?.fileSize || "680 KB PNG"} • High Resolution
                 </span>
               </div>
@@ -140,8 +143,8 @@ export function MessageItem({
                 className={cn(
                   "w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-md transition-transform active:scale-95",
                   message.isSelf
-                    ? "bg-white text-[#0070F3] hover:bg-slate-100"
-                    : "bg-[#1DB980] text-slate-900 hover:bg-[#1DB980]/90"
+                    ? "bg-[#086288] text-[#97D7FF] hover:bg-[#064866]"
+                    : "bg-[#086288] text-[#FFEFC4] hover:bg-[#064866]"
                 )}
                 aria-label={isPlayingAudio ? "Pause voice note" : "Play voice note"}
               >
@@ -168,11 +171,11 @@ export function MessageItem({
                           "w-1 rounded-full transition-all duration-150",
                           message.isSelf
                             ? isPlayed
-                              ? "bg-white"
-                              : "bg-white/40"
+                              ? "bg-[#086288]"
+                              : "bg-[#086288]/30"
                             : isPlayed
-                            ? "bg-[#1DB980]"
-                            : "bg-slate-600",
+                            ? "bg-[#086288]"
+                            : "bg-[#70591f]/35",
                           isPlayingAudio && "animate-pulse"
                         )}
                       />
@@ -180,7 +183,12 @@ export function MessageItem({
                   })}
                 </div>
 
-                <div className="flex items-center justify-between text-[10px] font-medium opacity-85">
+                <div
+                  className={cn(
+                    "flex items-center justify-between text-[10px] font-medium",
+                    message.isSelf ? "text-[#086288]/80" : "text-[#70591f]"
+                  )}
+                >
                   <span className="flex items-center gap-1">
                     <Volume2 className="w-2.5 h-2.5" />
                     <span>{message.mediaMeta?.duration || "0:28"}</span>
@@ -199,29 +207,29 @@ export function MessageItem({
               className={cn(
                 "flex items-center gap-3 p-2.5 rounded-xl border backdrop-blur-sm",
                 message.isSelf
-                  ? "bg-black/15 border-white/20"
-                  : "bg-slate-900/60 border-slate-700/60"
+                  ? "bg-[#086288]/10 border-[#086288]/25"
+                  : "bg-[#086288]/10 border-[#70591f]/25"
               )}
             >
-              <div className="w-10 h-10 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-[#086288]/20 border border-[#086288]/30 flex items-center justify-center text-[#086288] shrink-0">
                 <FileText className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold truncate">
                   {message.mediaMeta?.fileName || "Document.pdf"}
                 </p>
-                <p className="text-[10px] opacity-75">
+                <p
+                  className={cn(
+                    "text-[10px]",
+                    message.isSelf ? "text-[#086288]/75" : "text-[#70591f]"
+                  )}
+                >
                   {message.mediaMeta?.fileSize || "1.4 MB"} • PDF Document
                 </p>
               </div>
               <button
                 type="button"
-                className={cn(
-                  "p-2 rounded-lg transition hover:scale-105 active:scale-95",
-                  message.isSelf
-                    ? "bg-white/20 hover:bg-white/30 text-white"
-                    : "bg-slate-800 hover:bg-slate-700 text-[#1DB980]"
-                )}
+                className="p-2 rounded-lg transition hover:scale-105 active:scale-95 bg-[#086288] text-[#97D7FF] hover:bg-[#064866]"
                 title="Download Attachment"
               >
                 <Download className="w-4 h-4" />
@@ -237,13 +245,13 @@ export function MessageItem({
               className={cn(
                 "rounded-xl overflow-hidden border",
                 message.isSelf
-                  ? "bg-black/15 border-white/20"
-                  : "bg-slate-900/60 border-slate-700/60"
+                  ? "bg-[#086288]/10 border-[#086288]/25"
+                  : "bg-[#086288]/10 border-[#70591f]/25"
               )}
             >
-              <div className="h-24 bg-gradient-to-r from-emerald-950 to-cyan-950 relative flex items-center justify-center">
-                <MapPin className="w-8 h-8 text-rose-500 drop-shadow-md animate-bounce" />
-                <span className="absolute bottom-1 right-2 text-[10px] font-mono bg-black/60 px-1.5 py-0.5 rounded text-slate-300">
+              <div className="h-24 bg-gradient-to-r from-[#086288] to-[#4D8DBA] relative flex items-center justify-center">
+                <MapPin className="w-8 h-8 text-[#FFEFC4] drop-shadow-md animate-bounce" />
+                <span className="absolute bottom-1 right-2 text-[10px] font-mono bg-black/60 px-1.5 py-0.5 rounded text-white">
                   Live Location
                 </span>
               </div>
@@ -252,7 +260,14 @@ export function MessageItem({
                   <p className="text-xs font-bold">
                     {message.mediaMeta?.locationName || "San Francisco Headquarters"}
                   </p>
-                  <p className="text-[10px] opacity-75">Accurate to 5 meters</p>
+                  <p
+                    className={cn(
+                      "text-[10px]",
+                      message.isSelf ? "text-[#086288]/75" : "text-[#70591f]"
+                    )}
+                  >
+                    Accurate to 5 meters
+                  </p>
                 </div>
                 <ExternalLink className="w-3.5 h-3.5 opacity-70" />
               </div>
@@ -271,7 +286,7 @@ export function MessageItem({
         <div
           className={cn(
             "flex items-center justify-end gap-1.5 px-3 pb-1.5 -mt-1 text-[10px] font-medium select-none",
-            message.isSelf ? "text-white/85" : "text-slate-400"
+            message.isSelf ? "text-[#086288]/85" : "text-[#70591f]"
           )}
         >
           <span>{message.timestamp}</span>
@@ -289,8 +304,8 @@ export function MessageItem({
                 className={cn(
                   "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium shadow-md border transition-transform hover:scale-110",
                   r.userReacted
-                    ? "bg-[#0F172A] border-[#1DB980]/80 text-[#1DB980]"
-                    : "bg-[#0F172A] border-slate-700 text-slate-300"
+                    ? "bg-[#086288] border-[#4D8DBA] text-[#FFEFC4]"
+                    : "bg-[#053b53] border-[#4D8DBA]/60 text-slate-200"
                 )}
               >
                 <span>{r.emoji}</span>
@@ -311,7 +326,7 @@ export function MessageItem({
         <button
           type="button"
           onClick={() => setShowReactionPicker((p) => !p)}
-          className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
+          className="p-1.5 rounded-full hover:bg-[#4D8DBA]/20 text-slate-300 hover:text-white transition"
           title="React to message"
         >
           <Smile className="w-4 h-4" />
@@ -324,14 +339,14 @@ export function MessageItem({
               initial={{ opacity: 0, scale: 0.8, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              className="absolute bottom-8 left-0 z-30 flex items-center gap-1 p-1 rounded-full bg-slate-900 border border-slate-700 shadow-2xl backdrop-blur-xl"
+              className="absolute bottom-8 left-0 z-30 flex items-center gap-1 p-1 rounded-full bg-[#086288] border border-[#4D8DBA] shadow-2xl backdrop-blur-xl"
             >
               {QUICK_EMOJIS.map((emoji) => (
                 <button
                   key={emoji}
                   type="button"
                   onClick={() => handleEmojiClick(emoji)}
-                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-800 text-sm hover:scale-125 transition-transform"
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#4D8DBA]/30 text-sm hover:scale-125 transition-transform"
                 >
                   {emoji}
                 </button>

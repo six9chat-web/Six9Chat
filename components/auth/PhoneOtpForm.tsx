@@ -125,7 +125,6 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
 
   // Handle OTP digit changes
   const handleOtpChange = (index: number, value: string) => {
-    // Only accept numeric digit
     const cleaned = value.replace(/\D/g, "");
     if (!cleaned) {
       const nextOtp = [...otp];
@@ -135,7 +134,7 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
     }
 
     const nextOtp = [...otp];
-    nextOtp[index] = cleaned[cleaned.length - 1]; // take latest single digit
+    nextOtp[index] = cleaned[cleaned.length - 1];
     setOtp(nextOtp);
     setOtpError(null);
 
@@ -229,7 +228,7 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
             className="space-y-4"
           >
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-200 mb-1.5">
                 Phone Number
               </label>
 
@@ -247,15 +246,15 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
                     onChange={handlePhoneChange}
                     disabled={isSendingCode}
                     placeholder="300 1234567"
-                    className="w-full h-11 px-3.5 rounded-xl bg-slate-800/90 border border-slate-700/80 hover:border-slate-600 focus:border-[#1DB980] focus:ring-1 focus:ring-[#1DB980] text-sm text-white placeholder-slate-400 font-mono tracking-wider outline-none transition disabled:opacity-50"
+                    className="w-full h-11 px-3.5 rounded-xl bg-[#053b53] border border-[#4D8DBA]/50 hover:border-[#97D7FF] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] text-sm text-white placeholder-slate-300 font-mono tracking-wider outline-none transition disabled:opacity-50"
                   />
-                  <Phone className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Phone className="w-4 h-4 text-[#4D8DBA] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-400 mt-1.5">
+              <p className="text-[11px] text-slate-300 mt-1.5">
                 We'll send a 6-digit Six9 Chat SMS verification code to{" "}
-                <span className="font-mono text-emerald-400 font-medium">
+                <span className="font-mono text-[#FFEFC4] font-medium">
                   {fullPhoneNumber}
                 </span>
               </p>
@@ -266,9 +265,9 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
               <motion.div
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2"
+                className="p-3 rounded-xl bg-rose-500/20 border border-rose-400/40 text-rose-200 text-xs flex items-start gap-2"
               >
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <AlertCircle className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
                 <span>{phoneError}</span>
               </motion.div>
             )}
@@ -277,7 +276,7 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
             <button
               type="submit"
               disabled={isSendingCode || cleanDigits.length < 7}
-              className="w-full h-11 rounded-xl bg-gradient-to-r from-[#1DB980] to-[#0070F3] hover:from-[#1DB980]/90 hover:to-[#0070F3]/90 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#1DB980]/20 transition disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-emerald-500/25 active:scale-[0.99]"
+              className="w-full h-11 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#086288]/40 transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99] cursor-pointer"
             >
               {isSendingCode ? (
                 <>
@@ -302,10 +301,10 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
             className="space-y-4"
           >
             {/* Header / Edit number banner */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-xs">
               <div>
-                <span className="text-slate-400 block text-[11px]">Code sent to</span>
-                <span className="font-mono font-bold text-white text-sm">
+                <span className="text-slate-300 block text-[11px]">Code sent to</span>
+                <span className="font-mono font-bold text-[#FFEFC4] text-sm">
                   {fullPhoneNumber}
                 </span>
               </div>
@@ -316,7 +315,7 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
                   setOtp(["", "", "", "", "", ""]);
                   setOtpError(null);
                 }}
-                className="flex items-center gap-1 text-[#1DB980] hover:text-emerald-300 font-medium px-2 py-1 rounded-lg hover:bg-slate-700/50 transition"
+                className="flex items-center gap-1 text-[#97D7FF] hover:text-white font-medium px-2 py-1 rounded-lg hover:bg-[#4D8DBA]/25 transition cursor-pointer"
               >
                 <Edit2 className="w-3.5 h-3.5" />
                 <span>Change</span>
@@ -325,15 +324,15 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
 
             {/* Provider Notice if in Dev / Mock */}
             {providerNotice && (
-              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs flex items-start gap-2">
-                <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <div className="p-3 rounded-xl bg-[#053b53] border border-[#FFEFC4]/40 text-[#FFEFC4] text-xs flex items-start gap-2">
+                <Info className="w-4 h-4 text-[#FFEFC4] shrink-0 mt-0.5" />
                 <span>{providerNotice}</span>
               </div>
             )}
 
             {/* 6 Digits OTP Input Box Grid */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-2 text-center">
+              <label className="block text-xs font-semibold text-slate-200 mb-2 text-center">
                 Enter 6-Digit Verification PIN
               </label>
 
@@ -351,10 +350,10 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
                     onChange={(e) => handleOtpChange(idx, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(idx, e)}
                     onPaste={handlePaste}
-                    className={`w-11 h-13 sm:w-12 sm:h-14 text-center font-mono font-bold text-lg sm:text-xl rounded-xl bg-slate-800/90 border transition outline-none ${
+                    className={`w-11 h-13 sm:w-12 sm:h-14 text-center font-mono font-bold text-lg sm:text-xl rounded-xl bg-[#053b53] border transition outline-none ${
                       digit
-                        ? "border-[#1DB980] text-white bg-slate-800 shadow-[0_0_12px_rgba(29,185,128,0.2)]"
-                        : "border-slate-700 text-slate-300 focus:border-[#0070F3] focus:ring-1 focus:ring-[#0070F3]"
+                        ? "border-[#97D7FF] text-[#FFEFC4] bg-[#053b53] shadow-[0_0_12px_rgba(151,215,255,0.25)]"
+                        : "border-[#4D8DBA]/50 text-slate-200 focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF]"
                     }`}
                   />
                 ))}
@@ -366,9 +365,9 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
               <motion.div
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2"
+                className="p-3 rounded-xl bg-rose-500/20 border border-rose-400/40 text-rose-200 text-xs flex items-start gap-2"
               >
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <AlertCircle className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
                 <span>{otpError}</span>
               </motion.div>
             )}
@@ -378,7 +377,7 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
               type="button"
               onClick={() => triggerVerification()}
               disabled={isVerifying || otp.join("").length !== 6}
-              className="w-full h-11 rounded-xl bg-gradient-to-r from-[#1DB980] to-[#0070F3] hover:from-[#1DB980]/90 hover:to-[#0070F3]/90 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#1DB980]/20 transition disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-emerald-500/25 active:scale-[0.99]"
+              className="w-full h-11 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#086288]/40 transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99] cursor-pointer"
             >
               {isVerifying ? (
                 <>
@@ -394,19 +393,19 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
             </button>
 
             {/* Resend Code / Timer Footer */}
-            <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+            <div className="flex items-center justify-between text-xs text-slate-300 pt-1">
               <span>Didn't receive SMS code?</span>
               {canResend ? (
                 <button
                   type="button"
                   onClick={handleResend}
-                  className="flex items-center gap-1 text-[#1DB980] hover:text-emerald-300 font-semibold transition"
+                  className="flex items-center gap-1 text-[#97D7FF] hover:text-[#FFEFC4] font-semibold transition cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Resend Code</span>
                 </button>
               ) : (
-                <span className="font-mono text-slate-400">
+                <span className="font-mono text-slate-300">
                   Resend in <strong className="text-white">{countdown}s</strong>
                 </span>
               )}

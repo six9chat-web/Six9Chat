@@ -40,12 +40,12 @@ import {
 } from "@/lib/auth";
 
 const AVATAR_PRESETS = [
-  { id: "grad-emerald", label: "Emerald", gradient: "from-[#1DB980] to-[#047857]" },
-  { id: "grad-purple", label: "Purple", gradient: "from-[#8E24AA] to-[#4A148C]" },
-  { id: "grad-cyan", label: "Cyan", gradient: "from-[#0070F3] to-[#0369A1]" },
-  { id: "grad-sunset", label: "Sunset", gradient: "from-[#F59E0B] to-[#D97706]" },
-  { id: "grad-rose", label: "Rose", gradient: "from-[#F43F5E] to-[#BE123C]" },
-  { id: "grad-indigo", label: "Indigo", gradient: "from-[#6366F1] to-[#3730A3]" },
+  { id: "grad-deep-blue", label: "Deep Blue", gradient: "from-[#086288] to-[#97D7FF]" },
+  { id: "grad-cream", label: "Cream Accent", gradient: "from-[#4D8DBA] to-[#FFEFC4]" },
+  { id: "grad-sky", label: "Sky Light", gradient: "from-[#4D8DBA] to-[#97D7FF]" },
+  { id: "grad-warm", label: "Warm Horizon", gradient: "from-[#086288] to-[#FFEFC4]" },
+  { id: "grad-ocean", label: "Ocean Waves", gradient: "from-[#053b53] to-[#4D8DBA]" },
+  { id: "grad-brand", label: "Brand Horizon", gradient: "from-[#086288] via-[#4D8DBA] to-[#97D7FF]" },
 ];
 
 const STATUS_PRESETS = [
@@ -417,21 +417,21 @@ function LoginContent() {
   return (
     <div
       dir={selectedLanguage.direction || "ltr"}
-      className="relative min-h-screen w-screen bg-[#0A0F1D] text-slate-100 flex flex-col font-sans overflow-x-hidden selection:bg-[#1DB980] selection:text-black"
+      className="relative min-h-screen w-screen bg-[#053b53] text-slate-100 flex flex-col font-sans overflow-x-hidden selection:bg-[#97D7FF] selection:text-[#086288]"
     >
-      {/* Ambient Glow Elements with Emerald-Purple-Royal Blue Gradients */}
-      <div className="h-44 w-full bg-gradient-to-r from-[#1DB980]/20 via-[#8E24AA]/25 to-[#0070F3]/25 absolute top-0 left-0 border-b border-slate-800/60 backdrop-blur-3xl" />
-      <div className="pointer-events-none absolute -top-32 -left-32 w-[550px] h-[550px] rounded-full bg-[#1DB980]/15 blur-[160px] animate-pulse-glow" />
-      <div className="pointer-events-none absolute top-1/4 -right-32 w-[600px] h-[600px] rounded-full bg-[#0070F3]/15 blur-[160px]" />
-      <div className="pointer-events-none absolute -bottom-32 left-1/3 w-[520px] h-[520px] rounded-full bg-[#8E24AA]/15 blur-[150px]" />
+      {/* Ambient Glow Elements with Deep Ocean & Sky Accents */}
+      <div className="h-44 w-full bg-gradient-to-r from-[#086288]/40 via-[#4D8DBA]/30 to-[#97D7FF]/25 absolute top-0 left-0 border-b border-[#4D8DBA]/35 backdrop-blur-3xl" />
+      <div className="pointer-events-none absolute -top-32 -left-32 w-[550px] h-[550px] rounded-full bg-[#086288]/40 blur-[160px] animate-pulse-glow" />
+      <div className="pointer-events-none absolute top-1/4 -right-32 w-[600px] h-[600px] rounded-full bg-[#4D8DBA]/25 blur-[160px]" />
+      <div className="pointer-events-none absolute -bottom-32 left-1/3 w-[520px] h-[520px] rounded-full bg-[#97D7FF]/20 blur-[150px]" />
 
       {/* Top Header */}
       <header className="relative z-20 w-full max-w-5xl mx-auto px-6 pt-7 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Logo size={42} showText={true} />
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <ShieldCheck className="w-4 h-4 text-[#1DB980]" />
+        <div className="flex items-center gap-2 text-xs text-slate-300">
+          <ShieldCheck className="w-4 h-4 text-[#97D7FF]" />
           <span>End-to-End Encrypted</span>
         </div>
       </header>
@@ -442,16 +442,16 @@ function LoginContent() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
-          className="w-full max-w-[500px] bg-[#0F172A]/90 backdrop-blur-2xl rounded-3xl border border-slate-800 shadow-[0_20px_70px_rgba(0,0,0,0.65)] overflow-hidden"
+          className="w-full max-w-[500px] bg-[#086288]/95 backdrop-blur-2xl rounded-3xl border border-[#4D8DBA]/60 shadow-[0_20px_70px_rgba(5,59,83,0.7)] overflow-hidden"
         >
           {/* Card Top Branding Header with S9 Circular Ribbon Logo */}
-          <div className="p-7 pb-5 border-b border-slate-800/80 bg-gradient-to-b from-slate-900/60 to-transparent text-center">
+          <div className="p-7 pb-5 border-b border-[#4D8DBA]/35 bg-gradient-to-b from-[#053b53]/50 to-transparent text-center">
             {/* Step Navigation Pill */}
             <div className="flex items-center justify-between mb-4">
-              <span className="text-xs uppercase tracking-widest text-[#1DB980] font-bold">
+              <span className="text-xs uppercase tracking-widest text-[#FFEFC4] font-bold">
                 SIX9 CHAT
               </span>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#053b53] border border-[#4D8DBA]/40 text-slate-200">
                 Step {step} of 4
               </span>
             </div>
@@ -468,8 +468,8 @@ function LoginContent() {
                   key={s}
                   className={`flex-1 h-1 rounded-full transition-all duration-300 ${
                     step >= s
-                      ? "bg-gradient-to-r from-[#1DB980] to-[#0070F3]"
-                      : "bg-slate-800"
+                      ? "bg-[#97D7FF]"
+                      : "bg-[#053b53]"
                   }`}
                 />
               ))}
@@ -484,32 +484,32 @@ function LoginContent() {
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-slate-900/90 to-purple-950/80 border border-emerald-500/40 shadow-xl shadow-emerald-950/50 mb-3.5 backdrop-blur-xl"
+                  className="p-4 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/60 shadow-xl mb-3.5 backdrop-blur-xl"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center shrink-0 text-emerald-300">
-                      <Sparkles className="w-5 h-5 animate-pulse text-emerald-400" />
+                    <div className="w-9 h-9 rounded-xl bg-[#4D8DBA]/30 border border-[#97D7FF]/40 flex items-center justify-center shrink-0 text-[#FFEFC4]">
+                      <Sparkles className="w-5 h-5 animate-pulse text-[#FFEFC4]" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
+                        <span className="text-xs font-bold text-[#FFEFC4] uppercase tracking-wider">
                           Dev &amp; Testing Mode Active
                         </span>
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#97D7FF]/20 text-[#97D7FF] border border-[#97D7FF]/30">
                           SMS Provider Fallback
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                      <p className="text-[11px] text-slate-200 mt-1 leading-relaxed">
                         Supabase phone provider is inactive. Your test verification code is:
                       </p>
                       <div className="flex items-center gap-2.5 mt-2.5">
-                        <span className="font-mono text-base font-extrabold text-emerald-200 tracking-widest px-3 py-1 rounded-lg bg-black/60 border border-emerald-500/40 shadow-inner select-all">
+                        <span className="font-mono text-base font-extrabold text-[#FFEFC4] tracking-widest px-3 py-1 rounded-lg bg-[#086288] border border-[#4D8DBA]/60 shadow-inner select-all">
                           {mockOtpNotification.code}
                         </span>
                         <button
                           type="button"
                           onClick={() => handleAutoFillOtp(mockOtpNotification.code)}
-                          className="text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-black font-extrabold transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
+                          className="text-xs px-3 py-1.5 rounded-lg bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5" />
                           <span>Auto-Fill Code</span>
@@ -580,13 +580,13 @@ function LoginContent() {
                   </div>
 
                   {/* WhatsApp-Style Terms Notice */}
-                  <p className="text-[11px] text-slate-400 leading-relaxed px-2">
+                  <p className="text-[11px] text-slate-300 leading-relaxed px-2">
                     Read our{" "}
-                    <span className="text-[#1DB980] hover:underline cursor-pointer">
+                    <span className="text-[#97D7FF] hover:underline cursor-pointer">
                       Privacy Policy
                     </span>
                     . Tap &quot;Agree and continue&quot; to accept the{" "}
-                    <span className="text-[#1DB980] hover:underline cursor-pointer">
+                    <span className="text-[#97D7FF] hover:underline cursor-pointer">
                       Terms of Service
                     </span>
                     .
@@ -596,7 +596,7 @@ function LoginContent() {
                   <button
                     type="button"
                     onClick={handleProceedFromLanguage}
-                    className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#1DB980] via-[#0070F3] to-[#8E24AA] text-black font-extrabold text-sm hover:opacity-95 active:scale-[0.99] transition shadow-lg shadow-[#1DB980]/25 flex items-center justify-center gap-2"
+                    className="w-full py-3.5 px-4 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm active:scale-[0.99] transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span>{t.next}</span>
                     <ArrowRight className="w-4 h-4" />
@@ -621,7 +621,7 @@ function LoginContent() {
                     <h2 className="text-2xl font-bold text-white tracking-tight">
                       {t.enterPhone}
                     </h2>
-                    <p className="text-slate-400 text-xs sm:text-sm mt-1.5">
+                    <p className="text-slate-300 text-xs sm:text-sm mt-1.5">
                       Six9Chat will need to verify your phone number. Carrier SMS charges may apply.
                     </p>
                   </div>
@@ -646,13 +646,13 @@ function LoginContent() {
                     </label>
                     <div className="flex items-center gap-2">
                       {/* Fixed Dial Code Box */}
-                      <div className="h-12 px-3.5 rounded-2xl bg-slate-900 border border-slate-700/80 flex items-center justify-center text-sm font-mono text-[#1DB980] font-bold select-none shrink-0">
+                      <div className="h-12 px-3.5 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 flex items-center justify-center text-sm font-mono text-[#FFEFC4] font-bold select-none shrink-0">
                         {selectedCountry.dial_code}
                       </div>
 
                       {/* Number Input Field */}
                       <div className="relative flex-1">
-                        <Phone className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <Phone className="w-4 h-4 text-[#4D8DBA] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                         <input
                           type="tel"
                           placeholder="341 4348189"
@@ -660,7 +660,7 @@ function LoginContent() {
                           onChange={(e) =>
                             setPhoneNumber(e.target.value.replace(/[^\d\s-+()]/g, ""))
                           }
-                          className="w-full h-12 bg-slate-950/80 border border-slate-800 rounded-2xl pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#1DB980] focus:ring-1 focus:ring-[#1DB980] transition font-mono tracking-wider"
+                          className="w-full h-12 bg-[#053b53] border border-[#4D8DBA]/50 rounded-2xl pl-10 pr-4 text-sm text-white placeholder-slate-300 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition font-mono tracking-wider"
                           required
                           autoFocus
                         />
@@ -668,19 +668,19 @@ function LoginContent() {
                     </div>
 
                     {phoneNumber.trim() && (
-                      <div className="text-[11px] text-slate-400 mt-2 pl-0.5 flex items-center justify-between">
+                      <div className="text-[11px] text-slate-300 mt-2 pl-0.5 flex items-center justify-between">
                         <p className="flex items-center gap-1.5">
-                          <span className="text-slate-500">E.164 Standard:</span>
-                          <span className="font-mono text-[#1DB980] font-semibold">
+                          <span className="text-slate-400">E.164 Standard:</span>
+                          <span className="font-mono text-[#FFEFC4] font-semibold">
                             {phoneFormatResult.e164}
                           </span>
                         </p>
                         {phoneFormatResult.isValid ? (
-                          <span className="text-emerald-400 text-[10px] flex items-center gap-1 font-medium bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                          <span className="text-[#97D7FF] text-[10px] flex items-center gap-1 font-medium bg-[#97D7FF]/15 px-2 py-0.5 rounded-full border border-[#97D7FF]/30">
                             <CheckCircle2 className="w-3 h-3" /> Valid format
                           </span>
                         ) : (
-                          <span className="text-amber-400 text-[10px]">
+                          <span className="text-[#FFEFC4] text-[10px]">
                             Enter at least 7 digits
                           </span>
                         )}
@@ -694,7 +694,7 @@ function LoginContent() {
                       type="button"
                       onClick={() => setStep(1)}
                       disabled={isLoading}
-                      className="py-3.5 px-4 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50"
+                      className="py-3.5 px-4 rounded-xl bg-[#053b53] text-slate-200 hover:bg-[#4D8DBA]/30 text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
                     >
                       <ArrowLeft className="w-4 h-4" />
                       <span>Back</span>
@@ -703,11 +703,11 @@ function LoginContent() {
                     <button
                       type="submit"
                       disabled={isLoading || !phoneFormatResult.isValid}
-                      className="flex-1 py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#1DB980] via-[#0070F3] to-[#8E24AA] text-black font-extrabold text-sm hover:opacity-95 active:scale-[0.99] transition shadow-lg shadow-[#1DB980]/20 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                      className="flex-1 py-3.5 px-4 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm active:scale-[0.99] transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                     >
                       {isLoading ? (
                         <>
-                          <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                          <RefreshCw className="w-4 h-4 animate-spin text-[#086288]" />
                           <span>Sending code...</span>
                         </>
                       ) : (
@@ -735,15 +735,15 @@ function LoginContent() {
                   className="space-y-6"
                 >
                   <div className="text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-[#1DB980]/15 border border-[#1DB980]/30 flex items-center justify-center mx-auto mb-3 text-[#1DB980]">
+                    <div className="w-12 h-12 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 flex items-center justify-center mx-auto mb-3 text-[#97D7FF]">
                       <Smartphone className="w-6 h-6" />
                     </div>
                     <h2 className="text-xl font-bold text-white tracking-tight">
                       {t.verifyPhone}
                     </h2>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-slate-300 mt-1">
                       Enter the 6-digit code sent to{" "}
-                      <span className="text-emerald-400 font-mono font-medium">
+                      <span className="text-[#FFEFC4] font-mono font-medium">
                         {fullPhone}
                       </span>
                     </p>
@@ -764,7 +764,7 @@ function LoginContent() {
                         value={digit}
                         onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
                         onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                        className="w-12 h-14 text-center text-2xl font-bold font-mono bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-[#1DB980] focus:ring-2 focus:ring-[#1DB980]/30 transition"
+                        className="w-12 h-14 text-center text-2xl font-bold font-mono bg-[#053b53] border border-[#4D8DBA]/50 rounded-xl text-[#FFEFC4] focus:outline-none focus:border-[#97D7FF] focus:ring-2 focus:ring-[#97D7FF]/30 transition"
                       />
                     ))}
                   </div>
@@ -773,11 +773,11 @@ function LoginContent() {
                   <button
                     type="submit"
                     disabled={isLoading || otpCode.join("").length < 6}
-                    className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#1DB980] to-[#0070F3] text-black font-extrabold text-sm hover:opacity-95 transition shadow-lg shadow-[#1DB980]/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full py-3.5 px-4 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                   >
                     {isLoading ? (
                       <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                        <RefreshCw className="w-4 h-4 animate-spin text-[#086288]" />
                         <span>Verifying...</span>
                       </>
                     ) : (
@@ -789,14 +789,14 @@ function LoginContent() {
                   </button>
 
                   {/* Footer Links: Wrong number? + Resend Code Timer */}
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800/80">
+                  <div className="flex items-center justify-between text-xs text-slate-300 pt-2 border-t border-[#4D8DBA]/35">
                     <button
                       type="button"
                       onClick={() => {
                         setStep(2);
                         setOtpCode(["", "", "", "", "", ""]);
                       }}
-                      className="hover:text-white transition"
+                      className="hover:text-white transition cursor-pointer"
                     >
                       ← Edit number
                     </button>
@@ -804,7 +804,7 @@ function LoginContent() {
                       type="button"
                       disabled={countdown > 0 || isLoading}
                       onClick={() => handleSendOtp()}
-                      className="text-[#1DB980] hover:underline disabled:text-slate-600 disabled:no-underline font-medium"
+                      className="text-[#97D7FF] hover:underline disabled:text-slate-400 disabled:no-underline font-medium cursor-pointer"
                     >
                       {countdown > 0 ? `${t.resendCode} in ${countdown}s` : t.resendCode}
                     </button>
@@ -829,7 +829,7 @@ function LoginContent() {
                     <h2 className="text-2xl font-bold text-white tracking-tight">
                       {isExistingUser ? t.welcomeBack : t.profileInfo}
                     </h2>
-                    <p className="text-slate-400 text-xs sm:text-sm mt-1">
+                    <p className="text-slate-300 text-xs sm:text-sm mt-1">
                       {isExistingUser
                         ? "Confirm or update your profile details"
                         : "Please provide your name and an optional profile picture"}
@@ -844,12 +844,12 @@ function LoginContent() {
                       title="Upload profile picture"
                     >
                       <div
-                        className={`w-28 h-28 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-2xl ring-4 ring-[#1DB980]/40 transition-transform group-hover:scale-105 overflow-hidden ${
+                        className={`w-28 h-28 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-2xl ring-4 ring-[#97D7FF]/40 transition-transform group-hover:scale-105 overflow-hidden ${
                           customAvatarUrl
-                            ? "bg-slate-800"
+                            ? "bg-[#053b53]"
                             : `bg-gradient-to-tr ${
                                 AVATAR_PRESETS.find((p) => p.id === selectedPresetAvatar)?.gradient ||
-                                "from-[#1DB980] to-[#0070F3]"
+                                "from-[#086288] to-[#97D7FF]"
                               }`
                         }`}
                       >
@@ -865,7 +865,7 @@ function LoginContent() {
                       </div>
 
                       {/* Floating Camera Badge */}
-                      <div className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#1DB980] text-black flex items-center justify-center shadow-lg border-2 border-[#0F172A] group-hover:bg-[#159a68] group-hover:scale-110 transition">
+                      <div className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#97D7FF] text-[#086288] flex items-center justify-center shadow-lg border-2 border-[#086288] group-hover:bg-[#b4e3ff] group-hover:scale-110 transition">
                         <Camera className="w-4.5 h-4.5" />
                       </div>
                     </div>
@@ -878,7 +878,7 @@ function LoginContent() {
                       className="hidden"
                     />
 
-                    <p className="text-xs text-slate-400 mt-2.5 text-center">
+                    <p className="text-xs text-slate-300 mt-2.5 text-center">
                       Tap camera to choose picture
                     </p>
 
@@ -894,7 +894,7 @@ function LoginContent() {
                           }}
                           className={`w-6 h-6 rounded-full bg-gradient-to-tr ${preset.gradient} transition-transform ${
                             selectedPresetAvatar === preset.id && !customAvatarUrl
-                              ? "scale-125 ring-2 ring-white"
+                              ? "scale-125 ring-2 ring-[#FFEFC4]"
                               : "hover:scale-110 opacity-70"
                           }`}
                           title={preset.label}
@@ -909,20 +909,20 @@ function LoginContent() {
                       {t.typeName}
                     </label>
                     <div className="relative">
-                      <User className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                      <User className="w-4 h-4 text-[#4D8DBA] absolute left-4 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         placeholder="Your name"
                         value={displayName}
                         onChange={(e) => setDisplayName(e.target.value)}
-                        className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#1DB980] focus:ring-1 focus:ring-[#1DB980] transition"
+                        className="w-full bg-[#053b53] border border-[#4D8DBA]/50 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-300 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
                         required
                         maxLength={50}
                         autoFocus
                       />
                     </div>
                     {/* WhatsApp-identical disclaimer */}
-                    <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                    <p className="text-[11px] text-slate-300 mt-1.5 leading-relaxed">
                       This is not your username or pin. This name will be visible to your Six9Chat contacts.
                     </p>
                   </div>
@@ -933,13 +933,13 @@ function LoginContent() {
                       {t.about}
                     </label>
                     <div className="relative">
-                      <MessageSquare className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                      <MessageSquare className="w-4 h-4 text-[#4D8DBA] absolute left-4 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         placeholder="Hey there! I am using Six9Chat"
                         value={statusText}
                         onChange={(e) => setStatusText(e.target.value)}
-                        className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#1DB980] focus:ring-1 focus:ring-[#1DB980] transition"
+                        className="w-full bg-[#053b53] border border-[#4D8DBA]/50 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-300 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
                         maxLength={120}
                       />
                     </div>
@@ -951,10 +951,10 @@ function LoginContent() {
                           key={idx}
                           type="button"
                           onClick={() => setStatusText(preset)}
-                          className={`text-[11px] px-2.5 py-1 rounded-full border transition ${
+                          className={`text-[11px] px-2.5 py-1 rounded-full border transition cursor-pointer ${
                             statusText === preset
-                              ? "bg-[#1DB980]/20 border-[#1DB980] text-[#1DB980] font-medium"
-                              : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
+                              ? "bg-[#97D7FF]/25 border-[#FFEFC4]/60 text-[#FFEFC4] font-medium"
+                              : "bg-[#053b53] border-[#4D8DBA]/40 text-slate-300 hover:text-white"
                           }`}
                         >
                           {preset}
@@ -967,18 +967,18 @@ function LoginContent() {
                   <button
                     type="submit"
                     disabled={isLoading || !displayName.trim()}
-                    className="w-full py-3.5 px-5 rounded-xl bg-[#1DB980] hover:bg-[#159a68] text-black font-extrabold text-sm transition shadow-lg shadow-[#1DB980]/30 flex items-center justify-center gap-2.5 disabled:opacity-50 active:scale-[0.99]"
+                    className="w-full py-3.5 px-5 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2.5 disabled:opacity-50 active:scale-[0.99] cursor-pointer"
                   >
                     {isLoading ? (
                       <>
-                        <RefreshCw className="w-4.5 h-4.5 animate-spin text-black" />
+                        <RefreshCw className="w-4.5 h-4.5 animate-spin text-[#086288]" />
                         <span>Saving Profile...</span>
                       </>
                     ) : (
                       <>
                         <span>{t.finishSetup}</span>
-                        <div className="w-5 h-5 rounded-full bg-black/15 flex items-center justify-center">
-                          <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
+                        <div className="w-5 h-5 rounded-full bg-[#086288]/15 flex items-center justify-center">
+                          <Check className="w-3.5 h-3.5 text-[#086288] stroke-[3]" />
                         </div>
                       </>
                     )}
@@ -991,7 +991,7 @@ function LoginContent() {
       </main>
 
       {/* Footer copyright */}
-      <footer className="relative z-20 py-4 text-center text-xs text-slate-500">
+      <footer className="relative z-20 py-4 text-center text-xs text-slate-300">
         Six9Chat • Next.js 16 & Supabase Auth Architecture • End-to-End Encrypted
       </footer>
     </div>
@@ -1002,8 +1002,8 @@ export default function LoginPage() {
   return (
     <React.Suspense
       fallback={
-        <div className="relative min-h-screen w-screen bg-[#0A0F1D] flex flex-col items-center justify-center text-slate-100">
-          <div className="w-10 h-10 rounded-full border-2 border-[#1DB980] border-t-transparent animate-spin" />
+        <div className="relative min-h-screen w-screen bg-[#053b53] flex flex-col items-center justify-center text-slate-100">
+          <div className="w-10 h-10 rounded-full border-2 border-[#97D7FF] border-t-transparent animate-spin" />
         </div>
       }
     >

@@ -33,28 +33,28 @@ export function Logo({
           viewBox="0 0 200 200"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="w-full h-full drop-shadow-[0_4px_16px_rgba(0,112,243,0.35)]"
+          className="w-full h-full drop-shadow-[0_4px_16px_rgba(77,141,186,0.4)]"
         >
           <defs>
             {/* Outer Ring Gradient */}
             <linearGradient id="six9RingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#1DB980" />
-              <stop offset="35%" stopColor="#8E24AA" />
-              <stop offset="70%" stopColor="#1E40AF" />
-              <stop offset="100%" stopColor="#0070F3" />
+              <stop offset="0%" stopColor="#086288" />
+              <stop offset="35%" stopColor="#4D8DBA" />
+              <stop offset="75%" stopColor="#97D7FF" />
+              <stop offset="100%" stopColor="#FFEFC4" />
             </linearGradient>
 
             {/* Inner Ribbon Gradient */}
             <linearGradient id="six9RibbonGrad" x1="10%" y1="0%" x2="90%" y2="100%">
-              <stop offset="0%" stopColor="#8E24AA" />
-              <stop offset="50%" stopColor="#0070F3" />
-              <stop offset="100%" stopColor="#1DB980" />
+              <stop offset="0%" stopColor="#086288" />
+              <stop offset="50%" stopColor="#4D8DBA" />
+              <stop offset="100%" stopColor="#97D7FF" />
             </linearGradient>
 
             {/* Chat Bubble Gradient */}
             <linearGradient id="six9BubbleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#8E24AA" />
-              <stop offset="100%" stopColor="#0070F3" />
+              <stop offset="0%" stopColor="#4D8DBA" />
+              <stop offset="100%" stopColor="#97D7FF" />
             </linearGradient>
 
             {/* Ambient Glow Filter */}
@@ -125,7 +125,7 @@ export function Logo({
         <div className={cn("flex flex-col", textClassName)}>
           <div className="flex items-center">
             <span className="font-extrabold tracking-tight text-white text-xl sm:text-2xl">
-              Six<span className="text-[#1DB980]">9</span>Chat
+              Six<span className="text-[#97D7FF]">9</span>Chat
             </span>
           </div>
         </div>

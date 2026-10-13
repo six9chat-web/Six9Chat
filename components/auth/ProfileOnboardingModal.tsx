@@ -21,12 +21,12 @@ interface ProfileOnboardingModalProps {
 }
 
 const PRESET_AVATARS = [
-  { id: "av-1", label: "Emerald 9", value: "9", bg: "from-[#1DB980] to-[#0070F3]" },
-  { id: "av-2", label: "Royal Six", value: "6", bg: "from-[#8E24AA] to-[#1E40AF]" },
-  { id: "av-3", label: "Cyber Neon", value: "⚡", bg: "from-[#0070F3] to-[#1DB980]" },
-  { id: "av-4", label: "Flame", value: "🔥", bg: "from-[#F59E0B] to-[#EF4444]" },
-  { id: "av-5", label: "Cosmic", value: "🚀", bg: "from-[#8E24AA] to-[#EC4899]" },
-  { id: "av-6", label: "Crown", value: "👑", bg: "from-[#10B981] to-[#3B82F6]" },
+  { id: "av-1", label: "Ocean Blue", value: "9", bg: "from-[#086288] to-[#97D7FF]" },
+  { id: "av-2", label: "Warm Cream", value: "6", bg: "from-[#4D8DBA] to-[#FFEFC4]" },
+  { id: "av-3", label: "Cyber Light", value: "⚡", bg: "from-[#086288] to-[#4D8DBA]" },
+  { id: "av-4", label: "Sun Accent", value: "🔥", bg: "from-[#4D8DBA] to-[#97D7FF]" },
+  { id: "av-5", label: "Deep Glow", value: "🚀", bg: "from-[#053b53] to-[#FFEFC4]" },
+  { id: "av-6", label: "Crown Gold", value: "👑", bg: "from-[#086288] via-[#4D8DBA] to-[#97D7FF]" },
 ];
 
 const PRESET_STATUSES = [
@@ -120,22 +120,22 @@ export function ProfileOnboardingModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: 16 }}
           transition={{ duration: 0.25, ease: "easeOut" }}
-          className="relative w-full max-w-lg bg-[#0F172A] border border-slate-700/90 rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden text-left"
+          className="relative w-full max-w-lg bg-[#086288] border border-[#4D8DBA]/60 rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden text-left"
         >
           {/* Ambient Lighting Backdrop */}
-          <div className="pointer-events-none absolute -top-24 -right-24 w-60 h-60 rounded-full bg-[#1DB980]/20 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-24 -left-24 w-60 h-60 rounded-full bg-[#0070F3]/20 blur-3xl" />
+          <div className="pointer-events-none absolute -top-24 -right-24 w-60 h-60 rounded-full bg-[#4D8DBA]/25 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 -left-24 w-60 h-60 rounded-full bg-[#97D7FF]/20 blur-3xl" />
 
           {/* Modal Header */}
-          <div className="relative text-center pb-4 border-b border-slate-800">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1DB980]/15 text-[#1DB980] border border-[#1DB980]/30 text-xs font-bold uppercase tracking-wider mb-2">
+          <div className="relative text-center pb-4 border-b border-[#4D8DBA]/35">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#97D7FF]/20 text-[#FFEFC4] border border-[#4D8DBA]/50 text-xs font-bold uppercase tracking-wider mb-2">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Welcome to Six9Chat</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
               Create Your Profile
             </h2>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-200 mt-1">
               Choose your Six9 Chat avatar and display name so your contacts recognize you.
             </p>
           </div>
@@ -145,8 +145,8 @@ export function ProfileOnboardingModal({
             {/* Avatar Preview & Chooser */}
             <div className="flex flex-col items-center">
               <div className="relative group">
-                <div className="w-20 h-20 rounded-full p-1 bg-gradient-to-tr from-[#1DB980] via-[#0070F3] to-[#8E24AA] shadow-xl flex items-center justify-center">
-                  <div className="w-full h-full rounded-full bg-slate-900 overflow-hidden flex items-center justify-center text-2xl font-bold text-white">
+                <div className="w-20 h-20 rounded-full p-1 bg-gradient-to-tr from-[#086288] via-[#4D8DBA] to-[#97D7FF] shadow-xl flex items-center justify-center">
+                  <div className="w-full h-full rounded-full bg-[#053b53] overflow-hidden flex items-center justify-center text-2xl font-bold text-white">
                     {customAvatarUrl ? (
                       <img
                         src={customAvatarUrl}
@@ -163,10 +163,10 @@ export function ProfileOnboardingModal({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="absolute bottom-0 right-0 p-2 rounded-full bg-[#1DB980] text-black shadow-lg hover:scale-110 active:scale-95 transition"
+                  className="absolute bottom-0 right-0 p-2 rounded-full bg-[#97D7FF] text-[#086288] shadow-lg hover:scale-110 active:scale-95 transition"
                   title="Upload Custom Photo"
                 >
-                  <Camera className="w-3.5 h-3.5 text-slate-950 font-bold" />
+                  <Camera className="w-3.5 h-3.5 font-bold" />
                 </button>
                 <input
                   ref={fileInputRef}
@@ -191,7 +191,7 @@ export function ProfileOnboardingModal({
                       }}
                       className={`w-9 h-9 rounded-full bg-gradient-to-tr ${av.bg} flex items-center justify-center text-sm font-bold text-white shadow transition transform hover:scale-110 ${
                         isSelected
-                          ? "ring-2 ring-white ring-offset-2 ring-offset-slate-900 scale-105"
+                          ? "ring-2 ring-[#FFEFC4] ring-offset-2 ring-offset-[#086288] scale-105"
                           : "opacity-80 hover:opacity-100"
                       }`}
                       title={av.label}
@@ -204,7 +204,7 @@ export function ProfileOnboardingModal({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 hover:border-[#1DB980] text-slate-300 hover:text-white flex items-center justify-center transition"
+                  className="w-9 h-9 rounded-full bg-[#053b53] border border-[#4D8DBA]/50 hover:border-[#97D7FF] text-slate-200 hover:text-white flex items-center justify-center transition"
                   title="Upload Custom Image"
                 >
                   <Upload className="w-4 h-4" />
@@ -215,10 +215,10 @@ export function ProfileOnboardingModal({
             {/* Display Name Input */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-slate-300">
+                <label className="block text-xs font-semibold text-slate-200">
                   Display Name
                 </label>
-                <span className="text-[11px] text-slate-400 font-mono">
+                <span className="text-[11px] text-slate-300 font-mono">
                   {displayName.length}/25
                 </span>
               </div>
@@ -229,15 +229,15 @@ export function ProfileOnboardingModal({
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="e.g. Alex Rivers"
-                  className="w-full h-11 px-3.5 pl-9 rounded-xl bg-slate-800/90 border border-slate-700/80 hover:border-slate-600 focus:border-[#1DB980] focus:ring-1 focus:ring-[#1DB980] text-sm text-white placeholder-slate-400 outline-none transition"
+                  className="w-full h-11 px-3.5 pl-9 rounded-xl bg-[#053b53] border border-[#4D8DBA]/50 hover:border-[#97D7FF] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] text-sm text-white placeholder-slate-300 outline-none transition"
                 />
-                <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <User className="w-4 h-4 text-[#4D8DBA] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
 
             {/* Status / About Bio */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-200 mb-1">
                 About / Status
               </label>
               <div className="relative">
@@ -247,9 +247,9 @@ export function ProfileOnboardingModal({
                   value={statusText}
                   onChange={(e) => setStatusText(e.target.value)}
                   placeholder="Available"
-                  className="w-full h-11 px-3.5 pl-9 rounded-xl bg-slate-800/90 border border-slate-700/80 hover:border-slate-600 focus:border-[#1DB980] focus:ring-1 focus:ring-[#1DB980] text-xs text-white placeholder-slate-400 outline-none transition"
+                  className="w-full h-11 px-3.5 pl-9 rounded-xl bg-[#053b53] border border-[#4D8DBA]/50 hover:border-[#97D7FF] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] text-xs text-white placeholder-slate-300 outline-none transition"
                 />
-                <Smile className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Smile className="w-4 h-4 text-[#4D8DBA] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
 
               {/* Status Preset Pills */}
@@ -261,8 +261,8 @@ export function ProfileOnboardingModal({
                     onClick={() => setStatusText(st)}
                     className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition ${
                       statusText === st
-                        ? "bg-[#1DB980]/20 text-[#1DB980] border border-[#1DB980]/40"
-                        : "bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700/60"
+                        ? "bg-[#97D7FF]/25 text-[#FFEFC4] border border-[#FFEFC4]/50"
+                        : "bg-[#053b53] text-slate-300 hover:text-white border border-[#4D8DBA]/40"
                     }`}
                   >
                     {st}
@@ -276,9 +276,9 @@ export function ProfileOnboardingModal({
               <motion.div
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2"
+                className="p-3 rounded-xl bg-rose-500/20 border border-rose-400/40 text-rose-200 text-xs flex items-start gap-2"
               >
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <AlertCircle className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
                 <span>{errorMessage}</span>
               </motion.div>
             )}
@@ -288,7 +288,7 @@ export function ProfileOnboardingModal({
               <button
                 type="submit"
                 disabled={isSaving || !displayName.trim()}
-                className="w-full h-12 rounded-xl bg-gradient-to-r from-[#1DB980] via-[#0070F3] to-[#8E24AA] hover:opacity-95 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-12 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-[#086288]/40 transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSaving ? (
                   <>

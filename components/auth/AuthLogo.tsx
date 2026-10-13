@@ -18,14 +18,14 @@ export function AuthLogo({ size = 56 }: { size?: number }) {
             repeat: Infinity,
             ease: "easeInOut",
           }}
-          className="absolute -inset-2.5 rounded-full bg-gradient-to-tr from-[#1DB980]/30 via-[#0070F3]/30 to-[#8E24AA]/30 blur-xl"
+          className="absolute -inset-2.5 rounded-full bg-gradient-to-tr from-[#086288]/40 via-[#4D8DBA]/35 to-[#97D7FF]/35 blur-xl"
         />
 
         {/* Animated SVG Brand Mark */}
         <motion.div
           whileHover={{ scale: 1.05 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="relative shrink-0 drop-shadow-[0_8px_24px_rgba(29,185,128,0.25)]"
+          className="relative shrink-0 drop-shadow-[0_8px_24px_rgba(8,98,136,0.35)]"
           style={{ width: size, height: size }}
         >
           <svg
@@ -36,21 +36,21 @@ export function AuthLogo({ size = 56 }: { size?: number }) {
           >
             <defs>
               <linearGradient id="authSix9RingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#1DB980" />
-                <stop offset="35%" stopColor="#8E24AA" />
-                <stop offset="70%" stopColor="#1E40AF" />
-                <stop offset="100%" stopColor="#0070F3" />
+                <stop offset="0%" stopColor="#086288" />
+                <stop offset="35%" stopColor="#4D8DBA" />
+                <stop offset="75%" stopColor="#97D7FF" />
+                <stop offset="100%" stopColor="#FFEFC4" />
               </linearGradient>
 
               <linearGradient id="authSix9RibbonGrad" x1="10%" y1="0%" x2="90%" y2="100%">
-                <stop offset="0%" stopColor="#8E24AA" />
-                <stop offset="50%" stopColor="#0070F3" />
-                <stop offset="100%" stopColor="#1DB980" />
+                <stop offset="0%" stopColor="#086288" />
+                <stop offset="50%" stopColor="#4D8DBA" />
+                <stop offset="100%" stopColor="#97D7FF" />
               </linearGradient>
 
               <linearGradient id="authSix9BubbleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#8E24AA" />
-                <stop offset="100%" stopColor="#0070F3" />
+                <stop offset="0%" stopColor="#4D8DBA" />
+                <stop offset="100%" stopColor="#97D7FF" />
               </linearGradient>
             </defs>
 
@@ -114,9 +114,9 @@ export function AuthLogo({ size = 56 }: { size?: number }) {
       {/* Brand Title */}
       <div className="mt-3">
         <h1 className="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-1">
-          Six<span className="text-[#1DB980]">9</span>Chat
+          Six<span className="text-[#97D7FF]">9</span>Chat
         </h1>
-        <p className="text-xs text-slate-400 mt-0.5">
+        <p className="text-xs text-[#97D7FF]/80 mt-0.5">
           Six9 Chat Real-Time Messaging Flow
         </p>
       </div>

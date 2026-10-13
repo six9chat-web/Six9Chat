@@ -71,22 +71,22 @@ export function StoriesViewer({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-md h-[580px] bg-slate-900 rounded-3xl overflow-hidden border border-slate-700/80 shadow-2xl flex flex-col justify-between p-4"
+          className="relative w-full max-w-md h-[580px] bg-[#086288] rounded-3xl overflow-hidden border border-[#4D8DBA]/60 shadow-2xl flex flex-col justify-between p-4"
         >
           {/* Progress Bars for all stories */}
           <div className="flex items-center gap-1.5 w-full z-20">
             {stories.map((s, i) => (
               <div
                 key={s.id}
-                className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden"
+                className="flex-1 h-1 bg-[#053b53] rounded-full overflow-hidden"
               >
                 <div
-                  className="h-full bg-gradient-to-r from-[#1DB980] to-[#0070F3] transition-all"
+                  className="h-full bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] transition-all"
                   style={{
                     width:
                       i < currentIndex
@@ -103,7 +103,7 @@ export function StoriesViewer({
           {/* User Header */}
           <div className="flex items-center justify-between mt-2 z-20">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#1DB980] to-[#0070F3] flex items-center justify-center font-bold text-xs text-white shadow-md">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#086288] to-[#97D7FF] flex items-center justify-center font-bold text-xs text-white shadow-md">
                 {current.userAvatar}
               </div>
               <div className="flex flex-col">
@@ -127,8 +127,8 @@ export function StoriesViewer({
 
           {/* Story Content & Decorative Canvas */}
           <div className="my-auto flex flex-col items-center justify-center text-center p-6 relative">
-            <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-[#1DB980] via-[#0070F3] to-[#8E24AA] flex items-center justify-center shadow-2xl mb-6">
-              <Sparkles className="w-10 h-10 text-white" />
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-[#086288] via-[#4D8DBA] to-[#97D7FF] flex items-center justify-center shadow-2xl mb-6">
+              <Sparkles className="w-10 h-10 text-[#FFEFC4]" />
             </div>
 
             <p className="text-base sm:text-lg font-medium text-white leading-relaxed">
@@ -154,7 +154,7 @@ export function StoriesViewer({
 
           {/* Bottom indicator */}
           <div className="text-center pb-2 z-20">
-            <span className="text-[11px] text-slate-400">
+            <span className="text-[11px] text-[#97D7FF]">
               Six9Chat Real-Time Stories
             </span>
           </div>
