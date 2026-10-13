@@ -303,6 +303,21 @@ function LoginContent() {
           if (existingProfile.full_name) setDisplayName(existingProfile.full_name);
           if (existingProfile.status) setStatusText(existingProfile.status);
           if (existingProfile.avatar_url) setCustomAvatarUrl(existingProfile.avatar_url);
+
+          // If returning user already completed profile setup, seamlessly redirect directly to /chat
+          if (existingProfile.full_name && existingProfile.full_name !== "Six9 Member") {
+            if (isMockMode) {
+              setMockSession({
+                userId: verifiedUserId,
+                phone: fullPhone,
+                fullName: existingProfile.full_name,
+                avatarUrl: existingProfile.avatar_url,
+                statusText: existingProfile.status,
+              });
+            }
+            router.push("/chat");
+            return;
+          }
         } else {
           // New User
           setIsExistingUser(false);
