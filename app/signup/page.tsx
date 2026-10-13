@@ -23,13 +23,13 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
+import { Country, DEFAULT_COUNTRY } from "@/lib/countries";
+import { CountryCodeSelector } from "@/components/auth/CountryCodeSelector";
 import {
   signUpWithEmail,
   uploadAvatar,
   ensureProfileExists,
 } from "@/lib/auth";
-import { Country, DEFAULT_COUNTRY } from "@/lib/countries";
-import { CountryCodeSelector } from "@/components/auth/CountryCodeSelector";
 
 const AVATAR_PRESETS = [
   { id: "grad-emerald", label: "Emerald", gradient: "from-[#1DB980] to-[#047857]" },
@@ -54,7 +54,7 @@ const STATUS_PRESETS = [
 export default function SignupPage() {
   const router = useRouter();
 
-  // Current Step: 1 = Credentials, 2 = Profile Setup
+  // Current Step: 1 = Credentials, 2 = Profile Setup (Six9 Chat exact style)
   const [step, setStep] = useState<1 | 2>(1);
 
   // Step 1: Credentials
@@ -65,7 +65,8 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Step 2: Profile Customization
+  // Step 2: Profile Customization (Mirroring Six9 Chat onboarding)
+  const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [statusText, setStatusText] = useState("Hey there! I am using Six9Chat");
   const [selectedPresetAvatar, setSelectedPresetAvatar] = useState(AVATAR_PRESETS[0].id);
@@ -80,9 +81,10 @@ export default function SignupPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Auto-generate suggested username when Full Name or Email changes
+  // Auto-fill Display Name and suggested username when Full Name changes in Step 1
   const handleFullNameChange = (val: string) => {
     setFullName(val);
+    if (!displayName) setDisplayName(val);
     if (!username || username.startsWith("user_")) {
       const generated = val
         .toLowerCase()
@@ -92,13 +94,13 @@ export default function SignupPage() {
     }
   };
 
-  // Step 1 Validation
+  // Step 1 Validation -> Proceed to Step 2
   const handleProceedToStep2 = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
     if (!fullName.trim()) {
-      setErrorMessage("Please enter your display name");
+      setErrorMessage("Please enter your full name");
       return;
     }
     if (!email.trim() || !email.includes("@")) {
@@ -110,18 +112,18 @@ export default function SignupPage() {
       return;
     }
     if (password !== confirmPassword) {
-      setErrorMessage("Passwords do not match");
+      setErrorMessage("Passwords do not match. Please re-enter.");
       return;
     }
 
-    if (!username) {
-      setUsername(fullName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 15) || "user");
+    if (!displayName) {
+      setDisplayName(fullName.trim());
     }
 
     setStep(2);
   };
 
-  // Handle Custom Avatar File Selection
+  // Handle Custom Avatar File Selection with live image preview
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -131,17 +133,20 @@ export default function SignupPage() {
     }
   };
 
-  // Step 2 Final Submission
+  // Step 2 Final Submission -> Sync with Supabase & Navigate to /chat
   const handleCompleteSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
+
+    const finalName = displayName.trim() || fullName.trim() || "Six9Chat Member";
+
     setIsLoading(true);
 
     try {
       let finalAvatarUrl = customAvatarUrl || "";
 
-      // Format full international phone number if provided
+      // Format full international phone number
       let fullPhone = "";
       if (phone.trim()) {
         if (phone.trim().startsWith("+")) {
@@ -156,8 +161,8 @@ export default function SignupPage() {
       const authResult = await signUpWithEmail({
         email,
         password,
-        fullName,
-        username,
+        fullName: finalName,
+        username: username.trim() || email.split("@")[0].toLowerCase(),
         phone: fullPhone,
         avatarUrl: finalAvatarUrl,
         status: statusText,
@@ -170,20 +175,28 @@ export default function SignupPage() {
         try {
           const uploadedUrl = await uploadAvatar(userId, avatarFile);
           finalAvatarUrl = uploadedUrl;
-          await ensureProfileExists({
-            id: userId,
-            avatar_url: uploadedUrl,
-          });
         } catch (uploadErr) {
           console.warn("Avatar upload fallback notice:", uploadErr);
         }
       }
 
+      // 3. Immediately ensure and sync profile into Supabase public.profiles table
+      if (userId) {
+        await ensureProfileExists({
+          id: userId,
+          username: username.trim() || email.split("@")[0].toLowerCase(),
+          full_name: finalName,
+          avatar_url: finalAvatarUrl,
+          phone: fullPhone,
+          status: statusText,
+        });
+      }
+
       setSuccessMessage("Account created successfully! Launching your Six9Chat workspace...");
       setTimeout(() => {
-        router.push("/");
+        router.push("/chat");
         router.refresh();
-      }, 1000);
+      }, 700);
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -196,21 +209,20 @@ export default function SignupPage() {
   };
 
   // Get Avatar Initials
-  const initials = fullName
-    ? fullName
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "S9";
+  const initials = (displayName || fullName || "S9")
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <div className="relative min-h-screen w-screen bg-[#0A0F1D] text-slate-100 flex flex-col font-sans overflow-x-hidden selection:bg-[#1DB980] selection:text-black">
-      {/* Six9-Style Top Ambient Gradient Banner */}
+      {/* Ambient Gradient Banner */}
       <div className="h-44 w-full bg-gradient-to-r from-[#1DB980]/20 via-[#8E24AA]/25 to-[#0070F3]/25 absolute top-0 left-0 border-b border-slate-800/60 backdrop-blur-3xl" />
       <div className="pointer-events-none absolute -top-32 -left-32 w-[550px] h-[550px] rounded-full bg-[#1DB980]/15 blur-[160px] animate-pulse-glow" />
       <div className="pointer-events-none absolute top-1/4 -right-32 w-[600px] h-[600px] rounded-full bg-[#0070F3]/15 blur-[160px]" />
+      <div className="pointer-events-none absolute -bottom-32 left-1/3 w-[520px] h-[520px] rounded-full bg-[#8E24AA]/15 blur-[150px]" />
 
       {/* Top Header */}
       <header className="relative z-20 w-full max-w-5xl mx-auto px-6 pt-7 pb-4 flex items-center justify-between">
@@ -219,11 +231,11 @@ export default function SignupPage() {
         </Link>
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <ShieldCheck className="w-4 h-4 text-[#1DB980]" />
-          <span>Encrypted Account Setup</span>
+          <span>Encrypted Profile Setup</span>
         </div>
       </header>
 
-      {/* Main Container Card */}
+      {/* Main Glassmorphic Container Card */}
       <main className="relative z-20 flex-1 flex items-center justify-center px-4 py-8">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -231,18 +243,18 @@ export default function SignupPage() {
           transition={{ duration: 0.45, ease: "easeOut" }}
           className="w-full max-w-[560px] bg-[#0F172A]/90 backdrop-blur-2xl rounded-3xl border border-slate-800 shadow-[0_20px_70px_rgba(0,0,0,0.65)] overflow-hidden"
         >
-          {/* Card Header & Multi-Step Progress Bar */}
+          {/* Card Header & Multi-Step Progress Indicator */}
           <div className="p-7 pb-5 border-b border-slate-800/80 bg-gradient-to-b from-slate-900/60 to-transparent">
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs uppercase tracking-widest text-[#1DB980] font-bold">
-                Six9 Chat Profile Setup
+                SIX9 CHAT PROFILE SETUP
               </span>
               <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
                 Step {step} of 2
               </span>
             </div>
 
-            {/* Stepper Indicator */}
+            {/* Stepper Progress Bar */}
             <div className="flex items-center gap-2 mb-3">
               <div
                 className={`flex-1 h-1.5 rounded-full transition-all duration-300 ${
@@ -261,12 +273,12 @@ export default function SignupPage() {
             </div>
 
             <h1 className="text-2xl font-bold text-white tracking-tight">
-              {step === 1 ? "Create Your Six9 Account" : "Customize Your Profile"}
+              {step === 1 ? "Create Your Six9 Account" : "Profile Info"}
             </h1>
             <p className="text-slate-400 text-sm mt-1">
               {step === 1
                 ? "Provide your details to connect with friends and teammates"
-                : "Set your Six9 Chat avatar, handle, and status"}
+                : "Please provide your name and an optional profile picture"}
             </p>
           </div>
 
@@ -289,20 +301,20 @@ export default function SignupPage() {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="p-3.5 rounded-xl bg-[#1DB980]/15 border border-[#1DB980]/30 text-[#1DB980] text-xs flex items-start gap-2.5 mb-3"
+                  className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2.5 mb-3"
                 >
-                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
                   <span className="flex-1 leading-relaxed">{successMessage}</span>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          {/* Form Content */}
+          {/* Form Content: Step 1 or Step 2 */}
           <div className="p-7 pt-2">
             <AnimatePresence mode="wait">
+              {/* STEP 1: Registration Credentials */}
               {step === 1 ? (
-                /* STEP 1: CREDENTIALS */
                 <motion.form
                   key="step-1"
                   initial={{ opacity: 0, x: -16 }}
@@ -314,7 +326,7 @@ export default function SignupPage() {
                 >
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Display Name / Full Name *
+                      Full Name *
                     </label>
                     <div className="relative">
                       <User className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
@@ -416,14 +428,14 @@ export default function SignupPage() {
 
                   <button
                     type="submit"
-                    className="w-full mt-3 py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#1DB980] via-[#0070F3] to-[#8E24AA] text-black font-bold text-sm hover:opacity-95 active:scale-[0.99] transition shadow-lg shadow-[#1DB980]/20 flex items-center justify-center gap-2"
+                    className="w-full mt-4 py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#1DB980] via-[#0070F3] to-[#8E24AA] text-black font-bold text-sm hover:opacity-95 active:scale-[0.99] transition shadow-lg shadow-[#1DB980]/20 flex items-center justify-center gap-2"
                   >
                     <span>Continue to Profile Setup</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </motion.form>
               ) : (
-                /* STEP 2: PROFILE SETUP */
+                /* STEP 2: Exact Six9 Chat Profile Customization Screen */
                 <motion.form
                   key="step-2"
                   initial={{ opacity: 0, x: 16 }}
@@ -431,13 +443,17 @@ export default function SignupPage() {
                   exit={{ opacity: 0, x: -16 }}
                   transition={{ duration: 0.25 }}
                   onSubmit={handleCompleteSignup}
-                  className="space-y-5"
+                  className="space-y-6"
                 >
-                  {/* Six9-Style Circular Avatar Preview with Camera Overlay */}
+                  {/* Interactive Circular Profile Picture Avatar Upload with Live Preview */}
                   <div className="flex flex-col items-center justify-center pt-2">
-                    <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                    <div
+                      className="relative group cursor-pointer"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Click to upload profile photo"
+                    >
                       <div
-                        className={`w-24 h-24 rounded-full flex items-center justify-center text-2xl font-bold text-white shadow-xl ring-4 ring-[#1DB980]/30 transition-transform group-hover:scale-105 overflow-hidden ${
+                        className={`w-28 h-28 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-2xl ring-4 ring-[#1DB980]/40 transition-transform group-hover:scale-105 overflow-hidden ${
                           customAvatarUrl
                             ? "bg-slate-800"
                             : `bg-gradient-to-tr ${
@@ -457,9 +473,9 @@ export default function SignupPage() {
                         )}
                       </div>
 
-                      {/* Camera Badge */}
-                      <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#1DB980] text-black flex items-center justify-center shadow-md border-2 border-[#0F172A] group-hover:bg-[#159a68] transition">
-                        <Camera className="w-4 h-4" />
+                      {/* Floating Camera Icon Badge with Hover Effect */}
+                      <div className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#1DB980] text-black flex items-center justify-center shadow-lg border-2 border-[#0F172A] group-hover:bg-[#159a68] group-hover:scale-110 transition">
+                        <Camera className="w-4.5 h-4.5" />
                       </div>
                     </div>
 
@@ -471,12 +487,12 @@ export default function SignupPage() {
                       className="hidden"
                     />
 
-                    <p className="text-xs text-slate-400 mt-2">
-                      Tap camera to upload custom photo or pick a palette below
+                    <p className="text-xs text-slate-400 mt-3 text-center">
+                      Tap camera to add profile photo or pick a theme palette
                     </p>
 
                     {/* Palette Presets */}
-                    <div className="flex items-center gap-2.5 mt-3">
+                    <div className="flex items-center gap-2.5 mt-2.5">
                       {AVATAR_PRESETS.map((preset) => (
                         <button
                           key={preset.id}
@@ -496,33 +512,36 @@ export default function SignupPage() {
                     </div>
                   </div>
 
-                  {/* Username Field */}
+                  {/* Display Name Field (Mirroring Six9 Chat onboarding) */}
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Username / Chat Handle *
+                    <label className="block text-xs font-semibold text-slate-200 mb-1.5">
+                      Type your name
                     </label>
                     <div className="relative">
-                      <AtSign className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
+                      <User className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
-                        placeholder="alex_rivers"
-                        value={username}
-                        onChange={(e) =>
-                          setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))
-                        }
-                        className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#1DB980] focus:ring-1 focus:ring-[#1DB980] transition font-mono"
+                        placeholder="Your display name"
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value)}
+                        className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#1DB980] focus:ring-1 focus:ring-[#1DB980] transition"
                         required
+                        maxLength={50}
                       />
                     </div>
+                    {/* Exact Six9 Chat disclaimer */}
+                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                      This is not your username or pin. This name will be visible to your Six9Chat contacts.
+                    </p>
                   </div>
 
-                  {/* Six9 Chat Status / About Bio */}
+                  {/* Status / About Field pre-filled with "Hey there! I am using Six9Chat" */}
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      About / Status Line
+                    <label className="block text-xs font-semibold text-slate-200 mb-1.5">
+                      About
                     </label>
                     <div className="relative">
-                      <MessageSquare className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
+                      <MessageSquare className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         placeholder="Hey there! I am using Six9Chat"
@@ -552,32 +571,35 @@ export default function SignupPage() {
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-3 pt-2">
+                  {/* Actions: Back Button + Green Checkmark Button to Save & Proceed to /chat */}
+                  <div className="flex items-center gap-3 pt-3">
                     <button
                       type="button"
                       onClick={() => setStep(1)}
                       disabled={isLoading}
-                      className="px-4 py-3.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-900 transition flex items-center gap-2 text-xs font-semibold"
+                      className="py-3 px-4 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50"
                     >
                       <ArrowLeft className="w-4 h-4" />
                       <span>Back</span>
                     </button>
 
+                    {/* Six9 Chat signature Green Checkmark CTA Button to save and proceed to /chat */}
                     <button
                       type="submit"
-                      disabled={isLoading}
-                      className="flex-1 py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#1DB980] via-[#0070F3] to-[#8E24AA] text-black font-bold text-sm hover:opacity-95 active:scale-[0.99] transition shadow-lg shadow-[#1DB980]/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                      disabled={isLoading || !displayName.trim()}
+                      className="flex-1 py-3.5 px-5 rounded-xl bg-[#1DB980] hover:bg-[#159a68] text-black font-extrabold text-sm transition shadow-lg shadow-[#1DB980]/30 flex items-center justify-center gap-2.5 disabled:opacity-50 active:scale-[0.99]"
                     >
                       {isLoading ? (
                         <>
-                          <RefreshCw className="w-4 h-4 animate-spin text-black" />
-                          <span>Creating Profile...</span>
+                          <RefreshCw className="w-4.5 h-4.5 animate-spin text-black" />
+                          <span>Saving Profile...</span>
                         </>
                       ) : (
                         <>
-                          <span>Complete & Open Six9Chat</span>
-                          <Check className="w-4 h-4" />
+                          <span>Save & Proceed to Chat</span>
+                          <div className="w-6 h-6 rounded-full bg-black/15 flex items-center justify-center">
+                            <Check className="w-4 h-4 text-black stroke-[3]" />
+                          </div>
                         </>
                       )}
                     </button>

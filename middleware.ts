@@ -21,12 +21,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Authenticated user trying to access auth pages (/login, /signup) -> Redirect to main dashboard
+  // Authenticated user trying to access auth pages (/login, /signup) -> Redirect to /chat
   if (user && isAuthRoute) {
-    const homeUrl = request.nextUrl.clone();
-    homeUrl.pathname = "/";
-    homeUrl.searchParams.delete("redirect");
-    return NextResponse.redirect(homeUrl);
+    const chatUrl = request.nextUrl.clone();
+    chatUrl.pathname = "/chat";
+    chatUrl.searchParams.delete("redirect");
+    return NextResponse.redirect(chatUrl);
+  }
+
+  // Authenticated user accessing root "/" -> Redirect to /chat
+  if (user && pathname === "/") {
+    const chatUrl = request.nextUrl.clone();
+    chatUrl.pathname = "/chat";
+    return NextResponse.redirect(chatUrl);
   }
 
   return supabaseResponse;
