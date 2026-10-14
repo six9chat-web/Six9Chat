@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { MediaType, MediaMeta } from "@/types/chat";
 import { cn } from "@/lib/utils";
+import { EmojiPicker } from "./EmojiPicker";
 
 interface ChatInputProps {
   onSendMessage: (
@@ -125,11 +126,6 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
     setShowAttachMenu(false);
   };
 
-  const EMOJI_LIST = [
-    "🌹", "😂", "😅", "❤️", "👍", "🔥", "🙏", "😍", "🎉", "✨",
-    "😊", "🙌", "💯", "😎", "🥳", "🤔", "👏", "⚡", "🌟", "👌"
-  ];
-
   return (
     <div className="relative px-3 sm:px-4 py-2.5 bg-[#086288] border-t border-[#4D8DBA]/35 shrink-0 z-20 select-none">
       {/* Hidden File Pickers */}
@@ -205,38 +201,16 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
         )}
       </AnimatePresence>
 
-      {/* Emoji Picker Popover */}
+      {/* WhatsApp Emoji Picker Popover */}
       <AnimatePresence>
         {showEmojiPicker && (
-          <>
-            <div
-              className="fixed inset-0 z-30"
-              onClick={() => setShowEmojiPicker(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 12, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.95 }}
-              className="absolute bottom-16 left-12 z-40 bg-[#032433] border border-[#4D8DBA]/70 rounded-2xl p-3 shadow-2xl w-64 backdrop-blur-xl"
-            >
-              <div className="grid grid-cols-5 gap-2">
-                {EMOJI_LIST.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => {
-                      setText((prev) => prev + emoji);
-                      setShowEmojiPicker(false);
-                      textareaRef.current?.focus();
-                    }}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#4D8DBA]/30 text-lg hover:scale-125 transition-transform cursor-pointer"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </>
+          <EmojiPicker
+            onSelectEmoji={(emoji) => {
+              setText((prev) => prev + emoji);
+              textareaRef.current?.focus();
+            }}
+            onClose={() => setShowEmojiPicker(false)}
+          />
         )}
       </AnimatePresence>
 

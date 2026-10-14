@@ -48,6 +48,7 @@ export function ProfileModal({
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Editable fields for own profile
   const [isEditingName, setIsEditingName] = useState(false);
@@ -300,7 +301,7 @@ export function ProfileModal({
               {isOwnProfile && onSignOut && (
                 <button
                   type="button"
-                  onClick={onSignOut}
+                  onClick={() => setShowLogoutConfirm(true)}
                   className="px-3.5 py-1.5 rounded-xl border border-red-400/40 bg-red-500/20 text-red-200 hover:bg-red-500/30 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -438,15 +439,15 @@ export function ProfileModal({
             {/* Bottom Actions */}
             <div className="pt-2">
               {isOwnProfile ? (
-                /* Self: Disconnect Button */
+                /* Self: Prominent Clean Log Out Button */
                 onSignOut && (
                   <button
                     type="button"
-                    onClick={onSignOut}
-                    className="w-full py-2.5 rounded-xl bg-[#053b53] hover:bg-red-500/25 hover:text-red-200 border border-[#4D8DBA]/40 text-slate-200 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+                    onClick={() => setShowLogoutConfirm(true)}
+                    className="w-full py-3 rounded-2xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 hover:border-red-500/60 text-red-200 hover:text-white text-sm font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-[0.99]"
                   >
                     <LogOut className="w-4 h-4 text-red-300" />
-                    <span>Disconnect & End Session</span>
+                    <span>Log Out</span>
                   </button>
                 )
               ) : (
@@ -483,6 +484,61 @@ export function ProfileModal({
             </div>
           </div>
         </motion.div>
+
+        {/* Log Out Confirmation Modal */}
+        <AnimatePresence>
+          {showLogoutConfirm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+              onClick={() => setShowLogoutConfirm(false)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                transition={{ duration: 0.15 }}
+                className="relative w-full max-w-sm bg-[#086288] border border-[#4D8DBA]/80 rounded-3xl p-6 shadow-2xl text-slate-100"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-red-500/20 border border-red-500/40 text-red-300 flex items-center justify-center mb-4 shadow-inner">
+                    <LogOut className="w-7 h-7 text-red-300" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-2">
+                    Log Out
+                  </h3>
+                  <p className="text-xs text-slate-200 mb-6 leading-relaxed">
+                    Are you sure you want to log out? You will need to sign in again to access your chats.
+                  </p>
+
+                  <div className="flex items-center gap-3 w-full">
+                    <button
+                      type="button"
+                      onClick={() => setShowLogoutConfirm(false)}
+                      className="flex-1 py-2.5 rounded-xl bg-[#053b53] hover:bg-[#4D8DBA]/30 border border-[#4D8DBA]/40 text-slate-200 hover:text-white font-semibold text-xs transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowLogoutConfirm(false);
+                        onClose();
+                        onSignOut?.();
+                      }}
+                      className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg shadow-red-900/40 transition cursor-pointer active:scale-98"
+                    >
+                      Confirm
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </AnimatePresence>
   );
