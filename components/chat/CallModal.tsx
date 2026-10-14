@@ -35,12 +35,17 @@ export function CallModal({
   const [isVideoDisabled, setIsVideoDisabled] = useState(false);
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
 
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
     if (!isOpen) {
       setStatus("calling");
       setDuration(0);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (!isOpen) return;
 
     // Simulate answering after 2 seconds
     const answerTimer = setTimeout(() => {

@@ -55,7 +55,9 @@ export function useRealtimeChat() {
   });
 
   // Supabase live status
-  const [supabaseStatus, setSupabaseStatus] = useState<"checking" | "connected" | "pending" | "error">("checking");
+  const [supabaseStatus, setSupabaseStatus] = useState<"checking" | "connected" | "pending" | "error">(() =>
+    isSupabaseConfigured() ? "connected" : "pending"
+  );
   const [channelConnected, setChannelConnected] = useState(false);
 
   // Active contact lookup
@@ -99,13 +101,6 @@ export function useRealtimeChat() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
-    const configured = isSupabaseConfigured();
-    if (!configured) {
-      setSupabaseStatus("pending");
-    } else {
-      setSupabaseStatus("connected");
-    }
-
     // Subscribe to Supabase Realtime channel 'public:messages'
     try {
       const channel = supabase.channel("public:messages", {
@@ -159,15 +154,15 @@ export function useRealtimeChat() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
-          const newRecord = payload.new as any;
+          const newRecord = payload.new as Record<string, unknown> | null;
           if (newRecord) {
             const formatted: ChatMessage = {
-              id: newRecord.id || Date.now().toString(),
-              conversationId: newRecord.conversation_id || activeContactId,
-              senderId: newRecord.sender_id || "other",
-              senderName: newRecord.sender_name || "Contact",
+              id: String(newRecord.id || Date.now()),
+              conversationId: String(newRecord.conversation_id || activeContactId),
+              senderId: String(newRecord.sender_id || "other"),
+              senderName: String(newRecord.sender_name || "Contact"),
               isSelf: newRecord.sender_id === CURRENT_USER.id,
-              text: newRecord.text || "",
+              text: String(newRecord.text || ""),
               timestamp: new Date().toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -202,6 +197,81 @@ export function useRealtimeChat() {
       console.warn("Supabase Realtime subscription initialized in offline mode:", e);
     }
   }, [activeContactId]);
+
+  // Automated intelligent reply simulation to bring Six9 Chat feel to life
+  const simulateReply = useCallback((contactId: string, userText: string) => {
+    // Only simulate reply after 2.5 seconds to show typing indicator
+    setTimeout(() => {
+      setIsTyping(true);
+
+      setTimeout(() => {
+        setIsTyping(false);
+
+        const contact = contacts.find((c) => c.id === contactId);
+        const name = contact ? contact.name : "Contact";
+        const replyTime = new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        // Context-aware simulated responses
+        let replyContent = "Got your message! Six9Chat edge replication is flowing smoothly.";
+        const lower = userText.toLowerCase();
+
+        if (lower.includes("hello") || lower.includes("hi") || lower.includes("hey")) {
+          replyContent = `Hey! Great to connect on Six9Chat. How does the real-time speed feel?`;
+        } else if (lower.includes("supabase") || lower.includes("database") || lower.includes("db")) {
+          replyContent = `Supabase PostgreSQL RLS policies & WebSocket channels are actively synced! Latency is <15ms ⚡`;
+        } else if (lower.includes("design") || lower.includes("ui") || lower.includes("layout")) {
+          replyContent = `The Six9 Chat dual-pane layout, glassmorphic bubbles, and brand gradients are looking phenomenal!`;
+        } else if (lower.includes("call") || lower.includes("video")) {
+          replyContent = `Ready for a quick video call preview whenever you'd like! Just hit the camera icon on the top right.`;
+        } else {
+          const canned = [
+            `Received! Everything is syncing instantaneously via WebSocket broadcast.`,
+            `Checked on my end — double blue ticks confirmed and state is 100% reactive!`,
+            `Awesome! Let's deploy this to production once the Supabase credentials are wired.`,
+          ];
+          replyContent = canned[Math.floor(Math.random() * canned.length)];
+        }
+
+        const replyMsg: ChatMessage = {
+          id: `reply-${Date.now()}`,
+          conversationId: contactId,
+          senderId: contactId,
+          senderName: name,
+          senderAvatar: contact?.avatar || "CO",
+          senderColor: contact?.avatarColor || "from-[#086288] to-[#4D8DBA]",
+          isSelf: false,
+          text: replyContent,
+          timestamp: replyTime,
+          date: "Today",
+          status: "read",
+        };
+
+        setMessagesMap((prev) => ({
+          ...prev,
+          [contactId]: [...(prev[contactId] || []), replyMsg],
+        }));
+
+        setContacts((prev) =>
+          prev.map((c) =>
+            c.id === contactId
+              ? {
+                  ...c,
+                  lastMessage: {
+                    text: replyContent,
+                    timestamp: replyTime,
+                    isSelf: false,
+                    status: "read",
+                  },
+                }
+              : c
+          )
+        );
+      }, 2200);
+    }, 1200);
+  }, [contacts]);
 
   // Send message action
   const sendMessage = useCallback(
@@ -301,83 +371,8 @@ export function useRealtimeChat() {
       // Trigger realistic smart bot reply simulation if chat isn't group or when offline
       simulateReply(activeContactId, text);
     },
-    [activeContactId]
+    [activeContactId, simulateReply]
   );
-
-  // Automated intelligent reply simulation to bring Six9 Chat feel to life
-  const simulateReply = useCallback((contactId: string, userText: string) => {
-    // Only simulate reply after 2.5 seconds to show typing indicator
-    setTimeout(() => {
-      setIsTyping(true);
-
-      setTimeout(() => {
-        setIsTyping(false);
-
-        const contact = contacts.find((c) => c.id === contactId);
-        const name = contact ? contact.name : "Contact";
-        const replyTime = new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-
-        // Context-aware simulated responses
-        let replyContent = "Got your message! Six9Chat edge replication is flowing smoothly.";
-        const lower = userText.toLowerCase();
-
-        if (lower.includes("hello") || lower.includes("hi") || lower.includes("hey")) {
-          replyContent = `Hey! Great to connect on Six9Chat. How does the real-time speed feel?`;
-        } else if (lower.includes("supabase") || lower.includes("database") || lower.includes("db")) {
-          replyContent = `Supabase PostgreSQL RLS policies & WebSocket channels are actively synced! Latency is <15ms ⚡`;
-        } else if (lower.includes("design") || lower.includes("ui") || lower.includes("layout")) {
-          replyContent = `The Six9 Chat dual-pane layout, glassmorphic bubbles, and brand gradients are looking phenomenal!`;
-        } else if (lower.includes("call") || lower.includes("video")) {
-          replyContent = `Ready for a quick video call preview whenever you'd like! Just hit the camera icon on the top right.`;
-        } else {
-          const canned = [
-            `Received! Everything is syncing instantaneously via WebSocket broadcast.`,
-            `Checked on my end — double blue ticks confirmed and state is 100% reactive!`,
-            `Awesome! Let's deploy this to production once the Supabase credentials are wired.`,
-          ];
-          replyContent = canned[Math.floor(Math.random() * canned.length)];
-        }
-
-        const replyMsg: ChatMessage = {
-          id: `reply-${Date.now()}`,
-          conversationId: contactId,
-          senderId: contactId,
-          senderName: name,
-          senderAvatar: contact?.avatar || "CO",
-          senderColor: contact?.avatarColor || "from-[#086288] to-[#4D8DBA]",
-          isSelf: false,
-          text: replyContent,
-          timestamp: replyTime,
-          date: "Today",
-          status: "read",
-        };
-
-        setMessagesMap((prev) => ({
-          ...prev,
-          [contactId]: [...(prev[contactId] || []), replyMsg],
-        }));
-
-        setContacts((prev) =>
-          prev.map((c) =>
-            c.id === contactId
-              ? {
-                  ...c,
-                  lastMessage: {
-                    text: replyContent,
-                    timestamp: replyTime,
-                    isSelf: false,
-                    status: "read",
-                  },
-                }
-              : c
-          )
-        );
-      }, 2200);
-    }, 1200);
-  }, [contacts]);
 
   // Reaction toggling
   const addReaction = useCallback((messageId: string, emoji: string) => {

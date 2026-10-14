@@ -4,7 +4,6 @@ import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Camera,
-  Check,
   Sparkles,
   User,
   Smile,
@@ -88,8 +87,9 @@ export function ProfileOnboardingModal({
           };
           reader.readAsDataURL(file);
         }
-      } catch (err: any) {
-        setErrorMessage(err.message || "Failed to upload photo");
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Failed to upload photo";
+        setErrorMessage(msg);
       } finally {
         setIsSaving(false);
       }

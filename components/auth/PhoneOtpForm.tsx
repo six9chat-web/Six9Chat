@@ -253,7 +253,7 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
               </div>
 
               <p className="text-[11px] text-slate-300 mt-1.5">
-                We'll send a 6-digit Six9 Chat SMS verification code to{" "}
+                We&apos;ll send a 6-digit Six9 Chat SMS verification code to{" "}
                 <span className="font-mono text-[#FFEFC4] font-medium">
                   {fullPhoneNumber}
                 </span>
@@ -394,7 +394,7 @@ export function PhoneOtpForm({ onSuccess }: PhoneOtpFormProps) {
 
             {/* Resend Code / Timer Footer */}
             <div className="flex items-center justify-between text-xs text-slate-300 pt-1">
-              <span>Didn't receive SMS code?</span>
+              <span>Didn&apos;t receive SMS code?</span>
               {canResend ? (
                 <button
                   type="button"

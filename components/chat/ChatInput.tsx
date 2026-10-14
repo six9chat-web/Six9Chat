@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Smile,
   Plus,
-  Paperclip,
   Mic,
   Send,
   Image as ImageIcon,
@@ -15,7 +14,6 @@ import {
   Check,
 } from "lucide-react";
 import { MediaType, MediaMeta } from "@/types/chat";
-import { cn } from "@/lib/utils";
 import { EmojiPicker } from "./EmojiPicker";
 
 interface ChatInputProps {
@@ -51,10 +49,17 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
     }
   }, [text]);
 
+  const [prevIsRecording, setPrevIsRecording] = useState(isRecording);
+  if (prevIsRecording !== isRecording) {
+    setPrevIsRecording(isRecording);
+    if (isRecording) {
+      setRecordingSeconds(0);
+    }
+  }
+
   // Voice recording timer simulation
   useEffect(() => {
     if (isRecording) {
-      setRecordingSeconds(0);
       timerRef.current = setInterval(() => {
         setRecordingSeconds((prev) => prev + 1);
       }, 1000);

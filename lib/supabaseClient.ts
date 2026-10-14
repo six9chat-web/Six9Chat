@@ -1,5 +1,4 @@
 import { createBrowserClient } from '@supabase/ssr';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 // Environment variables with URL sanitization (handles base URL or /rest/v1 endpoints cleanly)
 const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';

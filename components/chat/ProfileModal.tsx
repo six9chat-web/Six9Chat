@@ -14,7 +14,6 @@ import {
   Pencil,
   Trash2,
   Loader2,
-  User,
 } from "lucide-react";
 import { UserProfile, ChatContact } from "@/types/chat";
 import { uploadAvatar } from "@/lib/auth";
@@ -54,9 +53,10 @@ export function ProfileModal({
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(currentUser.name || "");
   const [isEditingAbout, setIsEditingAbout] = useState(false);
+  const userRecord = currentUser as unknown as Record<string, unknown>;
   const initialAbout =
-    (currentUser as any).statusText ||
-    (currentUser as any).about ||
+    (typeof userRecord.statusText === "string" ? userRecord.statusText : null) ||
+    (typeof userRecord.about === "string" ? userRecord.about : null) ||
     "Hey there! I am using Six9Chat 🚀";
   const [aboutValue, setAboutValue] = useState(initialAbout);
   const [isSavingDetails, setIsSavingDetails] = useState(false);
@@ -97,9 +97,10 @@ export function ProfileModal({
         });
       }
       setPreviewAvatar(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setPreviewAvatar(null);
-      setUploadError(err.message || "Failed to upload photo");
+      const msg = err instanceof Error ? err.message : "Failed to upload photo";
+      setUploadError(msg);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -123,8 +124,9 @@ export function ProfileModal({
           statusText: aboutValue,
         });
       }
-    } catch (err: any) {
-      setUploadError(err.message || "Failed to remove photo");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to remove photo";
+      setUploadError(msg);
     } finally {
       setIsUploading(false);
     }
@@ -143,8 +145,9 @@ export function ProfileModal({
         });
       }
       setIsEditingName(false);
-    } catch (err: any) {
-      setUploadError(err.message || "Failed to update name");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to update name";
+      setUploadError(msg);
     } finally {
       setIsSavingDetails(false);
     }
@@ -163,8 +166,9 @@ export function ProfileModal({
         });
       }
       setIsEditingAbout(false);
-    } catch (err: any) {
-      setUploadError(err.message || "Failed to update about");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to update about";
+      setUploadError(msg);
     } finally {
       setIsSavingDetails(false);
     }

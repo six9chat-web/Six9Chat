@@ -16,21 +16,28 @@ export function StoriesViewer({
   activeStory,
   onClose,
 }: StoriesViewerProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
+  const [currentIndex, setCurrentIndex] = useState(() => {
     if (activeStory) {
       const idx = stories.findIndex((s) => s.id === activeStory.id);
-      if (idx >= 0) setCurrentIndex(idx);
+      return idx >= 0 ? idx : 0;
     }
-  }, [activeStory, stories]);
+    return 0;
+  });
+  const [progress, setProgress] = useState(0);
+
+  // Sync index when activeStory changes
+  const [prevStoryId, setPrevStoryId] = useState(activeStory?.id);
+  if (activeStory && activeStory.id !== prevStoryId) {
+    setPrevStoryId(activeStory.id);
+    const idx = stories.findIndex((s) => s.id === activeStory.id);
+    if (idx >= 0) setCurrentIndex(idx);
+    setProgress(0);
+  }
 
   // Story auto-advancement timer (5 seconds)
   useEffect(() => {
     if (!activeStory) return;
 
-    setProgress(0);
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -136,7 +143,7 @@ export function StoriesViewer({
             </div>
 
             <p className="text-base sm:text-lg font-medium text-white leading-relaxed">
-              "{current.caption}"
+              &ldquo;{current.caption}&rdquo;
             </p>
           </div>
 

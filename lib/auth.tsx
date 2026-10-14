@@ -8,9 +8,8 @@ import React, {
   useCallback,
 } from "react";
 import { User, Session, AuthError } from "@supabase/supabase-js";
-import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
 import { UserProfile } from "@/types/chat";
-import { CURRENT_USER } from "@/lib/mockData";
 
 export interface Profile {
   id: string;
@@ -34,6 +33,13 @@ export interface SignUpParams {
   status?: string;
 }
 
+export interface AuthResultData {
+  user?: User | null;
+  session?: Session | null;
+  messageId?: string | null;
+  [key: string]: unknown;
+}
+
 export interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -41,16 +47,16 @@ export interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   needsOnboarding: boolean;
-  signInWithPhone: (phone: string) => Promise<{ error: AuthError | Error | null; data: any }>;
-  signInWithPhoneOtp: (phone: string) => Promise<{ error: AuthError | Error | null; data: any }>;
-  verifyPhoneOtp: (phone: string, token: string) => Promise<{ error: AuthError | Error | null; data: any }>;
-  signInWithEmail: (email: string, password: string) => Promise<{ error: AuthError | Error | null; data: any }>;
+  signInWithPhone: (phone: string) => Promise<{ error: AuthError | Error | null; data: AuthResultData | null }>;
+  signInWithPhoneOtp: (phone: string) => Promise<{ error: AuthError | Error | null; data: AuthResultData | null }>;
+  verifyPhoneOtp: (phone: string, token: string) => Promise<{ error: AuthError | Error | null; data: AuthResultData | null }>;
+  signInWithEmail: (email: string, password: string) => Promise<{ error: AuthError | Error | null; data: AuthResultData | null }>;
   signUpWithEmail: (
     param1: string | SignUpParams,
     param2?: string,
-    param3?: any
-  ) => Promise<{ error: AuthError | Error | null; data: any }>;
-  signInWithOAuth: (provider: "github" | "google") => Promise<{ error: AuthError | Error | null; data: any }>;
+    param3?: string | Record<string, unknown>
+  ) => Promise<{ error: AuthError | Error | null; data: AuthResultData | null }>;
+  signInWithOAuth: (provider: "github" | "google") => Promise<{ error: AuthError | Error | null; data: AuthResultData | null }>;
   signOut: () => Promise<void>;
   saveUserProfile: (profileData: {
     name: string;
@@ -68,7 +74,7 @@ export interface AuthContextType {
 export async function signUpWithEmail(
   param1: string | SignUpParams,
   param2?: string,
-  param3?: any
+  param3?: string | Record<string, unknown>
 ) {
   let email = "";
   let password = "";
@@ -89,9 +95,17 @@ export async function signUpWithEmail(
   } else {
     email = param1;
     password = param2 || "";
-    fullName = typeof param3 === "string" ? param3 : param3?.full_name || param3?.name || "";
-    phone = param3?.phone || "";
-    avatarUrl = param3?.avatar_url || "";
+    const p3 = typeof param3 === "object" && param3 !== null ? param3 : null;
+    fullName =
+      typeof param3 === "string"
+        ? param3
+        : typeof p3?.full_name === "string"
+        ? p3.full_name
+        : typeof p3?.name === "string"
+        ? p3.name
+        : "";
+    phone = typeof p3?.phone === "string" ? p3.phone : "";
+    avatarUrl = typeof p3?.avatar_url === "string" ? p3.avatar_url : "";
   }
 
   if (!password) {
@@ -680,8 +694,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const data = await signInWithPhoneOtp(phoneNumber);
       return { error: null, data };
-    } catch (err: any) {
-      return { error: err, data: null };
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err : new Error(String(err)), data: null };
     }
   }, []);
 
@@ -689,8 +703,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const data = await verifyPhoneOtp(phoneNumber, token);
       return { error: null, data };
-    } catch (err: any) {
-      return { error: err, data: null };
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err : new Error(String(err)), data: null };
     }
   }, []);
 
@@ -698,18 +712,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const data = await signInWithEmail(email, pass);
       return { error: null, data };
-    } catch (err: any) {
-      return { error: err, data: null };
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err : new Error(String(err)), data: null };
     }
   }, []);
 
   const handleSignUpWithEmail = useCallback(
-    async (param1: string | SignUpParams, param2?: string, param3?: any) => {
+    async (
+      param1: string | SignUpParams,
+      param2?: string,
+      param3?: string | Record<string, unknown>
+    ) => {
       try {
         const data = await signUpWithEmail(param1, param2, param3);
         return { error: null, data };
-      } catch (err: any) {
-        return { error: err, data: null };
+      } catch (err: unknown) {
+        return { error: err instanceof Error ? err : new Error(String(err)), data: null };
       }
     },
     []
@@ -725,8 +743,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       if (error) throw error;
       return { error: null, data };
-    } catch (err: any) {
-      return { error: err, data: null };
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err : new Error(String(err)), data: null };
     }
   }, []);
 
@@ -787,8 +805,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(updated);
         setNeedsOnboarding(false);
         return { error: null };
-      } catch (err: any) {
-        return { error: err };
+      } catch (err: unknown) {
+        return { error: err instanceof Error ? err : new Error(String(err)) };
       }
     },
     [user]
