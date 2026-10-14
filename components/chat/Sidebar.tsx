@@ -72,7 +72,7 @@ export function Sidebar({
   ];
 
   return (
-    <aside className="w-full md:w-[380px] lg:w-[420px] xl:w-[440px] h-full flex flex-col bg-[#053b53] border-r border-[#4D8DBA]/30 z-20 shrink-0 select-none">
+    <aside className="w-full md:w-[380px] lg:w-[420px] xl:w-[440px] h-full min-h-0 flex flex-col bg-[#053b53] border-r border-[#4D8DBA]/30 z-20 shrink-0 select-none overflow-hidden">
       {/* 1. Header Bar: "Chats" title + WhatsApp Header Action Buttons */}
       <div className="h-16 px-4 bg-[#086288] border-b border-[#4D8DBA]/35 backdrop-blur-xl flex items-center justify-between shrink-0">
         <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">

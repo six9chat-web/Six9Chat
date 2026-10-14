@@ -38,7 +38,7 @@ export function ChatWindow({
 }: ChatWindowProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [chatSearchQuery, setChatSearchQuery] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Filter messages if search is active
   const displayedMessages = useMemo(() => {
@@ -62,14 +62,23 @@ export function ChatWindow({
     return groups;
   }, [displayedMessages]);
 
-  // Auto-scroll to bottom when messages or typing state changes
+  // STRICT CONTAINER-ONLY AUTO-SCROLL:
+  // Using scrollTop on messagesContainerRef directly prevents window/body scrolling
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop =
+        messagesContainerRef.current.scrollHeight;
+    }
   }, [messages, isTyping]);
 
+  // Ensure window is strictly anchored to (0, 0)
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
-    <div className="flex-1 h-full flex flex-col bg-[#053b53] relative overflow-hidden">
-      {/* 1. Top Chat Header Bar */}
+    <div className="flex-1 min-w-0 min-h-0 h-full flex flex-col bg-[#053b53] relative overflow-hidden">
+      {/* 1. Top Chat Header Bar (Always pinned at top, shrink-0) */}
       <ChatHeader
         contact={contact}
         isTyping={isTyping}
@@ -180,8 +189,11 @@ export function ChatWindow({
         </svg>
       </div>
 
-      {/* 3. Scrollable Messages Stream */}
-      <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-3 space-y-2.5 z-10">
+      {/* 3. Scrollable Messages Stream (min-h-0 guarantees correct flexbox scroll) */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-4 py-3 space-y-2.5 z-10"
+      >
         {groupedMessages.map((group) => (
           <div key={group.date} className="space-y-1">
             {/* Centered Date Separator Pill ("Monday", "Yesterday", "Today") */}
@@ -216,11 +228,9 @@ export function ChatWindow({
             <span>{contact.name} is typing...</span>
           </div>
         )}
-
-        <div ref={messagesEndRef} />
       </div>
 
-      {/* 4. Bottom Input Dock */}
+      {/* 4. Bottom Input Dock (Always pinned at bottom, shrink-0) */}
       <ChatInput onSendMessage={onSendMessage} />
     </div>
   );

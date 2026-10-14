@@ -70,6 +70,13 @@ export function ChatWorkspace() {
     }
   }, [isAuthLoading, isAuthenticated, router]);
 
+  // Prevent any document scrolling and reset scroll offsets
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, []);
+
   const handleSelectContactMobile = (id: string) => {
     selectContact(id);
     setMobileView("chat");
@@ -99,7 +106,7 @@ export function ChatWorkspace() {
 
   if (isAuthLoading) {
     return (
-      <div className="relative w-screen h-[100dvh] bg-[#053b53] flex flex-col items-center justify-center text-slate-100 select-none">
+      <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-full h-full bg-[#053b53] flex flex-col items-center justify-center text-slate-100 select-none z-50">
         <div className="pointer-events-none absolute w-[400px] h-[400px] rounded-full bg-[#4D8DBA]/25 blur-[120px] animate-pulse-glow" />
         <AuthLogo size={64} />
         <div className="mt-6 flex flex-col items-center gap-3 relative z-10">
@@ -121,16 +128,16 @@ export function ChatWorkspace() {
   const activeUser = profile || currentUser;
 
   return (
-    <div className="fixed inset-0 w-screen h-screen h-[100dvh] bg-[#053b53] text-slate-100 overflow-hidden flex flex-row font-sans selection:bg-[#97D7FF] selection:text-[#086288] m-0 p-0">
+    <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-full h-full bg-[#053b53] text-slate-100 overflow-hidden font-sans selection:bg-[#97D7FF] selection:text-[#086288] m-0 p-0 z-0">
       {/* Dynamic Ambient Background Glow Elements */}
       <div className="pointer-events-none absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-[#086288]/40 blur-[140px] animate-pulse-glow" />
       <div className="pointer-events-none absolute top-1/3 -right-32 w-[550px] h-[550px] rounded-full bg-[#4D8DBA]/25 blur-[150px]" />
       <div className="pointer-events-none absolute -bottom-32 left-1/3 w-[480px] h-[480px] rounded-full bg-[#97D7FF]/15 blur-[140px]" />
 
-      {/* Main Full-Screen WhatsApp Web Layout (100vw x 100vh) */}
-      <div className="flex w-full h-full overflow-hidden relative z-20">
+      {/* Main Full-Screen WhatsApp Web Layout (Strict 100% width x 100% height) */}
+      <div className="flex flex-row w-full h-full min-h-0 overflow-hidden relative z-10">
         {/* Leftmost Vertical Navigation Rail */}
-        <div className="hidden md:flex h-full shrink-0">
+        <div className="hidden md:flex h-full min-h-0 shrink-0">
           <NavigationRail
             activeTab={activeRailTab}
             onTabChange={(tab) => {
@@ -152,10 +159,10 @@ export function ChatWorkspace() {
 
         {/* Main Chats Sidebar Pane */}
         <div
-          className={`h-full shrink-0 border-r border-[#4D8DBA]/35 transition-all duration-200 ${
+          className={`h-full min-h-0 shrink-0 border-r border-[#4D8DBA]/35 transition-all duration-200 ${
             mobileView === "chat"
               ? "hidden md:flex md:w-[380px] lg:w-[420px] xl:w-[440px]"
-              : "w-full md:w-[380px] lg:w-[420px] xl:w-[440px] flex"
+              : "w-full md:w-[380px] lg:w-[420px] xl:w-[440px] flex flex-col"
           }`}
         >
           <Sidebar
@@ -182,8 +189,8 @@ export function ChatWorkspace() {
 
         {/* Right Pane: WhatsApp Conversation Window */}
         <div
-          className={`flex-1 h-full bg-[#053b53] transition-all duration-200 ${
-            mobileView === "sidebar" ? "hidden md:flex" : "flex"
+          className={`flex-1 min-w-0 min-h-0 h-full bg-[#053b53] transition-all duration-200 ${
+            mobileView === "sidebar" ? "hidden md:flex" : "flex flex-col"
           }`}
         >
           <ChatWindow

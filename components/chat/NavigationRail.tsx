@@ -43,7 +43,7 @@ export function NavigationRail({
   return (
     <nav
       aria-label="WhatsApp Web Navigation Rail"
-      className="w-14 sm:w-16 h-full bg-[#032433] border-r border-[#4D8DBA]/25 flex flex-col items-center justify-between py-3.5 shrink-0 select-none z-30 transition-all"
+      className="w-14 sm:w-16 h-full min-h-0 bg-[#032433] border-r border-[#4D8DBA]/25 flex flex-col items-center justify-between py-3 shrink-0 select-none z-30 overflow-hidden"
     >
       {/* Top Main Navigation Items */}
       <div className="flex flex-col items-center gap-2 w-full px-2">

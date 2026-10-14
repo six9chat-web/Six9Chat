@@ -68,7 +68,7 @@ export function ChatList({
   }
 
   return (
-    <div className="overflow-y-auto flex-1 select-none px-2 py-1 space-y-1">
+    <div className="overflow-y-auto flex-1 min-h-0 select-none px-2 py-1 space-y-1">
       {contacts.map((contact) => {
         const isActive = contact.id === activeContactId;
 
