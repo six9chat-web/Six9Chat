@@ -7,7 +7,6 @@ import {
   Search,
   MoreVertical,
   ArrowLeft,
-  Shield,
   BellOff,
   Trash2,
   UserCheck,
@@ -215,17 +214,7 @@ export function ChatHeader({
                     <span>{isMuted ? "Unmute Notifications" : "Mute Notifications"}</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      alert("Messages encrypted with Supabase RLS security.");
-                      setShowMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-[#4D8DBA]/30 text-left transition"
-                  >
-                    <Shield className="w-4 h-4 text-[#FFEFC4]" />
-                    <span>Encryption Details</span>
-                  </button>
+
 
                   <div className="h-px bg-[#4D8DBA]/40 my-1" />
 

@@ -55,7 +55,7 @@ const DEFAULT_COMMUNITIES: CommunityItem[] = [
   {
     id: "comm-4",
     name: "Security, Cryptography & RLS",
-    description: "End-to-end encrypted messaging discussions, double ratchet protocol, and audit logs.",
+    description: "Security architecture, PostgreSQL RLS policies, and system audit logs.",
     membersCount: 970,
     avatar: "🛡️",
     avatarBg: "from-[#053b53] to-[#97D7FF]",

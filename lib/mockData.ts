@@ -110,7 +110,7 @@ export const INITIAL_CONTACTS: ChatContact[] = [
     phone: "+1 (555) 234-7761",
     unreadCount: 0,
     lastMessage: {
-      text: "End-to-End double ratchet encryption handshake simulated cleanly.",
+      text: "Supabase real-time channel handshake completed cleanly.",
       timestamp: "Yesterday",
       isSelf: false,
       status: "read",
@@ -388,7 +388,7 @@ export const INITIAL_MESSAGES_BY_CONTACT: Record<string, ChatMessage[]> = {
       senderAvatar: "ST",
       senderColor: "from-[#053b53] to-[#4D8DBA]",
       isSelf: false,
-      text: "End-to-End double ratchet encryption handshake simulated cleanly.",
+      text: "Supabase real-time channel handshake completed cleanly.",
       timestamp: "Yesterday",
       date: "Yesterday",
       status: "read",

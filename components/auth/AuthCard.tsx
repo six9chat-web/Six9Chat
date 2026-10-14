@@ -49,8 +49,7 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
           <div className="flex items-center gap-2">
             <Lock className="w-3.5 h-3.5 text-[#97D7FF]" />
             <span className="text-[11px]">
-              End-to-end encrypted · Powered by{" "}
-              <strong className="text-white font-semibold">Supabase Auth</strong>
+              Powered by <strong className="text-white font-semibold">Supabase Auth</strong>
             </span>
           </div>
 

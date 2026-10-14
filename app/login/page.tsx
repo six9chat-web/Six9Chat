@@ -446,8 +446,8 @@ function LoginContent() {
           <Logo size={42} showText={true} />
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-300">
-          <ShieldCheck className="w-4 h-4 text-[#97D7FF]" />
-          <span>End-to-End Encrypted</span>
+          <span className="w-2 h-2 rounded-full bg-[#97D7FF] animate-pulse" />
+          <span>Realtime Network Active</span>
         </div>
       </header>
 
@@ -1005,9 +1005,8 @@ function LoginContent() {
         </motion.div>
       </main>
 
-      {/* Footer copyright */}
       <footer className="relative z-20 py-4 text-center text-xs text-slate-300">
-        Six9Chat • Next.js 16 & Supabase Auth Architecture • End-to-End Encrypted
+        Six9Chat • Next.js 16 &amp; Supabase Auth Architecture
       </footer>
     </div>
   );

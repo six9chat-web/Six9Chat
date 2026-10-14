@@ -58,21 +58,22 @@ export function ChatList({
           <motion.div
             key={contact.id}
             onClick={() => onSelectContact(contact.id)}
-            whileHover={{ backgroundColor: "rgba(77, 141, 186, 0.18)" }}
+            whileHover={{ backgroundColor: "rgba(77, 141, 186, 0.35)" }}
             whileTap={{ scale: 0.99 }}
             className={cn(
-              "group relative flex items-center gap-3.5 px-4 py-3.5 cursor-pointer transition-colors duration-150",
+              "group relative flex items-center gap-3.5 px-4 py-3.5 cursor-pointer transition-all duration-150",
               isActive
-                ? "bg-[#4D8DBA]/25 border-l-4 border-[#97D7FF]"
-                : "border-l-4 border-transparent hover:bg-[#4D8DBA]/10"
+                ? "bg-[#4D8DBA]/45 border-l-[5px] border-[#97D7FF] shadow-[inset_0_1px_0_rgba(151,215,255,0.25),inset_0_-1px_0_rgba(8,98,136,0.4)] ring-1 ring-[#4D8DBA]/60"
+                : "border-l-[5px] border-transparent hover:bg-[#4D8DBA]/30"
             )}
           >
             {/* Contact Avatar */}
             <div className="relative shrink-0">
               <div
                 className={cn(
-                  "w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-md bg-gradient-to-tr",
-                  contact.avatarColor || "from-[#086288] to-[#4D8DBA]"
+                  "w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-md bg-gradient-to-tr transition-all",
+                  contact.avatarColor || "from-[#086288] to-[#4D8DBA]",
+                  isActive && "ring-2 ring-[#97D7FF] ring-offset-2 ring-offset-[#086288] scale-105"
                 )}
               >
                 {contact.avatar}
@@ -92,8 +93,10 @@ export function ChatList({
               <div className="flex items-center justify-between mb-1">
                 <span
                   className={cn(
-                    "text-sm font-bold truncate",
-                    isActive ? "text-[#FFEFC4]" : "text-white group-hover:text-[#FFEFC4]"
+                    "text-sm font-bold truncate transition-colors",
+                    isActive
+                      ? "text-[#FFEFC4] font-black tracking-wide"
+                      : "text-white group-hover:text-[#FFEFC4]"
                   )}
                 >
                   {contact.name}
@@ -101,8 +104,12 @@ export function ChatList({
 
                 <span
                   className={cn(
-                    "text-[11px] font-medium shrink-0 ml-2",
-                    contact.unreadCount > 0 ? "text-[#FFEFC4] font-bold" : "text-[#97D7FF]/70"
+                    "text-[11px] font-medium shrink-0 ml-2 transition-colors",
+                    isActive
+                      ? "text-[#FFEFC4] font-bold"
+                      : contact.unreadCount > 0
+                      ? "text-[#FFEFC4] font-bold"
+                      : "text-[#97D7FF]/80"
                   )}
                 >
                   {contact.lastMessage?.timestamp || ""}
@@ -110,7 +117,12 @@ export function ChatList({
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-slate-300 truncate flex items-center gap-1.5 leading-snug">
+                <p
+                  className={cn(
+                    "text-xs truncate flex items-center gap-1.5 leading-snug transition-colors",
+                    isActive ? "text-slate-100 font-medium" : "text-slate-300 group-hover:text-slate-100"
+                  )}
+                >
                   {contact.lastMessage?.isSelf && (
                     <span>{renderStatusTicks(contact.lastMessage.status)}</span>
                   )}

@@ -38,12 +38,18 @@
   --cream: #FFEFC4;
 }
 
+html,
 body {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
   background-color: #053b53;
   color: #F8FAFC;
-  min-height: 100vh;
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
-  overflow-x: hidden;
 }
 
 /* Custom Color Utilities */

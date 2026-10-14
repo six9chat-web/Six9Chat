@@ -358,11 +358,6 @@ export function Sidebar({
         onSelectContact={onSelectContact}
       />
 
-      {/* Footer Security Badging */}
-      <div className="p-2.5 bg-[#086288]/60 border-t border-[#4D8DBA]/30 flex items-center justify-center gap-1.5 text-[11px] text-slate-300">
-        <Lock className="w-3 h-3 text-[#97D7FF]" />
-        <span>End-to-end encrypted with Supabase RLS</span>
-      </div>
     </aside>
   );
 }

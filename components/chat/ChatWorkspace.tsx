@@ -116,11 +116,10 @@ export function ChatWorkspace() {
       </div>
     );
   }
-
   const activeUser = profile || currentUser;
 
   return (
-    <div className="relative w-screen h-[100dvh] bg-[#053b53] text-slate-100 overflow-hidden flex flex-row font-sans selection:bg-[#97D7FF] selection:text-[#086288]">
+    <div className="fixed inset-0 w-screen h-screen h-[100dvh] bg-[#053b53] text-slate-100 overflow-hidden flex flex-row font-sans selection:bg-[#97D7FF] selection:text-[#086288] m-0 p-0">
       {/* Dynamic Ambient Background Glow Elements */}
       <div className="pointer-events-none absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-[#086288]/40 blur-[140px] animate-pulse-glow" />
       <div className="pointer-events-none absolute top-1/3 -right-32 w-[550px] h-[550px] rounded-full bg-[#4D8DBA]/25 blur-[150px]" />

@@ -6,7 +6,6 @@ import { ChatContact, ChatMessage, MediaType, MediaMeta } from "@/types/chat";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageItem } from "@/components/chat/MessageItem";
-import { Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ChatWindowProps {
@@ -121,13 +120,7 @@ export function ChatWindow({
 
       {/* Scrollable Messages Area */}
       <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 space-y-3 z-10">
-        {/* End-to-End Encryption Notice Pill */}
-        <div className="flex justify-center my-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#086288]/85 border border-[#4D8DBA]/40 text-[11px] text-[#FFEFC4] shadow-md backdrop-blur-md">
-            <Shield className="w-3.5 h-3.5 text-[#FFEFC4]" />
-            <span>Messages and calls are end-to-end encrypted with Supabase security.</span>
-          </div>
-        </div>
+
 
         {groupedMessages.map((group) => (
           <div key={group.date} className="space-y-1.5">

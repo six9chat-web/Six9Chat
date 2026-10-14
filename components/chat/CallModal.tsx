@@ -11,7 +11,7 @@ import {
   Volume2,
   VolumeX,
   Maximize2,
-  Shield,
+  Radio,
 } from "lucide-react";
 import { ChatContact } from "@/types/chat";
 import { cn } from "@/lib/utils";
@@ -81,10 +81,10 @@ export function CallModal({
           <div className="pointer-events-none absolute -top-20 -left-20 w-60 h-60 bg-[#4D8DBA]/25 rounded-full blur-3xl" />
           <div className="pointer-events-none absolute -bottom-20 -right-20 w-60 h-60 bg-[#97D7FF]/20 rounded-full blur-3xl" />
 
-          {/* Encryption Badge */}
+          {/* HD Quality Call Badge */}
           <div className="flex items-center gap-1.5 text-[11px] text-[#FFEFC4] bg-[#053b53]/80 border border-[#4D8DBA]/50 px-3 py-1 rounded-full mb-6">
-            <Shield className="w-3.5 h-3.5 text-[#FFEFC4]" />
-            <span>End-to-End Encrypted Call</span>
+            <Radio className="w-3.5 h-3.5 text-[#97D7FF] animate-pulse" />
+            <span>HD Voice & Video Stream</span>
           </div>
 
           {/* Caller Avatar with Animated Rings */}
