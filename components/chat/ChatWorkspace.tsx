@@ -253,7 +253,7 @@ export function ChatWorkspace() {
         onCreateCommunity={(name, description, isChannel) => {
           const newId = createGroup(
             name,
-            [currentUser.name, "Abdullah Uni", "Amjad Uni"],
+            [currentUser.name, "Alex Rivers", "Elena Vance"],
             isChannel ? "📢" : "👥"
           );
           selectContact(newId);
