@@ -8,7 +8,6 @@ import {
   ArrowRight,
   ArrowLeft,
   Smartphone,
-  ShieldCheck,
   AlertCircle,
   CheckCircle2,
   RefreshCw,
@@ -16,10 +15,7 @@ import {
   Check,
   User,
   MessageSquare,
-  Globe,
   Sparkles,
-  Copy,
-  KeyRound,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { CountryCodeSelector } from "@/components/auth/CountryCodeSelector";
@@ -462,18 +458,23 @@ function LoginContent() {
           {/* Card Top Branding Header with S9 Circular Ribbon Logo */}
           <div className="p-7 pb-5 border-b border-[#4D8DBA]/35 bg-gradient-to-b from-[#053b53]/50 to-transparent text-center">
             {/* Step Navigation Pill */}
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs uppercase tracking-widest text-[#FFEFC4] font-bold">
-                SIX9 CHAT
-              </span>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#053b53] border border-[#4D8DBA]/40 text-slate-200">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#97D7FF] shadow-[0_0_8px_#97D7FF]" />
+                <span className="text-xs font-bold tracking-[0.2em] text-[#FFEFC4] uppercase font-mono">
+                  SIX9 CHAT
+                </span>
+              </div>
+              <span className="text-[11px] font-semibold px-3 py-1 rounded-full bg-[#053b53] border border-[#4D8DBA]/40 text-slate-200 shadow-sm">
                 Step {step} of 4
               </span>
             </div>
 
-            {/* S9 Circular Ribbon Logo */}
+            {/* S9 Circular Brand Logo */}
             <div className="flex justify-center mb-3">
-              <Logo size={60} showText={false} />
+              <div className="relative p-1 rounded-full bg-gradient-to-tr from-[#97D7FF]/30 via-[#4D8DBA]/20 to-[#FFEFC4]/20 shadow-[0_0_24px_rgba(151,215,255,0.3)]">
+                <Logo size={68} showText={false} />
+              </div>
             </div>
 
             {/* Stepper Progress Bar */}
@@ -593,19 +594,6 @@ function LoginContent() {
                       onSelect={setSelectedLanguage}
                     />
                   </div>
-
-                  {/* WhatsApp-Style Terms Notice */}
-                  <p className="text-[11px] text-slate-300 leading-relaxed px-2">
-                    Read our{" "}
-                    <span className="text-[#97D7FF] hover:underline cursor-pointer">
-                      Privacy Policy
-                    </span>
-                    . Tap &quot;Agree and continue&quot; to accept the{" "}
-                    <span className="text-[#97D7FF] hover:underline cursor-pointer">
-                      Terms of Service
-                    </span>
-                    .
-                  </p>
 
                   {/* Next / Continue CTA Button */}
                   <button

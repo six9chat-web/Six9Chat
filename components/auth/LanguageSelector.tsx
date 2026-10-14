@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Globe, ChevronDown, Check, Search } from "lucide-react";
+import { ChevronDown, Check, Search } from "lucide-react";
 import { LANGUAGES, Language } from "@/lib/languages";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -55,14 +55,13 @@ export function LanguageSelector({
         onClick={() => setIsOpen((prev) => !prev)}
         className="w-full h-12 px-4 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 hover:border-[#97D7FF] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] flex items-center justify-between text-sm text-slate-100 transition outline-none disabled:opacity-50"
       >
-        <div className="flex items-center gap-3">
-          <Globe className="w-5 h-5 text-[#97D7FF] shrink-0" />
-          <span className="text-lg">{selectedLanguage.flag}</span>
-          <span className="font-semibold text-white">{selectedLanguage.name}</span>
-          <span className="text-xs text-[#97D7FF]/80">({selectedLanguage.nativeName})</span>
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-2xl leading-none shrink-0 filter drop-shadow-sm">{selectedLanguage.flag}</span>
+          <span className="font-semibold text-white text-sm truncate">{selectedLanguage.name}</span>
+          <span className="text-xs text-[#97D7FF]/90 font-medium shrink-0">({selectedLanguage.nativeName})</span>
         </div>
         <ChevronDown
-          className={`w-4 h-4 text-slate-300 transition-transform duration-200 ${
+          className={`w-4 h-4 text-slate-300 transition-transform duration-200 shrink-0 ${
             isOpen ? "rotate-180 text-[#97D7FF]" : ""
           }`}
         />
@@ -87,14 +86,14 @@ export function LanguageSelector({
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search language..."
+                  placeholder="Search among 70+ languages..."
                   className="w-full bg-transparent text-xs text-white placeholder-slate-300 outline-none"
                 />
               </div>
             </div>
 
             {/* List of Languages */}
-            <div className="max-h-60 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+            <div className="max-h-72 overflow-y-auto p-2 space-y-1 custom-scrollbar">
               {filteredLanguages.length === 0 ? (
                 <div className="py-6 text-center text-xs text-slate-300">
                   No language found
@@ -117,12 +116,12 @@ export function LanguageSelector({
                           : "text-slate-200 hover:bg-[#4D8DBA]/30 hover:text-white"
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="text-base">{lang.flag}</span>
-                        <span className="font-medium text-white">{lang.name}</span>
-                        <span className="text-slate-300 text-[11px]">({lang.nativeName})</span>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-xl leading-none shrink-0">{lang.flag}</span>
+                        <span className="font-medium text-white truncate">{lang.name}</span>
+                        <span className="text-slate-300 text-[11px] shrink-0">({lang.nativeName})</span>
                       </div>
-                      {isSelected && <Check className="w-4 h-4 text-[#FFEFC4]" />}
+                      {isSelected && <Check className="w-4 h-4 text-[#FFEFC4] shrink-0" />}
                     </button>
                   );
                 })
