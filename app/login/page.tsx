@@ -22,7 +22,7 @@ import { CountryCodeSelector } from "@/components/auth/CountryCodeSelector";
 import { LanguageSelector } from "@/components/auth/LanguageSelector";
 import { Country, DEFAULT_COUNTRY } from "@/lib/countries";
 import { Language, DEFAULT_LANGUAGE, TRANSLATIONS } from "@/lib/languages";
-import { formatE164 } from "@/lib/phoneUtils";
+import { formatE164, getExpectedPhoneLength } from "@/lib/phoneUtils";
 import {
   signInWithPhoneOtp,
   verifyPhoneOtp,
@@ -134,9 +134,16 @@ function LoginContent() {
     }
   }, [step]);
 
-  // Strict E.164 formatted phone calculation
-  const phoneFormatResult = formatE164(selectedCountry.dial_code, phoneNumber);
+  // Strict country-aware E.164 formatted phone calculation & exact digit length
+  const expectedDigits = getExpectedPhoneLength(selectedCountry.code);
+  const phoneFormatResult = formatE164(selectedCountry.dial_code, phoneNumber, selectedCountry.code);
   const fullPhone = phoneFormatResult.e164;
+
+  const handleCountrySelect = (country: Country) => {
+    setSelectedCountry(country);
+    const newExpected = getExpectedPhoneLength(country.code);
+    setPhoneNumber((prev) => prev.slice(0, newExpected));
+  };
 
   // STEP 1 -> STEP 2
   const handleProceedFromLanguage = () => {
@@ -161,10 +168,10 @@ function LoginContent() {
     setSuccessMessage(null);
     setMockOtpNotification(null);
 
-    const { e164, isValid } = formatE164(selectedCountry.dial_code, phoneNumber);
+    const { e164, isValid } = formatE164(selectedCountry.dial_code, phoneNumber, selectedCountry.code);
 
     if (!isValid) {
-      setErrorMessage("Please enter a valid phone number (minimum 7 digits).");
+      setErrorMessage(`Please enter a complete ${expectedDigits}-digit phone number for ${selectedCountry.name}.`);
       return;
     }
 
@@ -625,7 +632,7 @@ function LoginContent() {
                       {t.enterPhone}
                     </h2>
                     <p className="text-slate-300 text-xs sm:text-sm mt-1.5">
-                      Six9Chat will need to verify your phone number. Carrier SMS charges may apply.
+                      Six9Chat will need to verify your phone number.
                     </p>
                   </div>
 
@@ -636,7 +643,7 @@ function LoginContent() {
                     </label>
                     <CountryCodeSelector
                       selectedCountry={selectedCountry}
-                      onSelect={setSelectedCountry}
+                      onSelect={handleCountrySelect}
                       variant="full"
                       disabled={isLoading}
                     />
@@ -648,47 +655,74 @@ function LoginContent() {
                       Phone Number
                     </label>
                     <div className="flex items-center gap-2">
-                      {/* Fixed Dial Code Box */}
-                      <div className="h-12 px-3.5 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 flex items-center justify-center text-sm font-mono text-[#FFEFC4] font-bold select-none shrink-0">
-                        {selectedCountry.dial_code}
+                      {/* Fixed Dial Code Box with Country Flag */}
+                      <div className="h-12 px-3 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 flex items-center justify-center gap-2 text-sm font-mono text-[#FFEFC4] font-bold select-none shrink-0 shadow-inner">
+                        <span className="inline-flex items-center justify-center w-6 h-4 overflow-hidden rounded-[2px] border border-white/20 shrink-0">
+                          <img
+                            src={`https://flagcdn.com/w40/${selectedCountry.code.toLowerCase()}.png`}
+                            alt={selectedCountry.name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        </span>
+                        <span>{selectedCountry.dial_code}</span>
                       </div>
 
-                      {/* Number Input Field */}
+                      {/* Number Input Field with Strict Max Length */}
                       <div className="relative flex-1">
                         <Phone className="w-4 h-4 text-[#4D8DBA] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                         <input
                           type="tel"
-                          placeholder="341 4348189"
+                          inputMode="numeric"
+                          placeholder={`Enter ${expectedDigits} digits`}
+                          maxLength={expectedDigits}
                           value={phoneNumber}
-                          onChange={(e) =>
-                            setPhoneNumber(e.target.value.replace(/[^\d\s-+()]/g, ""))
-                          }
-                          className="w-full h-12 bg-[#053b53] border border-[#4D8DBA]/50 rounded-2xl pl-10 pr-4 text-sm text-white placeholder-slate-300 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition font-mono tracking-wider"
+                          onChange={(e) => {
+                            let digits = e.target.value.replace(/\D/g, "");
+                            if (digits.startsWith("0")) {
+                              digits = digits.slice(1);
+                            }
+                            if (digits.length > expectedDigits) {
+                              digits = digits.slice(0, expectedDigits);
+                            }
+                            setPhoneNumber(digits);
+                          }}
+                          className="w-full h-12 bg-[#053b53] border border-[#4D8DBA]/50 rounded-2xl pl-10 pr-4 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition font-mono tracking-wider"
                           required
                           autoFocus
                         />
                       </div>
                     </div>
 
-                    {phoneNumber.trim() && (
-                      <div className="text-[11px] text-slate-300 mt-2 pl-0.5 flex items-center justify-between">
-                        <p className="flex items-center gap-1.5">
-                          <span className="text-slate-400">E.164 Standard:</span>
-                          <span className="font-mono text-[#FFEFC4] font-semibold">
-                            {phoneFormatResult.e164}
-                          </span>
-                        </p>
-                        {phoneFormatResult.isValid ? (
-                          <span className="text-[#97D7FF] text-[10px] flex items-center gap-1 font-medium bg-[#97D7FF]/15 px-2 py-0.5 rounded-full border border-[#97D7FF]/30">
-                            <CheckCircle2 className="w-3 h-3" /> Valid format
-                          </span>
-                        ) : (
-                          <span className="text-[#FFEFC4] text-[10px]">
-                            Enter at least 7 digits
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    <div className="text-[11px] text-slate-300 mt-2 pl-0.5 flex items-center justify-between min-h-[20px]">
+                      {phoneNumber.length > 0 ? (
+                        <>
+                          <p className="flex items-center gap-1.5">
+                            <span className="text-slate-400">E.164:</span>
+                            <span className="font-mono text-[#FFEFC4] font-semibold">
+                              {phoneFormatResult.e164}
+                            </span>
+                          </p>
+                          {phoneFormatResult.isValid ? (
+                            <span className="text-[#97D7FF] text-[10px] flex items-center gap-1 font-medium bg-[#97D7FF]/15 px-2 py-0.5 rounded-full border border-[#97D7FF]/30">
+                              <CheckCircle2 className="w-3 h-3 text-[#97D7FF]" />
+                              Valid ({phoneNumber.length}/{expectedDigits})
+                            </span>
+                          ) : (
+                            <span className="text-[#FFEFC4] text-[10px] font-mono bg-[#053b53] px-2 py-0.5 rounded-full border border-[#4D8DBA]/40">
+                              {phoneNumber.length}/{expectedDigits} digits
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-slate-400 text-[10px]">
+                          Exact format: {expectedDigits} digits for {selectedCountry.name}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Buttons: Back to Language & Next */}
@@ -706,7 +740,7 @@ function LoginContent() {
                     <button
                       type="submit"
                       disabled={isLoading || !phoneFormatResult.isValid}
-                      className="flex-1 py-3.5 px-4 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm active:scale-[0.99] transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                      className="flex-1 py-3.5 px-4 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm active:scale-[0.99] transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-[#97D7FF] disabled:hover:text-[#086288] disabled:active:scale-100 cursor-pointer"
                     >
                       {isLoading ? (
                         <>

@@ -60,7 +60,17 @@ export function CountryCodeSelector({
           title="Choose a country"
         >
           <div className="flex items-center gap-3 truncate">
-            <span className="text-xl select-none">{selectedCountry.flag}</span>
+            <span className="inline-flex items-center justify-center w-7 h-4.5 overflow-hidden rounded-[3px] border border-white/20 shadow-xs bg-[#086288] shrink-0 select-none">
+              <img
+                src={`https://flagcdn.com/w40/${selectedCountry.code.toLowerCase()}.png`}
+                alt={selectedCountry.name}
+                className="w-full h-full object-cover"
+                loading="lazy"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            </span>
             <span className="font-semibold text-white tracking-wide truncate">
               {selectedCountry.name}
             </span>
@@ -84,7 +94,17 @@ export function CountryCodeSelector({
           className="h-11 px-3 rounded-xl bg-[#053b53] border border-[#4D8DBA]/50 hover:border-[#97D7FF] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] flex items-center gap-2 text-xs font-medium text-slate-200 transition outline-none disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           title="Select Country Dial Code"
         >
-          <span className="text-base select-none">{selectedCountry.flag}</span>
+          <span className="inline-flex items-center justify-center w-5 h-3.5 overflow-hidden rounded-[2px] border border-white/20 shrink-0 select-none">
+            <img
+              src={`https://flagcdn.com/w40/${selectedCountry.code.toLowerCase()}.png`}
+              alt={selectedCountry.name}
+              className="w-full h-full object-cover"
+              loading="lazy"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          </span>
           <span className="font-semibold text-[#FFEFC4] tracking-wide">
             {selectedCountry.dial_code}
           </span>
@@ -148,8 +168,18 @@ export function CountryCodeSelector({
                           : "text-slate-200 hover:bg-[#4D8DBA]/30 hover:text-white"
                       }`}
                     >
-                      <div className="flex items-center gap-2.5 truncate">
-                        <span className="text-base select-none">{country.flag}</span>
+                      <div className="flex items-center gap-3 truncate">
+                        <span className="inline-flex items-center justify-center w-6 h-4 overflow-hidden rounded-[3px] border border-white/20 shadow-xs bg-[#053b53] shrink-0 select-none">
+                          <img
+                            src={`https://flagcdn.com/w40/${country.code.toLowerCase()}.png`}
+                            alt={country.name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        </span>
                         <span className="truncate">{country.name}</span>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0 ml-2 font-mono text-[11px] text-[#97D7FF]">
