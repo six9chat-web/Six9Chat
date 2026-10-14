@@ -4,24 +4,16 @@ import React, { useState } from "react";
 import {
   Search,
   MessageSquarePlus,
-  CircleDashed,
-  Moon,
-  Sun,
-  X,
-  SlidersHorizontal,
-  CheckCircle2,
-  Database,
-  Users,
-  Radio,
-  Lock,
-  LogOut,
-  User as UserIcon,
   MoreVertical,
-  Archive,
-  Star,
+  X,
+  Plus,
+  Users,
+  CircleDashed,
   Settings,
+  Archive,
+  LogOut,
+  SlidersHorizontal,
 } from "lucide-react";
-import { Logo } from "@/components/ui/Logo";
 import { ChatList } from "@/components/chat/ChatList";
 import { ChatContact, StoryItem, UserProfile } from "@/types/chat";
 import { ChatFilterType } from "@/hooks/useRealtimeChat";
@@ -69,262 +61,133 @@ export function Sidebar({
   onOpenProfile,
   onOpenSettings,
 }: SidebarProps) {
-  const [showStatusDetails, setShowStatusDetails] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
-  const hasUnreadStories = stories.some((s) => !s.viewed);
-
-  const filters: { id: ChatFilterType; label: string }[] = [
+  const filterTabs: { id: ChatFilterType; label: string }[] = [
     { id: "all", label: "All" },
     { id: "unread", label: "Unread" },
+    { id: "favourites", label: "Favourites" },
     { id: "groups", label: "Groups" },
-    { id: "pinned", label: "Pinned" },
+    { id: "communities", label: "Communities" },
   ];
 
   return (
-    <aside className="w-full md:w-[380px] lg:w-[420px] xl:w-[450px] h-full flex flex-col bg-[#053b53] border-r border-[#4D8DBA]/35 z-20 shrink-0 select-none">
-      {/* WhatsApp Left Sidebar Header */}
+    <aside className="w-full md:w-[380px] lg:w-[420px] xl:w-[440px] h-full flex flex-col bg-[#053b53] border-r border-[#4D8DBA]/30 z-20 shrink-0 select-none">
+      {/* 1. Header Bar: "Chats" title + WhatsApp Header Action Buttons */}
       <div className="h-16 px-4 bg-[#086288] border-b border-[#4D8DBA]/35 backdrop-blur-xl flex items-center justify-between shrink-0">
-        {/* Left: User Avatar & Profile drawer trigger */}
-        <div className="flex items-center gap-3">
-          <div
-            onClick={onOpenProfile}
-            className="relative group cursor-pointer"
-            title={`${currentUser.name} - Click to edit profile`}
-          >
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#086288] via-[#4D8DBA] to-[#97D7FF] flex items-center justify-center font-bold text-xs text-[#086288] shadow-md overflow-hidden ring-2 ring-transparent group-hover:ring-[#97D7FF] transition">
-              {currentUser.avatar?.startsWith("data:") ||
-              currentUser.avatar?.startsWith("http") ? (
-                <img
-                  src={currentUser.avatar}
-                  alt={currentUser.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-[#086288] font-bold">{currentUser.avatar}</span>
-              )}
-            </div>
-            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#97D7FF] ring-2 ring-[#086288]" />
-          </div>
+        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+          Chats
+        </h1>
 
-          <div className="hidden sm:block">
-            <h3 className="text-xs font-bold text-white truncate max-w-[120px]">
-              {currentUser.name}
-            </h3>
-            <span className="text-[10px] text-[#97D7FF] font-medium flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#97D7FF] animate-pulse" />
-              Online
-            </span>
-          </div>
-        </div>
-
-        {/* Right: WhatsApp Header Actions (Communities, Status, New Group, New Chat, Menu) */}
-        <div className="flex items-center gap-0.5 sm:gap-1 text-slate-200">
-          {/* 1. Communities / Channel Icon */}
+        <div className="flex items-center gap-1 text-slate-200 relative">
+          {/* Menu Dropdown Trigger */}
           <button
             type="button"
-            onClick={onOpenCommunity}
-            className="p-2 sm:p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-slate-200"
-            title="Communities & Channels"
+            onClick={() => setShowMenu((prev) => !prev)}
+            className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer"
+            title="Menu"
           >
-            <Users className="w-5 h-5" />
+            <MoreVertical className="w-5 h-5" />
           </button>
 
-          {/* 2. Status / Story Ring Icon */}
-          <button
-            type="button"
-            onClick={onOpenStories}
-            className="relative p-2 sm:p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-slate-200"
-            title="Status stories"
-          >
-            <CircleDashed className="w-5 h-5" />
-            {hasUnreadStories && (
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#FFEFC4] ring-2 ring-[#086288] animate-pulse" />
-            )}
-          </button>
-
-          {/* 3. New Group Icon */}
-          {onOpenNewGroup && (
-            <button
-              type="button"
-              onClick={onOpenNewGroup}
-              className="p-2 sm:p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-slate-200"
-              title="New group"
-            >
-              <Users className="w-5 h-5 text-[#FFEFC4]" />
-            </button>
-          )}
-
-          {/* 4. New Chat / Add Contact Icon */}
+          {/* New Chat Pill Button (Matching WhatsApp Web green/accent icon pill) */}
           <button
             type="button"
             onClick={onOpenNewChat}
-            className="p-2 sm:p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-[#97D7FF]"
-            title="New chat"
+            className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-[#4D8DBA] hover:bg-[#97D7FF] text-white hover:text-[#086288] font-bold text-xs flex items-center gap-1.5 shadow-md shadow-[#086288]/40 transition active:scale-95 cursor-pointer"
+            title="New Chat (+)"
           >
             <MessageSquarePlus className="w-5 h-5" />
           </button>
 
-          {/* 5. Menu Icon (Three vertical dots) */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowMenu((prev) => !prev)}
-              className="p-2 sm:p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-slate-200"
-              title="Menu"
-            >
-              <MoreVertical className="w-5 h-5" />
-            </button>
-
-            <AnimatePresence>
-              {showMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-30"
-                    onClick={() => setShowMenu(false)}
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                    className="absolute right-0 top-12 z-40 w-52 rounded-2xl bg-[#086288] border border-[#4D8DBA]/60 shadow-2xl backdrop-blur-2xl py-1.5 text-xs text-slate-100"
+          {/* Context Dropdown Menu */}
+          <AnimatePresence>
+            {showMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowMenu(false)}
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="absolute right-0 top-12 w-52 bg-[#086288] border border-[#4D8DBA] rounded-2xl shadow-2xl p-1.5 z-50 text-xs backdrop-blur-2xl"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onOpenNewGroup?.();
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl hover:bg-[#4D8DBA]/30 text-left flex items-center gap-2.5 text-slate-100 transition cursor-pointer"
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowMenu(false);
-                        onOpenNewGroup?.();
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#4D8DBA]/30 text-left transition font-medium"
-                    >
-                      <Users className="w-4 h-4 text-[#97D7FF]" />
-                      <span>New group</span>
-                    </button>
+                    <Users className="w-4 h-4 text-[#97D7FF]" />
+                    <span>New Group</span>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowMenu(false);
-                        onOpenCommunity?.();
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#4D8DBA]/30 text-left transition font-medium"
-                    >
-                      <Users className="w-4 h-4 text-[#FFEFC4]" />
-                      <span>Communities & Channels</span>
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onOpenCommunity?.();
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl hover:bg-[#4D8DBA]/30 text-left flex items-center gap-2.5 text-slate-100 transition cursor-pointer"
+                  >
+                    <CircleDashed className="w-4 h-4 text-[#FFEFC4]" />
+                    <span>New Community</span>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowMenu(false);
-                        onFilterChange("pinned");
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#4D8DBA]/30 text-left transition font-medium"
-                    >
-                      <Archive className="w-4 h-4 text-[#4D8DBA]" />
-                      <span>Archived</span>
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onOpenProfile?.();
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl hover:bg-[#4D8DBA]/30 text-left flex items-center gap-2.5 text-slate-100 transition cursor-pointer"
+                  >
+                    <Settings className="w-4 h-4 text-slate-300" />
+                    <span>Settings & Profile</span>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowMenu(false);
-                        alert("Starred Messages: You have no starred messages currently.");
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#4D8DBA]/30 text-left transition font-medium"
-                    >
-                      <Star className="w-4 h-4 text-[#FFEFC4]" />
-                      <span>Starred messages</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowMenu(false);
-                        if (onOpenSettings) onOpenSettings();
-                        else if (onOpenProfile) onOpenProfile();
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#4D8DBA]/30 text-left transition font-medium"
-                    >
-                      <Settings className="w-4 h-4 text-[#97D7FF]" />
-                      <span>Settings</span>
-                    </button>
-
-                    <div className="h-px bg-[#4D8DBA]/40 my-1" />
-
-                    {onSignOut && (
+                  {onSignOut && (
+                    <div className="pt-1 mt-1 border-t border-[#4D8DBA]/30">
                       <button
                         type="button"
                         onClick={() => {
                           setShowMenu(false);
                           onSignOut();
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-500/20 text-red-300 text-left transition font-semibold"
+                        className="w-full px-3 py-2 rounded-xl hover:bg-rose-500/20 text-rose-300 text-left flex items-center gap-2.5 transition cursor-pointer"
                       >
                         <LogOut className="w-4 h-4" />
-                        <span>Log out</span>
+                        <span>Log Out</span>
                       </button>
-                    )}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
+                    </div>
+                  )}
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
-
-
-      {/* Supabase Realtime Info Banner Drawer */}
-      <AnimatePresence>
-        {showStatusDetails && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden bg-[#086288]/95 border-b border-[#4D8DBA]/40 px-4 py-3 text-xs"
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="font-bold text-white flex items-center gap-1.5">
-                <Radio className="w-3.5 h-3.5 text-[#97D7FF] animate-pulse" />
-                Supabase Real-Time Broadcast
-              </span>
-              <span
-                className={cn(
-                  "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
-                  supabaseStatus === "connected"
-                    ? "bg-[#97D7FF]/20 text-[#97D7FF]"
-                    : "bg-[#FFEFC4]/20 text-[#FFEFC4]"
-                )}
-              >
-                {supabaseStatus === "connected" ? "Sync Active" : "Sim Ready"}
-              </span>
-            </div>
-            <p className="text-slate-200 text-[11px] leading-relaxed">
-              Subscribed to channel{" "}
-              <code className="text-[#97D7FF]">public:messages</code>. Realtime
-              WebSocket multiplexing with sub-15ms message dissemination.
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Search Input Bar */}
-      <div className="p-3 pb-2">
-        <div className="relative flex items-center bg-[#086288]/50 border border-[#4D8DBA]/40 rounded-xl px-3 py-2 text-slate-300 focus-within:border-[#97D7FF] focus-within:text-white transition">
-          <Search className="w-4 h-4 mr-2 shrink-0 text-[#4D8DBA]" />
+      {/* 2. Rounded Search Bar ("Search or start a new chat") */}
+      <div className="px-3 pt-3 pb-2 shrink-0">
+        <div className="relative flex items-center w-full">
+          <Search className="w-4 h-4 text-slate-300 absolute left-3.5 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search or start new chat..."
-            className="w-full bg-transparent text-xs text-white placeholder-slate-300 outline-none"
+            placeholder="Search or start a new chat"
+            className="w-full h-10 pl-10 pr-9 rounded-full bg-[#032433] border border-[#4D8DBA]/40 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => onSearchChange("")}
-              className="text-slate-300 hover:text-white shrink-0 ml-1"
+              className="absolute right-3 p-1 rounded-full text-slate-400 hover:text-white transition cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -332,32 +195,44 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* Filter Category Pills */}
-      <div className="flex items-center gap-1.5 px-3 pb-3 overflow-x-auto no-scrollbar">
-        {filters.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            onClick={() => onFilterChange(f.id)}
-            className={cn(
-              "px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all",
-              activeFilter === f.id
-                ? "bg-[#97D7FF] text-[#086288] shadow-sm shadow-[#086288]/30 font-bold"
-                : "bg-[#086288]/50 border border-[#4D8DBA]/35 text-slate-200 hover:text-white hover:bg-[#4D8DBA]/30"
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
+      {/* 3. Filter Pill Tabs: All, Unread, Favourites, Groups, Communities, (+) */}
+      <div className="px-3 pb-2.5 shrink-0 overflow-x-auto no-scrollbar flex items-center gap-1.5">
+        {filterTabs.map((tab) => {
+          const isActive = activeFilter === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onFilterChange(tab.id)}
+              className={cn(
+                "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer shrink-0",
+                isActive
+                  ? "bg-[#4D8DBA] text-white shadow-md shadow-[#086288]/40 ring-1 ring-[#97D7FF]/50"
+                  : "bg-[#032433] border border-[#4D8DBA]/35 text-slate-300 hover:text-white hover:bg-[#4D8DBA]/25"
+              )}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+
+        {/* (+) Add Pill Tab */}
+        <button
+          type="button"
+          onClick={onOpenNewChat}
+          title="Add chat or list"
+          className="w-7 h-7 rounded-full bg-[#032433] border border-[#4D8DBA]/35 text-slate-300 hover:text-white hover:bg-[#4D8DBA]/25 flex items-center justify-center text-xs font-bold shrink-0 transition cursor-pointer"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
       </div>
 
-      {/* Conversation List */}
+      {/* 4. Chat List Section */}
       <ChatList
         contacts={contacts}
         activeContactId={activeContactId}
         onSelectContact={onSelectContact}
       />
-
     </aside>
   );
 }

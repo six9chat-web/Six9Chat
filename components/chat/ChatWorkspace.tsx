@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { NavigationRail } from "@/components/chat/NavigationRail";
 import { Sidebar } from "@/components/chat/Sidebar";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { CallModal } from "@/components/chat/CallModal";
@@ -57,6 +58,7 @@ export function ChatWorkspace() {
 
   // Mobile viewport navigation state: 'sidebar' | 'chat'
   const [mobileView, setMobileView] = useState<"sidebar" | "chat">("sidebar");
+  const [activeRailTab, setActiveRailTab] = useState("chats");
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isNewGroupOpen, setIsNewGroupOpen] = useState(false);
   const [isCommunityOpen, setIsCommunityOpen] = useState(false);
@@ -89,13 +91,12 @@ export function ChatWorkspace() {
     memberIds: string[],
     avatarUrl?: string
   ) => {
-    const newGroupId = createGroup(name, memberIds, avatarUrl);
-    selectContact(newGroupId);
+    const newId = createGroup(name, memberIds, avatarUrl);
+    selectContact(newId);
     setIsNewGroupOpen(false);
     setMobileView("chat");
   };
 
-  // Loading Splash State
   if (isAuthLoading) {
     return (
       <div className="relative w-screen h-[100dvh] bg-[#053b53] flex flex-col items-center justify-center text-slate-100 select-none">
@@ -116,6 +117,7 @@ export function ChatWorkspace() {
       </div>
     );
   }
+
   const activeUser = profile || currentUser;
 
   return (
@@ -125,14 +127,35 @@ export function ChatWorkspace() {
       <div className="pointer-events-none absolute top-1/3 -right-32 w-[550px] h-[550px] rounded-full bg-[#4D8DBA]/25 blur-[150px]" />
       <div className="pointer-events-none absolute -bottom-32 left-1/3 w-[480px] h-[480px] rounded-full bg-[#97D7FF]/15 blur-[140px]" />
 
-      {/* Main Full-Screen WhatsApp Dual-Pane Layout (100vw x 100vh) */}
+      {/* Main Full-Screen WhatsApp Web Layout (100vw x 100vh) */}
       <div className="flex w-full h-full overflow-hidden relative z-20">
-        {/* Left Pane: WhatsApp Sidebar */}
+        {/* Leftmost Vertical Navigation Rail */}
+        <div className="hidden md:flex h-full shrink-0">
+          <NavigationRail
+            activeTab={activeRailTab}
+            onTabChange={(tab) => {
+              setActiveRailTab(tab);
+              if (tab === "chats") setActiveFilter("all");
+              if (tab === "archived") setActiveFilter("pinned");
+            }}
+            currentUser={activeUser}
+            hasUnreadStories={stories.some((s) => !s.viewed)}
+            onOpenStories={() => openStory(stories[0])}
+            onOpenChannels={() => setIsCommunityOpen(true)}
+            onOpenCommunities={() => setIsCommunityOpen(true)}
+            onOpenAi={() => setIsNewChatOpen(true)}
+            onOpenSettings={() => setIsProfileModalOpen(true)}
+            onOpenProfile={() => setIsProfileModalOpen(true)}
+            onOpenArchived={() => setActiveFilter("pinned")}
+          />
+        </div>
+
+        {/* Main Chats Sidebar Pane */}
         <div
           className={`h-full shrink-0 border-r border-[#4D8DBA]/35 transition-all duration-200 ${
             mobileView === "chat"
-              ? "hidden md:flex md:w-[380px] lg:w-[420px] xl:w-[450px]"
-              : "w-full md:w-[380px] lg:w-[420px] xl:w-[450px] flex"
+              ? "hidden md:flex md:w-[380px] lg:w-[420px] xl:w-[440px]"
+              : "w-full md:w-[380px] lg:w-[420px] xl:w-[440px] flex"
           }`}
         >
           <Sidebar
@@ -172,6 +195,7 @@ export function ChatWorkspace() {
             onBackToSidebar={handleBackToSidebarMobile}
             onVoiceCall={() => startCall("audio")}
             onVideoCall={() => startCall("video")}
+            onOpenContactInfo={() => setIsProfileModalOpen(true)}
           />
         </div>
       </div>
@@ -222,7 +246,7 @@ export function ChatWorkspace() {
         onCreateCommunity={(name, description, isChannel) => {
           const newId = createGroup(
             name,
-            [currentUser.name, "Alex Rivers", "Elena Vance"],
+            [currentUser.name, "Abdullah Uni", "Amjad Uni"],
             isChannel ? "📢" : "👥"
           );
           selectContact(newId);

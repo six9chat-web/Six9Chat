@@ -1,6 +1,12 @@
 export type MessageStatus = "sending" | "sent" | "delivered" | "read";
 
-export type MediaType = "text" | "image" | "audio" | "document" | "location";
+export type MediaType = "text" | "image" | "audio" | "document" | "location" | "call";
+
+export interface CallLogMeta {
+  type: "voice" | "video";
+  status: "no_answer" | "missed" | "completed";
+  duration?: string;
+}
 
 export interface MediaMeta {
   fileName?: string;
@@ -9,6 +15,7 @@ export interface MediaMeta {
   aspectRatio?: string;
   locationName?: string;
   coordinates?: string;
+  callLog?: CallLogMeta;
 }
 
 export interface MessageReaction {
@@ -27,7 +34,7 @@ export interface ChatMessage {
   isSelf: boolean;
   text: string;
   timestamp: string; // e.g. "10:45 AM"
-  date: string; // e.g. "Today", "Yesterday"
+  date: string; // e.g. "Today", "Yesterday", "Monday"
   status: MessageStatus;
   mediaType?: MediaType;
   mediaUrl?: string;
@@ -50,6 +57,8 @@ export interface ChatContact {
   about?: string;
   phone?: string;
   isPinned?: boolean;
+  isFavourite?: boolean;
+  isCommunity?: boolean;
   isGroup?: boolean;
   groupMembers?: string[];
   unreadCount: number;
@@ -59,6 +68,7 @@ export interface ChatContact {
     isSelf: boolean;
     status?: MessageStatus;
     mediaType?: MediaType;
+    reaction?: string;
   };
 }
 

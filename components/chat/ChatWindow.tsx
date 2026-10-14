@@ -22,6 +22,7 @@ interface ChatWindowProps {
   onBackToSidebar?: () => void;
   onVoiceCall?: () => void;
   onVideoCall?: () => void;
+  onOpenContactInfo?: () => void;
 }
 
 export function ChatWindow({
@@ -33,6 +34,7 @@ export function ChatWindow({
   onBackToSidebar,
   onVoiceCall,
   onVideoCall,
+  onOpenContactInfo,
 }: ChatWindowProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [chatSearchQuery, setChatSearchQuery] = useState("");
@@ -46,7 +48,7 @@ export function ChatWindow({
     );
   }, [messages, chatSearchQuery]);
 
-  // Group messages by date
+  // Group messages by date (e.g. Monday, Yesterday, Today)
   const groupedMessages = useMemo(() => {
     const groups: { date: string; items: ChatMessage[] }[] = [];
     displayedMessages.forEach((msg) => {
@@ -67,7 +69,7 @@ export function ChatWindow({
 
   return (
     <div className="flex-1 h-full flex flex-col bg-[#053b53] relative overflow-hidden">
-      {/* Top Header */}
+      {/* 1. Top Chat Header Bar */}
       <ChatHeader
         contact={contact}
         isTyping={isTyping}
@@ -81,52 +83,110 @@ export function ChatWindow({
         isSearchOpen={isSearchOpen}
         searchQuery={chatSearchQuery}
         onSearchChange={setChatSearchQuery}
+        onOpenContactInfo={onOpenContactInfo}
       />
 
-      {/* Six9 Chat Subtle Wallpaper Pattern & Ambient Background */}
-      <div className="absolute inset-0 top-16 bottom-16 pointer-events-none opacity-20">
+      {/* 2. WhatsApp Subtle Doodle Wallpaper Pattern Background */}
+      <div className="absolute inset-0 top-16 bottom-16 pointer-events-none opacity-[0.07] overflow-hidden select-none">
         <svg
-          className="w-full h-full text-[#4D8DBA]"
+          className="w-full h-full text-[#97D7FF]"
           xmlns="http://www.w3.org/2000/svg"
           width="100%"
           height="100%"
         >
           <defs>
             <pattern
-              id="chatPattern"
-              width="60"
-              height="60"
+              id="whatsappDoodlePattern"
+              width="120"
+              height="120"
               patternUnits="userSpaceOnUse"
             >
-              <circle cx="30" cy="30" r="1.5" fill="currentColor" opacity="0.3" />
+              {/* Coffee Cup Doodle */}
               <path
-                d="M10 20 Q 20 10 30 20 T 50 20"
+                d="M15 25 h20 v12 c0 4 -3 8 -10 8 s-10 -4 -10 -8 z M35 28 h4 c3 0 4 2 4 4 s-1 4 -4 4 h-4"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="0.8"
-                opacity="0.2"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {/* Speech Bubble Doodle */}
+              <path
+                d="M75 18 h24 c3 0 6 3 6 6 v10 c0 3 -3 6 -6 6 h-12 l-6 5 v-5 h-6 c-3 0 -6 -3 -6 -6 v-10 c0 -3 3 -6 6 -6 z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {/* Smile Face Doodle */}
+              <circle
+                cx="30"
+                cy="85"
+                r="12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.2"
+              />
+              <circle cx="26" cy="82" r="1.5" fill="currentColor" />
+              <circle cx="34" cy="82" r="1.5" fill="currentColor" />
+              <path
+                d="M26 89 q4 4 8 0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
+              {/* Headphones / Clock Doodle */}
+              <circle
+                cx="85"
+                cy="75"
+                r="10"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.2"
               />
               <path
-                d="M15 45 L 25 45 L 20 38 Z"
-                fill="currentColor"
-                opacity="0.18"
+                d="M85 69 v6 h4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
               />
-              <circle cx="45" cy="45" r="3" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
+              {/* Sparkle / Star Doodle */}
+              <path
+                d="M58 52 l2 5 l5 2 l-5 2 l-2 5 l-2 -5 l-5 -2 l5 -2 z"
+                fill="currentColor"
+                opacity="0.8"
+              />
+              {/* Heart Doodle */}
+              <path
+                d="M102 102 c-2 -3 -6 -3 -8 0 c-2 3 0 6 4 9 l4 4 l4 -4 c4 -3 6 -6 4 -9 c-2 -3 -6 -3 -8 0 z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.2"
+              />
+              {/* Music Note Doodle */}
+              <path
+                d="M18 58 v10 c-1 -1 -3 -1 -4 0 c-2 1 -2 3 0 4 c2 1 4 0 4 -2 v-9 h6 v5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
             </pattern>
           </defs>
-          <rect width="100%" height="100%" fill="url(#chatPattern)" />
+          <rect width="100%" height="100%" fill="url(#whatsappDoodlePattern)" />
         </svg>
       </div>
 
-      {/* Scrollable Messages Area */}
-      <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 space-y-3 z-10">
-
-
+      {/* 3. Scrollable Messages Stream */}
+      <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-3 space-y-2.5 z-10">
         {groupedMessages.map((group) => (
-          <div key={group.date} className="space-y-1.5">
-            {/* Date Divider Pill */}
-            <div className="flex justify-center my-3">
-              <span className="px-3 py-1 rounded-lg bg-[#086288]/90 border border-[#4D8DBA]/40 text-[11px] font-semibold text-[#97D7FF] shadow-sm uppercase tracking-wider">
+          <div key={group.date} className="space-y-1">
+            {/* Centered Date Separator Pill ("Monday", "Yesterday", "Today") */}
+            <div className="flex justify-center my-3.5">
+              <span className="px-3.5 py-1 rounded-lg bg-[#086288]/85 border border-[#4D8DBA]/35 text-[11px] font-semibold text-slate-200 shadow-sm">
                 {group.date}
               </span>
             </div>
@@ -134,7 +194,8 @@ export function ChatWindow({
             {/* Message Items in this date group */}
             {group.items.map((msg, index) => {
               const prevMsg = group.items[index - 1];
-              const isFirstInGroup = !prevMsg || prevMsg.senderId !== msg.senderId;
+              const isFirstInGroup =
+                !prevMsg || prevMsg.senderId !== msg.senderId;
 
               return (
                 <MessageItem
@@ -148,35 +209,18 @@ export function ChatWindow({
           </div>
         ))}
 
-        {/* Real-Time Typing Indicator (Six9 Chat Style Three Dots) */}
-        <AnimatePresence>
-          {isTyping && (
-            <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.2 }}
-              className="flex items-center gap-2 pl-3 sm:pl-4 my-2"
-            >
-              <div className="w-7 h-7 rounded-full bg-[#086288] border border-[#4D8DBA]/50 flex items-center justify-center text-[10px] font-bold text-[#97D7FF]">
-                {contact.avatar}
-              </div>
+        {/* Typing indicator */}
+        {isTyping && (
+          <div className="flex items-center gap-2 px-3 py-1 text-xs text-[#97D7FF] font-medium animate-pulse">
+            <span className="w-2 h-2 rounded-full bg-[#97D7FF] animate-bounce" />
+            <span>{contact.name} is typing...</span>
+          </div>
+        )}
 
-              <div className="px-4 py-2.5 rounded-2xl bg-[#086288] border border-[#4D8DBA]/40 rounded-tl-xs flex items-center gap-1.5 shadow-md">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#97D7FF] animate-bounce" />
-                <span className="w-1.5 h-1.5 rounded-full bg-[#4D8DBA] animate-bounce [animation-delay:0.2s]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-[#FFEFC4] animate-bounce [animation-delay:0.4s]" />
-                <span className="text-[11px] text-[#97D7FF]/80 ml-1 italic">typing...</span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Anchor element for smooth auto-scroll */}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Action Bar */}
+      {/* 4. Bottom Input Dock */}
       <ChatInput onSendMessage={onSendMessage} />
     </div>
   );

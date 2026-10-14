@@ -24,7 +24,13 @@ export interface CallModalState {
   durationSeconds: number;
 }
 
-export type ChatFilterType = "all" | "unread" | "groups" | "pinned";
+export type ChatFilterType =
+  | "all"
+  | "unread"
+  | "favourites"
+  | "groups"
+  | "communities"
+  | "pinned";
 
 export function useRealtimeChat() {
   const [currentUser, setCurrentUser] = useState<UserProfile>(CURRENT_USER);
@@ -72,7 +78,9 @@ export function useRealtimeChat() {
       if (!matchesSearch) return false;
 
       if (activeFilter === "unread") return c.unreadCount > 0;
+      if (activeFilter === "favourites") return Boolean(c.isFavourite || c.isPinned);
       if (activeFilter === "groups") return Boolean(c.isGroup);
+      if (activeFilter === "communities") return Boolean(c.isCommunity);
       if (activeFilter === "pinned") return Boolean(c.isPinned);
 
       return true;

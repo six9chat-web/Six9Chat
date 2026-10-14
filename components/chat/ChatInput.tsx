@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Smile,
+  Plus,
   Paperclip,
   Mic,
   Send,
@@ -11,9 +12,7 @@ import {
   FileText,
   MapPin,
   X,
-  Radio,
   Check,
-  StopCircle,
 } from "lucide-react";
 import { MediaType, MediaMeta } from "@/types/chat";
 import { cn } from "@/lib/utils";
@@ -46,7 +45,7 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${Math.min(
         textareaRef.current.scrollHeight,
-        140
+        120
       )}px`;
     }
   }, [text]);
@@ -91,7 +90,7 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
     setIsRecording(false);
     onSendMessage("", "audio", {
       fileName: `Voice note #${Math.floor(Math.random() * 900) + 100}`,
-      duration: duration === "0:00" ? "0:04" : duration,
+      duration: duration === "0:00" ? "0:19" : duration,
     });
   };
 
@@ -102,62 +101,54 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
 
   const handleImagePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const previewUrl = reader.result as string;
-        const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
-        onSendMessage(file.name, "image", {
-          fileName: file.name,
-          fileSize: `${sizeMb} MB`,
-        }, previewUrl);
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      onSendMessage("Media attachment", "image", {
+        fileName: file.name,
+        fileSize: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+      }, reader.result as string);
+    };
+    reader.readAsDataURL(file);
     setShowAttachMenu(false);
-    if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
   const handleDocPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const sizeKb = (file.size / 1024).toFixed(0);
-      onSendMessage(file.name, "document", {
-        fileName: file.name,
-        fileSize: `${sizeKb} KB`,
-      });
-    }
-    setShowAttachMenu(false);
-    if (docInputRef.current) docInputRef.current.value = "";
-  };
+    if (!file) return;
 
-  const sendAttachment = (type: MediaType) => {
+    onSendMessage(file.name, "document", {
+      fileName: file.name,
+      fileSize: `${(file.size / 1024).toFixed(0)} KB`,
+    });
     setShowAttachMenu(false);
-    if (type === "image") {
-      imageInputRef.current?.click();
-    } else if (type === "document") {
-      docInputRef.current?.click();
-    } else if (type === "location") {
-      onSendMessage(
-        "",
-        "location",
-        {
-          locationName: "Silicon Valley Innovation Hub, CA",
-        }
-      );
-    }
   };
 
   const EMOJI_LIST = [
-    "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇",
-    "😍", "🥰", "😘", "😎", "🤩", "🥳", "🤔", "🤫", "🤭", "🫡",
-    "👍", "👎", "👏", "🙌", "🤝", "🔥", "⚡", "✨", "💯", "🚀",
-    "🎉", "🏆", "❤️", "🧡", "💛", "💚", "💙", "💜", "💡", "☕",
+    "🌹", "😂", "😅", "❤️", "👍", "🔥", "🙏", "😍", "🎉", "✨",
+    "😊", "🙌", "💯", "😎", "🥳", "🤔", "👏", "⚡", "🌟", "👌"
   ];
 
   return (
-    <div className="relative p-2.5 sm:p-4 bg-[#086288] border-t border-[#4D8DBA]/35 backdrop-blur-xl z-20 shrink-0 select-none">
-      {/* Attachment Submenu Popover */}
+    <div className="relative px-3 sm:px-4 py-2.5 bg-[#086288] border-t border-[#4D8DBA]/35 shrink-0 z-20 select-none">
+      {/* Hidden File Pickers */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*,video/*"
+        onChange={handleImagePicked}
+        className="hidden"
+      />
+      <input
+        ref={docInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.zip"
+        onChange={handleDocPicked}
+        className="hidden"
+      />
+
+      {/* Attachment Popover Menu */}
       <AnimatePresence>
         {showAttachMenu && (
           <>
@@ -166,43 +157,48 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
               onClick={() => setShowAttachMenu(false)}
             />
             <motion.div
-              initial={{ opacity: 0, y: 15, scale: 0.95 }}
+              initial={{ opacity: 0, y: 12, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              exit={{ opacity: 0, y: 12, scale: 0.95 }}
               transition={{ duration: 0.15 }}
-              className="absolute left-6 bottom-20 z-40 bg-[#086288] border border-[#4D8DBA]/60 rounded-2xl p-2.5 shadow-2xl backdrop-blur-xl flex flex-col gap-1 min-w-[200px]"
+              className="absolute bottom-16 left-4 z-40 bg-[#032433] border border-[#4D8DBA]/70 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 w-48 backdrop-blur-xl"
             >
               <button
                 type="button"
-                onClick={() => sendAttachment("image")}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-100 hover:bg-[#4D8DBA]/30 transition"
+                onClick={() => imageInputRef.current?.click()}
+                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#4D8DBA]/30 text-white text-xs font-medium transition cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-[#97D7FF]/20 text-[#97D7FF] flex items-center justify-center">
+                <div className="w-7 h-7 rounded-full bg-[#086288] flex items-center justify-center text-[#97D7FF]">
                   <ImageIcon className="w-4 h-4" />
                 </div>
-                <span>Photos & Videos</span>
+                <span>Photos & videos</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => sendAttachment("document")}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-100 hover:bg-[#4D8DBA]/30 transition"
+                onClick={() => docInputRef.current?.click()}
+                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#4D8DBA]/30 text-white text-xs font-medium transition cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-[#FFEFC4]/20 text-[#FFEFC4] flex items-center justify-center">
+                <div className="w-7 h-7 rounded-full bg-[#086288] flex items-center justify-center text-[#FFEFC4]">
                   <FileText className="w-4 h-4" />
                 </div>
-                <span>Documents & PDF</span>
+                <span>Document</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => sendAttachment("location")}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-100 hover:bg-[#4D8DBA]/30 transition"
+                onClick={() => {
+                  onSendMessage("Live location shared", "location", {
+                    locationName: "Campus Central Plaza",
+                  });
+                  setShowAttachMenu(false);
+                }}
+                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#4D8DBA]/30 text-white text-xs font-medium transition cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-[#4D8DBA]/30 text-[#97D7FF] flex items-center justify-center">
+                <div className="w-7 h-7 rounded-full bg-[#086288] flex items-center justify-center text-rose-400">
                   <MapPin className="w-4 h-4" />
                 </div>
-                <span>Share Location</span>
+                <span>Location</span>
               </button>
             </motion.div>
           </>
@@ -218,32 +214,22 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
               onClick={() => setShowEmojiPicker(false)}
             />
             <motion.div
-              initial={{ opacity: 0, y: 15, scale: 0.95 }}
+              initial={{ opacity: 0, y: 12, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              className="absolute left-4 bottom-20 z-40 bg-[#086288] border border-[#4D8DBA]/60 rounded-2xl p-3 shadow-2xl backdrop-blur-xl max-w-xs sm:max-w-sm"
+              exit={{ opacity: 0, y: 12, scale: 0.95 }}
+              className="absolute bottom-16 left-12 z-40 bg-[#032433] border border-[#4D8DBA]/70 rounded-2xl p-3 shadow-2xl w-64 backdrop-blur-xl"
             >
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#4D8DBA]/40 text-xs font-bold text-[#FFEFC4]">
-                <span>Emojis & Reactions</span>
-                <button
-                  type="button"
-                  onClick={() => setShowEmojiPicker(false)}
-                  className="text-slate-300 hover:text-white"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
+              <div className="grid grid-cols-5 gap-2">
                 {EMOJI_LIST.map((emoji) => (
                   <button
                     key={emoji}
                     type="button"
                     onClick={() => {
                       setText((prev) => prev + emoji);
+                      setShowEmojiPicker(false);
+                      textareaRef.current?.focus();
                     }}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#4D8DBA]/30 text-base hover:scale-125 transition-transform"
+                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#4D8DBA]/30 text-lg hover:scale-125 transition-transform cursor-pointer"
                   >
                     {emoji}
                   </button>
@@ -254,13 +240,9 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
         )}
       </AnimatePresence>
 
-      {/* Live Voice Recording UI Bar */}
+      {/* Recording Voice Note Mode */}
       {isRecording ? (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex items-center justify-between gap-3 bg-[#053b53] border border-[#4D8DBA]/50 rounded-2xl p-2.5 px-4 shadow-xl"
-        >
+        <div className="flex items-center justify-between gap-3 bg-[#032433] border border-[#4D8DBA]/50 rounded-2xl p-2 px-4 shadow-xl">
           <div className="flex items-center gap-3">
             <span className="w-3 h-3 rounded-full bg-rose-400 animate-ping" />
             <span className="text-xs font-mono font-bold text-[#FFEFC4]">
@@ -269,77 +251,53 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
                 recordingSeconds % 60 < 10 ? "0" : ""
               }${recordingSeconds % 60}`}
             </span>
-            <span className="text-xs text-slate-300 hidden sm:inline">
-              Speak into your microphone...
-            </span>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={cancelRecording}
-              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-[#4D8DBA]/30 text-xs font-semibold flex items-center gap-1 transition"
+              className="p-1.5 px-3 rounded-xl text-slate-300 hover:text-white hover:bg-[#4D8DBA]/30 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
             >
-              <X className="w-4 h-4 text-rose-300" />
+              <X className="w-3.5 h-3.5 text-rose-300" />
               <span>Cancel</span>
             </button>
 
             <button
               type="button"
               onClick={handleSendVoiceNote}
-              className="p-2 px-3 rounded-xl bg-[#97D7FF] text-[#086288] text-xs font-bold flex items-center gap-1.5 shadow-md hover:bg-[#b4e3ff] transition"
+              className="p-1.5 px-3 rounded-xl bg-[#97D7FF] text-[#086288] text-xs font-bold flex items-center gap-1 shadow-md hover:bg-[#b4e3ff] transition cursor-pointer"
             >
-              <Check className="w-4 h-4" />
-              <span>Send Note</span>
+              <Check className="w-4 h-4 stroke-[3]" />
+              <span>Send</span>
             </button>
           </div>
-        </motion.div>
+        </div>
       ) : (
-        /* Regular Input Bar */
-        <div className="flex items-end gap-2">
-          {/* Emoji Toggle */}
-          <button
-            type="button"
-            onClick={() => setShowEmojiPicker((p) => !p)}
-            className="p-2 sm:p-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-[#4D8DBA]/25 transition shrink-0"
-            title="Emoji selector"
-          >
-            <Smile className="w-5 h-5" />
-          </button>
-
-          {/* Hidden File Pickers */}
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/*,video/*"
-            onChange={handleImagePicked}
-            className="hidden"
-          />
-          <input
-            ref={docInputRef}
-            type="file"
-            accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.zip"
-            onChange={handleDocPicked}
-            className="hidden"
-          />
-
-          {/* Attachment Toggle (Clip +) */}
+        /* WhatsApp Web Bottom Dock: (+) Clip, Smile, "Type a message", Mic/Send */
+        <div className="flex items-center gap-2">
+          {/* 1. Attachment Clip (+) on Left */}
           <button
             type="button"
             onClick={() => setShowAttachMenu((p) => !p)}
-            className="p-2 sm:p-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-[#4D8DBA]/25 transition shrink-0 cursor-pointer"
-            title="Attach Media or File (+)"
+            className="p-2 sm:p-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-[#4D8DBA]/25 transition shrink-0 cursor-pointer"
+            title="Attach (+)"
           >
-            <div className="relative flex items-center justify-center">
-              <Paperclip className="w-5 h-5 rotate-45" />
-              <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-[#97D7FF] text-[#086288] text-[9px] font-black flex items-center justify-center shadow-sm">
-                +
-              </span>
-            </div>
+            <Plus className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
           </button>
 
-          {/* Auto-expanding Input Box */}
-          <div className="flex-1 bg-[#053b53] border border-[#4D8DBA]/40 rounded-2xl focus-within:border-[#97D7FF] focus-within:ring-1 focus-within:ring-[#97D7FF]/50 transition-all px-3 py-1.5 flex items-center">
+          {/* 2. Emoji Toggle on Left */}
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker((p) => !p)}
+            className="p-2 sm:p-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-[#4D8DBA]/25 transition shrink-0 cursor-pointer"
+            title="Emojis"
+          >
+            <Smile className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
+          </button>
+
+          {/* 3. "Type a message" Rounded Container */}
+          <div className="flex-1 bg-[#053b53] border border-[#4D8DBA]/40 rounded-2xl focus-within:border-[#97D7FF] focus-within:ring-1 focus-within:ring-[#97D7FF]/50 transition-all px-3.5 py-1.5 flex items-center">
             <textarea
               ref={textareaRef}
               rows={1}
@@ -347,37 +305,35 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={disabled}
-              placeholder="Type a message..."
-              className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-300 outline-none resize-none max-h-36 leading-normal my-1"
+              placeholder="Type a message"
+              className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-400 outline-none resize-none max-h-32 leading-relaxed my-0.5"
             />
           </div>
 
-          {/* Dynamic Mic / Send Action */}
+          {/* 4. Mic / Voice Note on Far Right (Send if text is non-empty) */}
           {text.trim().length > 0 ? (
             <motion.button
               type="button"
               onClick={handleSend}
-              initial={{ scale: 0.8, opacity: 0 }}
+              initial={{ scale: 0.85, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="p-2.5 sm:p-3 rounded-2xl bg-[#97D7FF] text-[#086288] font-bold shadow-lg shadow-[#086288]/40 hover:bg-[#b4e3ff] transition shrink-0"
+              className="p-2.5 sm:p-3 rounded-full bg-[#97D7FF] text-[#086288] font-bold shadow-lg shadow-[#086288]/40 hover:bg-[#b4e3ff] transition shrink-0 cursor-pointer"
               title="Send Message"
             >
-              <Send className="w-4 h-4 sm:w-5 sm:h-5" />
+              <Send className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
             </motion.button>
           ) : (
             <motion.button
               type="button"
               onClick={() => setIsRecording(true)}
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="p-2.5 sm:p-3 rounded-2xl bg-[#053b53] hover:bg-[#4D8DBA]/30 text-[#97D7FF] transition shrink-0 border border-[#4D8DBA]/40"
-              title="Record Voice Note"
+              className="p-2 sm:p-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-[#4D8DBA]/25 transition shrink-0 cursor-pointer"
+              title="Voice message"
             >
-              <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
+              <Mic className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
             </motion.button>
           )}
         </div>
