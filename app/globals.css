@@ -9,6 +9,12 @@
   --color-brand-darker: #053b53;
   --color-brand-deep: #032535;
 
+  /* Explicit Palette Tokens */
+  --color-ocean: #086288;
+  --color-steel: #4D8DBA;
+  --color-sky: #97D7FF;
+  --color-cream: #FFEFC4;
+
   /* Legacy alias mappings for seamless backward compatibility */
   --color-brand-emerald: #97D7FF;
   --color-brand-purple: #4D8DBA;
@@ -25,6 +31,11 @@
   --cream-yellow: #FFEFC4;
   --dark-panel: #053b53;
   --deep-canvas: #032535;
+
+  --ocean: #086288;
+  --steel: #4D8DBA;
+  --sky: #97D7FF;
+  --cream: #FFEFC4;
 }
 
 body {
@@ -83,6 +94,22 @@ body {
 .border-brand-cream {
   border-color: #FFEFC4;
 }
+
+/* Palette Quick Aliases */
+.bg-ocean { background-color: #086288; }
+.bg-steel { background-color: #4D8DBA; }
+.bg-sky { background-color: #97D7FF; }
+.bg-cream { background-color: #FFEFC4; }
+
+.text-ocean { color: #086288; }
+.text-steel { color: #4D8DBA; }
+.text-sky { color: #97D7FF; }
+.text-cream { color: #FFEFC4; }
+
+.border-ocean { border-color: #086288; }
+.border-steel { border-color: #4D8DBA; }
+.border-sky { border-color: #97D7FF; }
+.border-cream { border-color: #FFEFC4; }
 
 /* Custom Gradients */
 .bg-gradient-brand {

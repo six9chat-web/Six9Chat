@@ -41,6 +41,7 @@ interface SidebarProps {
   onOpenStories: () => void;
   onOpenNewChat: () => void;
   onOpenNewGroup?: () => void;
+  onOpenCommunity?: () => void;
   supabaseStatus: "checking" | "connected" | "pending" | "error";
   channelConnected: boolean;
   onSignOut?: () => void;
@@ -61,6 +62,7 @@ export function Sidebar({
   onOpenStories,
   onOpenNewChat,
   onOpenNewGroup,
+  onOpenCommunity,
   supabaseStatus,
   channelConnected,
   onSignOut,
@@ -69,7 +71,6 @@ export function Sidebar({
 }: SidebarProps) {
   const [showStatusDetails, setShowStatusDetails] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [showCommunityNotice, setShowCommunityNotice] = useState(false);
 
   const hasUnreadStories = stories.some((s) => !s.viewed);
 
@@ -117,13 +118,13 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Right: WhatsApp Header Actions (Communities, Status, New Chat, Menu) */}
+        {/* Right: WhatsApp Header Actions (Communities, Status, New Group, New Chat, Menu) */}
         <div className="flex items-center gap-0.5 sm:gap-1 text-slate-200">
           {/* 1. Communities / Channel Icon */}
           <button
             type="button"
-            onClick={() => setShowCommunityNotice((prev) => !prev)}
-            className="p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer"
+            onClick={onOpenCommunity}
+            className="p-2 sm:p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-slate-200"
             title="Communities & Channels"
           >
             <Users className="w-5 h-5" />
@@ -133,7 +134,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={onOpenStories}
-            className="relative p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer"
+            className="relative p-2 sm:p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-slate-200"
             title="Status stories"
           >
             <CircleDashed className="w-5 h-5" />
@@ -142,22 +143,34 @@ export function Sidebar({
             )}
           </button>
 
-          {/* 3. New Chat / Add Contact Icon */}
+          {/* 3. New Group Icon */}
+          {onOpenNewGroup && (
+            <button
+              type="button"
+              onClick={onOpenNewGroup}
+              className="p-2 sm:p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-slate-200"
+              title="New group"
+            >
+              <Users className="w-5 h-5 text-[#FFEFC4]" />
+            </button>
+          )}
+
+          {/* 4. New Chat / Add Contact Icon */}
           <button
             type="button"
             onClick={onOpenNewChat}
-            className="p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-[#97D7FF]"
+            className="p-2 sm:p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-[#97D7FF]"
             title="New chat"
           >
             <MessageSquarePlus className="w-5 h-5" />
           </button>
 
-          {/* 4. Menu Icon (Three vertical dots) */}
+          {/* 5. Menu Icon (Three vertical dots) */}
           <div className="relative">
             <button
               type="button"
               onClick={() => setShowMenu((prev) => !prev)}
-              className="p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer"
+              className="p-2 sm:p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-slate-200"
               title="Menu"
             >
               <MoreVertical className="w-5 h-5" />
@@ -186,6 +199,18 @@ export function Sidebar({
                     >
                       <Users className="w-4 h-4 text-[#97D7FF]" />
                       <span>New group</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMenu(false);
+                        onOpenCommunity?.();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#4D8DBA]/30 text-left transition font-medium"
+                    >
+                      <Users className="w-4 h-4 text-[#FFEFC4]" />
+                      <span>Communities & Channels</span>
                     </button>
 
                     <button
@@ -248,34 +273,7 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* Community Announcement Banner */}
-      <AnimatePresence>
-        {showCommunityNotice && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden bg-[#086288]/95 border-b border-[#4D8DBA]/40 px-4 py-3 text-xs"
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="font-bold text-white flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-[#97D7FF]" />
-                Six9Chat Communities & Channels
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowCommunityNotice(false)}
-                className="text-slate-300 hover:text-white"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <p className="text-slate-200 text-[11px] leading-relaxed">
-              Stay connected with topic-based channels and group announcements. Full broadcast integration powered by Supabase edge clusters.
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       {/* Supabase Realtime Info Banner Drawer */}
       <AnimatePresence>

@@ -37,6 +37,8 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -98,26 +100,43 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
     setRecordingSeconds(0);
   };
 
+  const handleImagePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const previewUrl = reader.result as string;
+        const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+        onSendMessage(file.name, "image", {
+          fileName: file.name,
+          fileSize: `${sizeMb} MB`,
+        }, previewUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+    setShowAttachMenu(false);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
+
+  const handleDocPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const sizeKb = (file.size / 1024).toFixed(0);
+      onSendMessage(file.name, "document", {
+        fileName: file.name,
+        fileSize: `${sizeKb} KB`,
+      });
+    }
+    setShowAttachMenu(false);
+    if (docInputRef.current) docInputRef.current.value = "";
+  };
+
   const sendAttachment = (type: MediaType) => {
     setShowAttachMenu(false);
     if (type === "image") {
-      onSendMessage(
-        "Attached UI asset mockup",
-        "image",
-        {
-          fileName: "six9_mockup_design.png",
-          fileSize: "1.2 MB",
-        }
-      );
+      imageInputRef.current?.click();
     } else if (type === "document") {
-      onSendMessage(
-        "Attached document file",
-        "document",
-        {
-          fileName: "Six9_Project_Specs.pdf",
-          fileSize: "2.4 MB",
-        }
-      );
+      docInputRef.current?.click();
     } else if (type === "location") {
       onSendMessage(
         "",
@@ -288,14 +307,35 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
             <Smile className="w-5 h-5" />
           </button>
 
-          {/* Attachment Toggle */}
+          {/* Hidden File Pickers */}
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*,video/*"
+            onChange={handleImagePicked}
+            className="hidden"
+          />
+          <input
+            ref={docInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.zip"
+            onChange={handleDocPicked}
+            className="hidden"
+          />
+
+          {/* Attachment Toggle (Clip +) */}
           <button
             type="button"
             onClick={() => setShowAttachMenu((p) => !p)}
-            className="p-2 sm:p-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-[#4D8DBA]/25 transition shrink-0"
-            title="Attach Media or File"
+            className="p-2 sm:p-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-[#4D8DBA]/25 transition shrink-0 cursor-pointer"
+            title="Attach Media or File (+)"
           >
-            <Paperclip className="w-5 h-5 rotate-45" />
+            <div className="relative flex items-center justify-center">
+              <Paperclip className="w-5 h-5 rotate-45" />
+              <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-[#97D7FF] text-[#086288] text-[9px] font-black flex items-center justify-center shadow-sm">
+                +
+              </span>
+            </div>
           </button>
 
           {/* Auto-expanding Input Box */}

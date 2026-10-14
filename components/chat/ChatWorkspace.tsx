@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sidebar } from "@/components/chat/Sidebar";
 import { ChatWindow } from "@/components/chat/ChatWindow";
@@ -8,6 +9,7 @@ import { CallModal } from "@/components/chat/CallModal";
 import { StoriesViewer } from "@/components/chat/StoriesViewer";
 import { NewChatModal } from "@/components/chat/NewChatModal";
 import { NewGroupModal } from "@/components/chat/NewGroupModal";
+import { CommunityModal } from "@/components/chat/CommunityModal";
 import { ProfileModal } from "@/components/chat/ProfileModal";
 import { ProfileOnboardingModal } from "@/components/auth/ProfileOnboardingModal";
 import { AuthLogo } from "@/components/auth/AuthLogo";
@@ -15,6 +17,7 @@ import { useRealtimeChat } from "@/hooks/useRealtimeChat";
 import { useAuth } from "@/lib/auth";
 
 export function ChatWorkspace() {
+  const router = useRouter();
   const {
     isAuthenticated,
     isLoading: isAuthLoading,
@@ -56,7 +59,14 @@ export function ChatWorkspace() {
   const [mobileView, setMobileView] = useState<"sidebar" | "chat">("sidebar");
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isNewGroupOpen, setIsNewGroupOpen] = useState(false);
+  const [isCommunityOpen, setIsCommunityOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [isAuthLoading, isAuthenticated, router]);
 
   const handleSelectContactMobile = (id: string) => {
     selectContact(id);
@@ -139,6 +149,7 @@ export function ChatWorkspace() {
             onOpenStories={() => openStory(stories[0])}
             onOpenNewChat={() => setIsNewChatOpen(true)}
             onOpenNewGroup={() => setIsNewGroupOpen(true)}
+            onOpenCommunity={() => setIsCommunityOpen(true)}
             supabaseStatus={supabaseStatus}
             channelConnected={channelConnected}
             onSignOut={signOut}
@@ -203,6 +214,22 @@ export function ChatWorkspace() {
         contacts={allContacts}
         onClose={() => setIsNewGroupOpen(false)}
         onCreateGroup={handleCreateNewGroup}
+      />
+
+      {/* Community & Broadcast Channels Modal */}
+      <CommunityModal
+        isOpen={isCommunityOpen}
+        onClose={() => setIsCommunityOpen(false)}
+        onCreateCommunity={(name, description, isChannel) => {
+          const newId = createGroup(
+            name,
+            [currentUser.name, "Alex Rivers", "Elena Vance"],
+            isChannel ? "📢" : "👥"
+          );
+          selectContact(newId);
+          setIsCommunityOpen(false);
+          setMobileView("chat");
+        }}
       />
 
       {/* Profile & Account Drawer Modal */}

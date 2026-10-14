@@ -1,30 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React from "react";
 import { AuthLogo } from "@/components/auth/AuthLogo";
 import { PhoneOtpForm } from "@/components/auth/PhoneOtpForm";
-import { EmailAuthForm } from "@/components/auth/EmailAuthForm";
 import {
-  Phone,
-  Mail,
-  Shield,
   Lock,
   Sparkles,
-  QrCode,
   Smartphone,
   CheckCircle2,
+  ShieldCheck,
 } from "lucide-react";
 
 interface AuthCardProps {
   onSuccess?: () => void;
 }
 
-export type AuthTab = "phone" | "email";
-
 export function AuthCard({ onSuccess }: AuthCardProps) {
-  const [activeTab, setActiveTab] = useState<AuthTab>("phone");
-
   return (
     <div className="relative w-full max-w-xl mx-auto">
       {/* Background Ambient Glows */}
@@ -36,90 +27,21 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
         {/* Top Brand Logo */}
         <AuthLogo size={58} />
 
-        {/* Six9-Style Tab Switcher */}
-        <div className="mt-6 mb-6 p-1.5 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/40 grid grid-cols-2 gap-1 text-xs font-bold">
-          {/* Tab 1: Phone OTP */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("phone")}
-            className={`relative py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition outline-none cursor-pointer ${
-              activeTab === "phone" ? "text-[#086288] font-black" : "text-slate-300 hover:text-white"
-            }`}
-          >
-            {activeTab === "phone" && (
-              <motion.div
-                layoutId="authCardTabActiveBackground"
-                className="absolute inset-0 bg-[#97D7FF] rounded-xl shadow-lg shadow-[#086288]/40"
-                transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              />
-            )}
-            <Phone className="w-3.5 h-3.5 relative z-10" />
-            <span className="relative z-10 truncate">Phone Number (OTP)</span>
-          </button>
-
-          {/* Tab 2: Email / Password / Social */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("email")}
-            className={`relative py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition outline-none cursor-pointer ${
-              activeTab === "email" ? "text-[#086288] font-black" : "text-slate-300 hover:text-white"
-            }`}
-          >
-            {activeTab === "email" && (
-              <motion.div
-                layoutId="authCardTabActiveBackground"
-                className="absolute inset-0 bg-[#FFEFC4] rounded-xl shadow-lg shadow-[#086288]/40"
-                transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              />
-            )}
-            <Mail className="w-3.5 h-3.5 relative z-10" />
-            <span className="relative z-10 truncate">Email & Social</span>
-          </button>
+        {/* WhatsApp-Style Phone Verification Badge */}
+        <div className="mt-6 mb-5 p-3 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/40 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 text-white font-bold">
+            <Smartphone className="w-4 h-4 text-[#97D7FF]" />
+            <span>Phone OTP Verification Flow</span>
+          </div>
+          <span className="flex items-center gap-1 text-[11px] font-semibold text-[#FFEFC4] bg-[#FFEFC4]/15 px-2 py-0.5 rounded-full border border-[#FFEFC4]/30">
+            <ShieldCheck className="w-3 h-3 text-[#FFEFC4]" />
+            Official Supabase
+          </span>
         </div>
 
-        {/* Tab Content with Framer Motion Animation */}
-        <div className="relative min-h-[300px]">
-          <AnimatePresence mode="wait">
-            {activeTab === "phone" ? (
-              <motion.div
-                key="tab_phone"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-              >
-                <div className="mb-4">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                    <Smartphone className="w-4 h-4 text-[#97D7FF]" />
-                    <span>Six9 Chat Instant OTP Sign In</span>
-                  </h3>
-                  <p className="text-xs text-slate-200 mt-0.5">
-                    Enter your mobile number to receive a 6-digit confirmation PIN.
-                  </p>
-                </div>
-                <PhoneOtpForm onSuccess={onSuccess} />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="tab_email"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-              >
-                <div className="mb-4">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                    <Mail className="w-4 h-4 text-[#FFEFC4]" />
-                    <span>Email & GitHub OAuth Authentication</span>
-                  </h3>
-                  <p className="text-xs text-slate-200 mt-0.5">
-                    Sign in with your email credentials or sync with GitHub Social.
-                  </p>
-                </div>
-                <EmailAuthForm onSuccess={onSuccess} />
-              </motion.div>
-            )}
-          </AnimatePresence>
+        {/* Phone OTP Form */}
+        <div className="relative min-h-[260px]">
+          <PhoneOtpForm onSuccess={onSuccess} />
         </div>
 
         {/* Six9 Signature Footer Security Banner */}
