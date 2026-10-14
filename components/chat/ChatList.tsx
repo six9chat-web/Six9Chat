@@ -89,12 +89,20 @@ export function ChatList({
             <div className="relative shrink-0">
               <div
                 className={cn(
-                  "w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-md bg-gradient-to-tr transition-transform",
+                  "w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-md bg-gradient-to-tr transition-transform overflow-hidden",
                   contact.avatarColor || "from-[#086288] to-[#4D8DBA]",
                   isActive && "ring-2 ring-[#97D7FF] scale-102"
                 )}
               >
-                {contact.avatar}
+                {contact.avatar && (contact.avatar.startsWith("http") || contact.avatar.startsWith("data:")) ? (
+                  <img
+                    src={contact.avatar}
+                    alt={contact.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  contact.avatar
+                )}
               </div>
 
               {/* Online / Activity Indicator */}

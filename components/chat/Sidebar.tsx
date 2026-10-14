@@ -61,10 +61,18 @@ export function Sidebar({
           <button
             type="button"
             onClick={onOpenProfile}
-            className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#4D8DBA] to-[#97D7FF] text-[#086288] font-bold text-xs flex items-center justify-center shadow-md hover:scale-105 transition cursor-pointer shrink-0 ring-2 ring-[#97D7FF]/40"
+            className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#4D8DBA] to-[#97D7FF] text-[#086288] font-bold text-xs flex items-center justify-center shadow-md hover:scale-105 transition cursor-pointer shrink-0 ring-2 ring-[#97D7FF]/40 overflow-hidden"
             title={currentUser?.name ? `${currentUser.name} (Settings)` : "Profile & Settings"}
           >
-            {currentUser?.avatar || currentUser?.name?.slice(0, 2).toUpperCase() || "ME"}
+            {currentUser?.avatar && (currentUser.avatar.startsWith("http") || currentUser.avatar.startsWith("data:")) ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser?.name || "Profile"}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              currentUser?.avatar || currentUser?.name?.slice(0, 2).toUpperCase() || "ME"
+            )}
           </button>
           <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
             Chats

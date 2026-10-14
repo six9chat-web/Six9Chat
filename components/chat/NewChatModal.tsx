@@ -189,8 +189,12 @@ export function NewChatModal({
                     }}
                     className="flex items-center gap-3 p-2.5 rounded-2xl hover:bg-[#4D8DBA]/25 cursor-pointer transition"
                   >
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#086288] to-[#4D8DBA] flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-md">
-                      {c.avatar}
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#086288] to-[#4D8DBA] flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-md overflow-hidden">
+                      {c.avatar && (c.avatar.startsWith("http") || c.avatar.startsWith("data:")) ? (
+                        <img src={c.avatar} alt={c.name} className="w-full h-full object-cover" />
+                      ) : (
+                        c.avatar
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-white truncate">{c.name}</p>

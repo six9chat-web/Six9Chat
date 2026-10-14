@@ -158,11 +158,15 @@ export function ProfileOnboardingModal({
             {/* Avatar Preview & Chooser */}
             <div className="flex flex-col items-center">
               <div className="relative group">
-                <div className="w-20 h-20 rounded-full p-1 bg-gradient-to-tr from-[#086288] via-[#4D8DBA] to-[#97D7FF] shadow-xl flex items-center justify-center">
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-20 h-20 rounded-full p-1 bg-gradient-to-tr from-[#086288] via-[#4D8DBA] to-[#97D7FF] shadow-xl flex items-center justify-center cursor-pointer hover:scale-105 transition"
+                  title="Upload Custom Photo"
+                >
                   <div className="w-full h-full rounded-full bg-[#053b53] overflow-hidden flex items-center justify-center text-2xl font-bold text-white">
-                    {customAvatarUrl ? (
+                    {customAvatarUrl || (selectedAvatar.startsWith("http") || selectedAvatar.startsWith("data:")) ? (
                       <img
-                        src={customAvatarUrl}
+                        src={customAvatarUrl || selectedAvatar}
                         alt="Avatar preview"
                         className="w-full h-full object-cover"
                       />

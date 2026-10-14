@@ -10,7 +10,6 @@ import {
   MessageSquare,
   ShieldCheck,
   Check,
-  Copy,
   Camera,
   Pencil,
   Trash2,
@@ -19,6 +18,7 @@ import {
 } from "lucide-react";
 import { UserProfile, ChatContact } from "@/types/chat";
 import { uploadAvatar } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -45,7 +45,7 @@ export function ProfileModal({
   onVoiceCall,
   onVideoCall,
 }: ProfileModalProps) {
-  const [copiedId, setCopiedId] = useState(false);
+  const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -64,15 +64,9 @@ export function ProfileModal({
 
   if (!isOpen) return null;
 
-  const currentAvatar = currentUser.avatar || "";
+  const currentAvatar = previewAvatar || currentUser.avatar || "";
   const isCustomImage =
     currentAvatar.startsWith("http") || currentAvatar.startsWith("data:");
-
-  const handleCopyId = () => {
-    navigator.clipboard.writeText(currentUser.id);
-    setCopiedId(true);
-    setTimeout(() => setCopiedId(false), 2000);
-  };
 
   // Upload or change avatar (Own profile only)
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,6 +78,10 @@ export function ProfileModal({
       setUploadError("Image size must be less than 5MB");
       return;
     }
+
+    // Instant local preview
+    const localUrl = URL.createObjectURL(file);
+    setPreviewAvatar(localUrl);
 
     setIsUploading(true);
     setUploadError(null);
@@ -97,7 +95,9 @@ export function ProfileModal({
           statusText: aboutValue,
         });
       }
+      setPreviewAvatar(null);
     } catch (err: any) {
+      setPreviewAvatar(null);
       setUploadError(err.message || "Failed to upload photo");
     } finally {
       setIsUploading(false);
@@ -110,6 +110,7 @@ export function ProfileModal({
     if (!isOwnProfile) return;
     setIsUploading(true);
     setUploadError(null);
+    setPreviewAvatar(null);
 
     const defaultInitials =
       currentUser.name?.slice(0, 2).toUpperCase() || "ME";
@@ -198,51 +199,86 @@ export function ProfileModal({
           {/* Profile Avatar Section */}
           <div className="px-6 -mt-12 relative flex items-end justify-between">
             <div className="relative group">
-              {/* Circular DP */}
-              <div className="w-24 h-24 rounded-full ring-4 ring-[#086288] bg-gradient-to-tr from-[#086288] to-[#97D7FF] flex items-center justify-center text-3xl font-bold text-white shadow-xl overflow-hidden relative">
+              {/* Hidden file input for photo upload */}
+              {isOwnProfile && (
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+              )}
+
+              {/* Circular DP - Clickable on own profile with WhatsApp camera hover overlay */}
+              <div
+                onClick={() => {
+                  if (isOwnProfile && !isUploading) {
+                    fileInputRef.current?.click();
+                  }
+                }}
+                className={cn(
+                  "w-24 h-24 rounded-full ring-4 ring-[#086288] bg-gradient-to-tr from-[#086288] to-[#97D7FF] flex items-center justify-center text-3xl font-bold text-white shadow-xl overflow-hidden relative select-none",
+                  isOwnProfile && "cursor-pointer group hover:ring-[#97D7FF] transition-all"
+                )}
+                role={isOwnProfile ? "button" : undefined}
+                tabIndex={isOwnProfile ? 0 : undefined}
+                onKeyDown={(e) => {
+                  if (isOwnProfile && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                title={isOwnProfile ? "Click to change profile photo" : currentUser.name}
+              >
                 {isCustomImage ? (
                   <img
                     src={currentAvatar}
                     alt={currentUser.name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                   />
                 ) : (
                   <span>{currentAvatar}</span>
                 )}
 
+                {/* WhatsApp-style Camera Hover Overlay for Own Profile */}
+                {isOwnProfile && !isUploading && (
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-center p-1 text-white z-10 pointer-events-none">
+                    <Camera className="w-5 h-5 mb-0.5 text-[#97D7FF]" />
+                    <span className="text-[9px] font-bold tracking-wider uppercase text-white/95 leading-tight">
+                      Change Photo
+                    </span>
+                  </div>
+                )}
+
                 {/* Loading state indicator */}
                 {isUploading && (
-                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                    <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin" />
+                  <div className="absolute inset-0 bg-black/70 backdrop-blur-xs flex flex-col items-center justify-center z-20">
+                    <Loader2 className="w-6 h-6 text-[#97D7FF] animate-spin mb-1" />
+                    <span className="text-[9px] font-semibold text-[#FFEFC4]">Updating...</span>
                   </div>
                 )}
               </div>
 
               {/* Online indicator */}
               {currentUser.status === "online" && (
-                <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-[#97D7FF] ring-4 ring-[#086288]" />
+                <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-[#97D7FF] ring-4 ring-[#086288] z-20 pointer-events-none" />
               )}
 
               {/* OWN PROFILE: WhatsApp Camera Edit Button */}
               {isOwnProfile && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
-                    className="absolute -bottom-1 -right-1 p-2 rounded-full bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] shadow-lg ring-2 ring-[#086288] transition-transform hover:scale-110 active:scale-95 cursor-pointer"
-                    title="Change profile photo"
-                  >
-                    <Camera className="w-4 h-4" />
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="hidden"
-                  />
-                </>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                  disabled={isUploading}
+                  className="absolute -bottom-1 -right-1 p-2 rounded-full bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] shadow-lg ring-2 ring-[#086288] transition-transform hover:scale-110 active:scale-95 cursor-pointer z-30"
+                  title="Change profile photo"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
               )}
             </div>
 
@@ -330,24 +366,6 @@ export function ProfileModal({
                   )}
                 </div>
               )}
-
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-slate-300 font-mono">
-                  ID: {currentUser.id.slice(0, 12)}...
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopyId}
-                  className="text-slate-300 hover:text-white transition cursor-pointer"
-                  title="Copy User ID"
-                >
-                  {copiedId ? (
-                    <Check className="w-3 h-3 text-[#FFEFC4]" />
-                  ) : (
-                    <Copy className="w-3 h-3" />
-                  )}
-                </button>
-              </div>
             </div>
 
             <div className="space-y-3 pt-2 border-t border-[#4D8DBA]/35 text-xs">

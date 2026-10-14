@@ -103,8 +103,12 @@ export function StoriesViewer({
           {/* User Header */}
           <div className="flex items-center justify-between mt-2 z-20">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#086288] to-[#97D7FF] flex items-center justify-center font-bold text-xs text-white shadow-md">
-                {current.userAvatar}
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#086288] to-[#97D7FF] flex items-center justify-center font-bold text-xs text-white shadow-md overflow-hidden">
+                {current.userAvatar && (current.userAvatar.startsWith("http") || current.userAvatar.startsWith("data:")) ? (
+                  <img src={current.userAvatar} alt={current.userName} className="w-full h-full object-cover" />
+                ) : (
+                  current.userAvatar
+                )}
               </div>
               <div className="flex flex-col">
                 <span className="text-xs font-bold text-white">
