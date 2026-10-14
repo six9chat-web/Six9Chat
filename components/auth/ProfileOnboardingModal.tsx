@@ -13,7 +13,7 @@ import {
   ShieldCheck,
   AlertCircle,
 } from "lucide-react";
-import { useAuth } from "@/lib/auth";
+import { useAuth, uploadAvatar } from "@/lib/auth";
 
 interface ProfileOnboardingModalProps {
   isOpen: boolean;
@@ -64,22 +64,35 @@ export function ProfileOnboardingModal({
   if (!isOpen) return null;
 
   // Handle custom file upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        setErrorMessage("Image file size must be less than 2MB.");
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMessage("Image file size must be less than 5MB.");
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === "string") {
-          setCustomAvatarUrl(reader.result);
-          setSelectedAvatar(reader.result);
-          setErrorMessage(null);
+      setIsSaving(true);
+      setErrorMessage(null);
+      try {
+        if (user?.id) {
+          const publicUrl = await uploadAvatar(user.id, file);
+          setCustomAvatarUrl(publicUrl);
+          setSelectedAvatar(publicUrl);
+        } else {
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (typeof reader.result === "string") {
+              setCustomAvatarUrl(reader.result);
+              setSelectedAvatar(reader.result);
+            }
+          };
+          reader.readAsDataURL(file);
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err: any) {
+        setErrorMessage(err.message || "Failed to upload photo");
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 

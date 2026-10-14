@@ -1,37 +1,72 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
   LogOut,
-  User,
   Phone,
+  Video,
   MessageSquare,
   ShieldCheck,
   Check,
   Copy,
-  ExternalLink,
-  Smartphone,
+  Camera,
+  Pencil,
+  Trash2,
+  Loader2,
+  User,
 } from "lucide-react";
-import { UserProfile } from "@/types/chat";
+import { UserProfile, ChatContact } from "@/types/chat";
+import { uploadAvatar } from "@/lib/auth";
 
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentUser: UserProfile;
-  onSignOut: () => void;
+  currentUser: UserProfile | ChatContact;
+  isOwnProfile?: boolean;
+  onSignOut?: () => void;
+  onUpdateProfile?: (data: {
+    name: string;
+    avatar: string;
+    statusText: string;
+  }) => Promise<void>;
+  onVoiceCall?: () => void;
+  onVideoCall?: () => void;
 }
 
 export function ProfileModal({
   isOpen,
   onClose,
   currentUser,
+  isOwnProfile = true,
   onSignOut,
+  onUpdateProfile,
+  onVoiceCall,
+  onVideoCall,
 }: ProfileModalProps) {
   const [copiedId, setCopiedId] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Editable fields for own profile
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(currentUser.name || "");
+  const [isEditingAbout, setIsEditingAbout] = useState(false);
+  const initialAbout =
+    (currentUser as any).statusText ||
+    (currentUser as any).about ||
+    "Hey there! I am using Six9Chat 🚀";
+  const [aboutValue, setAboutValue] = useState(initialAbout);
+  const [isSavingDetails, setIsSavingDetails] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
+
+  const currentAvatar = currentUser.avatar || "";
+  const isCustomImage =
+    currentAvatar.startsWith("http") || currentAvatar.startsWith("data:");
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(currentUser.id);
@@ -39,9 +74,99 @@ export function ProfileModal({
     setTimeout(() => setCopiedId(false), 2000);
   };
 
-  const isCustomImage =
-    currentUser.avatar?.startsWith("http") ||
-    currentUser.avatar?.startsWith("data:");
+  // Upload or change avatar (Own profile only)
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isOwnProfile) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError("Image size must be less than 5MB");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const publicUrl = await uploadAvatar(currentUser.id, file);
+      if (onUpdateProfile) {
+        await onUpdateProfile({
+          name: nameValue || currentUser.name,
+          avatar: publicUrl,
+          statusText: aboutValue,
+        });
+      }
+    } catch (err: any) {
+      setUploadError(err.message || "Failed to upload photo");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Remove custom photo (revert to initials)
+  const handleRemovePhoto = async () => {
+    if (!isOwnProfile) return;
+    setIsUploading(true);
+    setUploadError(null);
+
+    const defaultInitials =
+      currentUser.name?.slice(0, 2).toUpperCase() || "ME";
+    try {
+      if (onUpdateProfile) {
+        await onUpdateProfile({
+          name: nameValue || currentUser.name,
+          avatar: defaultInitials,
+          statusText: aboutValue,
+        });
+      }
+    } catch (err: any) {
+      setUploadError(err.message || "Failed to remove photo");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Save updated name
+  const handleSaveName = async () => {
+    if (!nameValue.trim() || !isOwnProfile) return;
+    setIsSavingDetails(true);
+    try {
+      if (onUpdateProfile) {
+        await onUpdateProfile({
+          name: nameValue.trim(),
+          avatar: currentAvatar,
+          statusText: aboutValue,
+        });
+      }
+      setIsEditingName(false);
+    } catch (err: any) {
+      setUploadError(err.message || "Failed to update name");
+    } finally {
+      setIsSavingDetails(false);
+    }
+  };
+
+  // Save updated about
+  const handleSaveAbout = async () => {
+    if (!aboutValue.trim() || !isOwnProfile) return;
+    setIsSavingDetails(true);
+    try {
+      if (onUpdateProfile) {
+        await onUpdateProfile({
+          name: nameValue || currentUser.name,
+          avatar: currentAvatar,
+          statusText: aboutValue.trim(),
+        });
+      }
+      setIsEditingAbout(false);
+    } catch (err: any) {
+      setUploadError(err.message || "Failed to update about");
+    } finally {
+      setIsSavingDetails(false);
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -57,58 +182,163 @@ export function ProfileModal({
           <div className="h-28 bg-gradient-to-r from-[#086288] via-[#4D8DBA] to-[#97D7FF] relative p-4 flex justify-between items-start">
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#053b53]/90 border border-[#4D8DBA]/60 text-xs font-medium text-[#FFEFC4]">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Six9 Chat Authenticated</span>
+              <span>
+                {isOwnProfile ? "My Six9 Profile" : "Contact Information"}
+              </span>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-full bg-[#053b53]/80 text-slate-200 hover:text-white transition"
+              className="p-1.5 rounded-full bg-[#053b53]/80 text-slate-200 hover:text-white transition cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Profile Avatar Overlay */}
+          {/* Profile Avatar Section */}
           <div className="px-6 -mt-12 relative flex items-end justify-between">
-            <div className="relative">
-              <div className="w-24 h-24 rounded-full ring-4 ring-[#086288] bg-gradient-to-tr from-[#086288] to-[#97D7FF] flex items-center justify-center text-3xl font-bold text-white shadow-xl overflow-hidden">
+            <div className="relative group">
+              {/* Circular DP */}
+              <div className="w-24 h-24 rounded-full ring-4 ring-[#086288] bg-gradient-to-tr from-[#086288] to-[#97D7FF] flex items-center justify-center text-3xl font-bold text-white shadow-xl overflow-hidden relative">
                 {isCustomImage ? (
                   <img
-                    src={currentUser.avatar}
+                    src={currentAvatar}
                     alt={currentUser.name}
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span>{currentUser.avatar}</span>
+                  <span>{currentAvatar}</span>
+                )}
+
+                {/* Loading state indicator */}
+                {isUploading && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                    <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin" />
+                  </div>
                 )}
               </div>
-              <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-[#97D7FF] ring-4 ring-[#086288]" />
+
+              {/* Online indicator */}
+              {currentUser.status === "online" && (
+                <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-[#97D7FF] ring-4 ring-[#086288]" />
+              )}
+
+              {/* OWN PROFILE: WhatsApp Camera Edit Button */}
+              {isOwnProfile && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="absolute -bottom-1 -right-1 p-2 rounded-full bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] shadow-lg ring-2 ring-[#086288] transition-transform hover:scale-110 active:scale-95 cursor-pointer"
+                    title="Change profile photo"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                  />
+                </>
+              )}
             </div>
 
-            <button
-              type="button"
-              onClick={onSignOut}
-              className="mb-2 px-3.5 py-1.5 rounded-xl border border-red-400/40 bg-red-500/20 text-red-200 hover:bg-red-500/30 text-xs font-semibold flex items-center gap-1.5 transition"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Log Out</span>
-            </button>
+            {/* Right side controls: Logout for self, or Remove Photo button */}
+            <div className="flex items-center gap-2 mb-2">
+              {isOwnProfile && isCustomImage && (
+                <button
+                  type="button"
+                  onClick={handleRemovePhoto}
+                  disabled={isUploading}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-400/40 bg-[#053b53]/80 hover:bg-rose-500/20 text-slate-300 hover:text-rose-200 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+                  title="Remove custom photo"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span className="hidden xs:inline">Remove</span>
+                </button>
+              )}
+
+              {isOwnProfile && onSignOut && (
+                <button
+                  type="button"
+                  onClick={onSignOut}
+                  className="px-3.5 py-1.5 rounded-xl border border-red-400/40 bg-red-500/20 text-red-200 hover:bg-red-500/30 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Log Out</span>
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Upload Error Banner */}
+          {uploadError && (
+            <div className="mx-6 mt-3 p-2 bg-red-500/20 border border-red-500/40 rounded-xl text-red-200 text-xs">
+              {uploadError}
+            </div>
+          )}
 
           {/* User Details */}
           <div className="p-6 pt-3 space-y-4">
+            {/* Name Row */}
             <div>
-              <h2 className="text-xl font-bold text-white">
-                {currentUser.name}
-              </h2>
+              {isOwnProfile && isEditingName ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={nameValue}
+                    onChange={(e) => setNameValue(e.target.value)}
+                    className="flex-1 bg-[#053b53] border border-[#97D7FF] rounded-xl px-3 py-1.5 text-sm text-white focus:outline-none"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveName}
+                    disabled={isSavingDetails}
+                    className="p-2 rounded-xl bg-[#97D7FF] text-[#086288] hover:bg-white transition cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNameValue(currentUser.name);
+                      setIsEditingName(false);
+                    }}
+                    className="p-2 rounded-xl bg-[#053b53] text-slate-300 hover:text-white transition cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-white">
+                    {currentUser.name}
+                  </h2>
+                  {isOwnProfile && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingName(true)}
+                      className="p-1 text-slate-300 hover:text-[#97D7FF] transition cursor-pointer"
+                      title="Edit name"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs text-slate-300 font-mono">
-                  ID: {currentUser.id.slice(0, 8)}...
+                  ID: {currentUser.id.slice(0, 12)}...
                 </span>
                 <button
                   type="button"
                   onClick={handleCopyId}
-                  className="text-slate-300 hover:text-white transition"
+                  className="text-slate-300 hover:text-white transition cursor-pointer"
                   title="Copy User ID"
                 >
                   {copiedId ? (
@@ -121,15 +351,58 @@ export function ProfileModal({
             </div>
 
             <div className="space-y-3 pt-2 border-t border-[#4D8DBA]/35 text-xs">
-              {/* Status Line */}
+              {/* About / Status Line */}
               <div className="bg-[#053b53] p-3 rounded-2xl border border-[#4D8DBA]/40">
-                <span className="text-slate-300 font-medium block mb-1 flex items-center gap-1.5">
-                  <MessageSquare className="w-3.5 h-3.5 text-[#97D7FF]" />
-                  <span>About / Status</span>
-                </span>
-                <p className="text-[#FFEFC4] text-sm font-medium">
-                  {currentUser.statusText || "Hey there! I am using Six9Chat"}
-                </p>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-[#97D7FF]" />
+                    <span>About / Status</span>
+                  </span>
+                  {isOwnProfile && !isEditingAbout && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingAbout(true)}
+                      className="text-slate-300 hover:text-[#97D7FF] transition cursor-pointer"
+                      title="Edit about"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {isOwnProfile && isEditingAbout ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      type="text"
+                      value={aboutValue}
+                      onChange={(e) => setAboutValue(e.target.value)}
+                      className="flex-1 bg-[#032433] border border-[#97D7FF] rounded-xl px-2.5 py-1 text-xs text-white focus:outline-none"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveAbout}
+                      disabled={isSavingDetails}
+                      className="p-1.5 rounded-lg bg-[#97D7FF] text-[#086288] hover:bg-white transition cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAboutValue(initialAbout);
+                        setIsEditingAbout(false);
+                      }}
+                      className="p-1.5 rounded-lg bg-[#086288] text-slate-300 hover:text-white transition cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[#FFEFC4] text-sm font-medium">
+                    {aboutValue}
+                  </p>
+                )}
               </div>
 
               {/* Phone Line */}
@@ -144,16 +417,51 @@ export function ProfileModal({
               </div>
             </div>
 
-            {/* Quick Actions */}
+            {/* Bottom Actions */}
             <div className="pt-2">
-              <button
-                type="button"
-                onClick={onSignOut}
-                className="w-full py-3 rounded-xl bg-[#053b53] hover:bg-red-500/25 hover:text-red-200 border border-[#4D8DBA]/40 text-slate-200 text-xs font-bold transition flex items-center justify-center gap-2"
-              >
-                <LogOut className="w-4 h-4 text-red-300" />
-                <span>Disconnect & End Session</span>
-              </button>
+              {isOwnProfile ? (
+                /* Self: Disconnect Button */
+                onSignOut && (
+                  <button
+                    type="button"
+                    onClick={onSignOut}
+                    className="w-full py-2.5 rounded-xl bg-[#053b53] hover:bg-red-500/25 hover:text-red-200 border border-[#4D8DBA]/40 text-slate-200 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4 text-red-300" />
+                    <span>Disconnect & End Session</span>
+                  </button>
+                )
+              ) : (
+                /* Other User (Contact): Quick Call Actions (Strictly Read-Only) */
+                <div className="flex items-center gap-2">
+                  {onVoiceCall && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onVoiceCall();
+                      }}
+                      className="flex-1 py-2.5 rounded-xl bg-[#053b53] hover:bg-[#4D8DBA]/30 border border-[#4D8DBA]/40 text-slate-200 hover:text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Phone className="w-4 h-4 text-[#97D7FF]" />
+                      <span>Voice Call</span>
+                    </button>
+                  )}
+                  {onVideoCall && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onVideoCall();
+                      }}
+                      className="flex-1 py-2.5 rounded-xl bg-[#053b53] hover:bg-[#4D8DBA]/30 border border-[#4D8DBA]/40 text-slate-200 hover:text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Video className="w-4 h-4 text-[#97D7FF]" />
+                      <span>Video Call</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </motion.div>

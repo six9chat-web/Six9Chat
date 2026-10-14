@@ -24,6 +24,7 @@ export function ChatWorkspace() {
     needsOnboarding,
     setNeedsOnboarding,
     signOut,
+    saveUserProfile,
   } = useAuth();
 
   const {
@@ -60,6 +61,7 @@ export function ChatWorkspace() {
   const [isNewGroupOpen, setIsNewGroupOpen] = useState(false);
   const [isCommunityOpen, setIsCommunityOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [profileModalTarget, setProfileModalTarget] = useState<"self" | "contact">("self");
 
   useEffect(() => {
     if (!isAuthLoading && !isAuthenticated) {
@@ -151,8 +153,14 @@ export function ChatWorkspace() {
             supabaseStatus={supabaseStatus}
             channelConnected={channelConnected}
             onSignOut={signOut}
-            onOpenProfile={() => setIsProfileModalOpen(true)}
-            onOpenSettings={() => setIsProfileModalOpen(true)}
+            onOpenProfile={() => {
+              setProfileModalTarget("self");
+              setIsProfileModalOpen(true);
+            }}
+            onOpenSettings={() => {
+              setProfileModalTarget("self");
+              setIsProfileModalOpen(true);
+            }}
           />
         </div>
 
@@ -173,7 +181,10 @@ export function ChatWorkspace() {
             onBackToSidebar={handleBackToSidebarMobile}
             onVoiceCall={() => startCall("audio")}
             onVideoCall={() => startCall("video")}
-            onOpenContactInfo={() => setIsProfileModalOpen(true)}
+            onOpenContactInfo={() => {
+              setProfileModalTarget("contact");
+              setIsProfileModalOpen(true);
+            }}
           />
         </div>
       </div>
@@ -224,12 +235,23 @@ export function ChatWorkspace() {
         onCreateCommunity={() => setIsCommunityOpen(false)}
       />
 
-      {/* User Profile & Account Settings Modal */}
+      {/* User Profile & Contact Information Modal */}
       <ProfileModal
         isOpen={isProfileModalOpen}
-        currentUser={activeUser}
+        currentUser={profileModalTarget === "self" ? activeUser : activeContact}
+        isOwnProfile={profileModalTarget === "self"}
         onClose={() => setIsProfileModalOpen(false)}
         onSignOut={signOut}
+        onUpdateProfile={async ({ name, avatar, statusText }) => {
+          await saveUserProfile({
+            name,
+            avatar,
+            statusText,
+            phone: activeUser.phone,
+          });
+        }}
+        onVoiceCall={() => startCall("audio")}
+        onVideoCall={() => startCall("video")}
       />
 
       {/* Profile Onboarding Modal for First Time Signups */}
