@@ -1,24 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import {
   Search,
   MessageSquarePlus,
-  MoreVertical,
   X,
-  Plus,
-  Users,
-  CircleDashed,
-  Settings,
-  Archive,
-  LogOut,
-  SlidersHorizontal,
 } from "lucide-react";
 import { ChatList } from "@/components/chat/ChatList";
 import { ChatContact, StoryItem, UserProfile } from "@/types/chat";
 import { ChatFilterType } from "@/hooks/useRealtimeChat";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
 
 interface SidebarProps {
   currentUser: UserProfile;
@@ -50,47 +41,38 @@ export function Sidebar({
   onSearchChange,
   activeFilter,
   onFilterChange,
-  stories,
-  onOpenStories,
   onOpenNewChat,
-  onOpenNewGroup,
-  onOpenCommunity,
-  supabaseStatus,
-  channelConnected,
-  onSignOut,
   onOpenProfile,
-  onOpenSettings,
 }: SidebarProps) {
-  const [showMenu, setShowMenu] = useState(false);
-
   const filterTabs: { id: ChatFilterType; label: string }[] = [
     { id: "all", label: "All" },
     { id: "unread", label: "Unread" },
-    { id: "favourites", label: "Favourites" },
+    { id: "pinned", label: "Pinned" },
     { id: "groups", label: "Groups" },
     { id: "communities", label: "Communities" },
   ];
 
   return (
-    <aside className="w-full md:w-[380px] lg:w-[420px] xl:w-[440px] h-full min-h-0 flex flex-col bg-[#053b53] border-r border-[#4D8DBA]/30 z-20 shrink-0 select-none overflow-hidden">
-      {/* 1. Header Bar: "Chats" title + WhatsApp Header Action Buttons */}
+    <aside className="w-full h-full min-h-0 flex flex-col bg-[#053b53] border-r border-[#4D8DBA]/30 z-20 shrink-0 select-none overflow-hidden">
+      {/* 1. Header Bar: Profile Avatar + "Chats" title + WhatsApp New Chat Button */}
       <div className="h-16 px-4 bg-[#086288] border-b border-[#4D8DBA]/35 backdrop-blur-xl flex items-center justify-between shrink-0">
-        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-          Chats
-        </h1>
-
-        <div className="flex items-center gap-1 text-slate-200 relative">
-          {/* Menu Dropdown Trigger */}
+        <div className="flex items-center gap-3">
+          {/* User Profile Avatar / Settings trigger */}
           <button
             type="button"
-            onClick={() => setShowMenu((prev) => !prev)}
-            className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer"
-            title="Menu"
+            onClick={onOpenProfile}
+            className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#4D8DBA] to-[#97D7FF] text-[#086288] font-bold text-xs flex items-center justify-center shadow-md hover:scale-105 transition cursor-pointer shrink-0 ring-2 ring-[#97D7FF]/40"
+            title={currentUser?.name ? `${currentUser.name} (Settings)` : "Profile & Settings"}
           >
-            <MoreVertical className="w-5 h-5" />
+            {currentUser?.avatar || currentUser?.name?.slice(0, 2).toUpperCase() || "ME"}
           </button>
+          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+            Chats
+          </h1>
+        </div>
 
-          {/* New Chat Pill Button (Matching WhatsApp Web green/accent icon pill) */}
+        <div className="flex items-center gap-1 text-slate-200">
+          {/* New Chat Pill Button */}
           <button
             type="button"
             onClick={onOpenNewChat}
@@ -99,76 +81,6 @@ export function Sidebar({
           >
             <MessageSquarePlus className="w-5 h-5" />
           </button>
-
-          {/* Context Dropdown Menu */}
-          <AnimatePresence>
-            {showMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowMenu(false)}
-                />
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="absolute right-0 top-12 w-52 bg-[#086288] border border-[#4D8DBA] rounded-2xl shadow-2xl p-1.5 z-50 text-xs backdrop-blur-2xl"
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowMenu(false);
-                      onOpenNewGroup?.();
-                    }}
-                    className="w-full px-3 py-2.5 rounded-xl hover:bg-[#4D8DBA]/30 text-left flex items-center gap-2.5 text-slate-100 transition cursor-pointer"
-                  >
-                    <Users className="w-4 h-4 text-[#97D7FF]" />
-                    <span>New Group</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowMenu(false);
-                      onOpenCommunity?.();
-                    }}
-                    className="w-full px-3 py-2.5 rounded-xl hover:bg-[#4D8DBA]/30 text-left flex items-center gap-2.5 text-slate-100 transition cursor-pointer"
-                  >
-                    <CircleDashed className="w-4 h-4 text-[#FFEFC4]" />
-                    <span>New Community</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowMenu(false);
-                      onOpenProfile?.();
-                    }}
-                    className="w-full px-3 py-2.5 rounded-xl hover:bg-[#4D8DBA]/30 text-left flex items-center gap-2.5 text-slate-100 transition cursor-pointer"
-                  >
-                    <Settings className="w-4 h-4 text-slate-300" />
-                    <span>Settings & Profile</span>
-                  </button>
-
-                  {onSignOut && (
-                    <div className="pt-1 mt-1 border-t border-[#4D8DBA]/30">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowMenu(false);
-                          onSignOut();
-                        }}
-                        className="w-full px-3 py-2 rounded-xl hover:bg-rose-500/20 text-rose-300 text-left flex items-center gap-2.5 transition cursor-pointer"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        <span>Log Out</span>
-                      </button>
-                    </div>
-                  )}
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
         </div>
       </div>
 
@@ -195,7 +107,7 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* 3. Filter Pill Tabs: All, Unread, Favourites, Groups, Communities, (+) */}
+      {/* 3. Filter Pill Tabs: All, Unread, Pinned, Groups, Communities */}
       <div className="px-3 pb-2.5 shrink-0 overflow-x-auto no-scrollbar flex items-center gap-1.5">
         {filterTabs.map((tab) => {
           const isActive = activeFilter === tab.id;
@@ -215,16 +127,6 @@ export function Sidebar({
             </button>
           );
         })}
-
-        {/* (+) Add Pill Tab */}
-        <button
-          type="button"
-          onClick={onOpenNewChat}
-          title="Add chat or list"
-          className="w-7 h-7 rounded-full bg-[#032433] border border-[#4D8DBA]/35 text-slate-300 hover:text-white hover:bg-[#4D8DBA]/25 flex items-center justify-center text-xs font-bold shrink-0 transition cursor-pointer"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
       </div>
 
       {/* 4. Chat List Section */}

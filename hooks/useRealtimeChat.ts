@@ -81,7 +81,7 @@ export function useRealtimeChat() {
       if (activeFilter === "favourites") return Boolean(c.isFavourite || c.isPinned);
       if (activeFilter === "groups") return Boolean(c.isGroup);
       if (activeFilter === "communities") return Boolean(c.isCommunity);
-      if (activeFilter === "pinned") return Boolean(c.isPinned);
+      if (activeFilter === "pinned") return Boolean(c.isPinned || c.isFavourite);
 
       return true;
     });

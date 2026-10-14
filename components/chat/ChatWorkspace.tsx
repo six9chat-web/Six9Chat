@@ -2,8 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { NavigationRail } from "@/components/chat/NavigationRail";
 import { Sidebar } from "@/components/chat/Sidebar";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { CallModal } from "@/components/chat/CallModal";
@@ -58,7 +56,6 @@ export function ChatWorkspace() {
 
   // Mobile viewport navigation state: 'sidebar' | 'chat'
   const [mobileView, setMobileView] = useState<"sidebar" | "chat">("sidebar");
-  const [activeRailTab, setActiveRailTab] = useState("chats");
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isNewGroupOpen, setIsNewGroupOpen] = useState(false);
   const [isCommunityOpen, setIsCommunityOpen] = useState(false);
@@ -106,17 +103,10 @@ export function ChatWorkspace() {
 
   if (isAuthLoading) {
     return (
-      <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-full h-full bg-[#053b53] flex flex-col items-center justify-center text-slate-100 select-none z-50">
-        <div className="pointer-events-none absolute w-[400px] h-[400px] rounded-full bg-[#4D8DBA]/25 blur-[120px] animate-pulse-glow" />
-        <AuthLogo size={64} />
-        <div className="mt-6 flex flex-col items-center gap-3 relative z-10">
-          <div className="w-48 h-1 rounded-full bg-[#086288] overflow-hidden">
-            <motion.div
-              className="h-full bg-gradient-to-r from-[#086288] via-[#4D8DBA] to-[#97D7FF]"
-              animate={{ x: ["-100%", "100%"] }}
-              transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
-            />
-          </div>
+      <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-full h-full bg-[#053b53] flex flex-col items-center justify-center text-slate-100 z-50">
+        <div className="flex flex-col items-center gap-4">
+          <AuthLogo size={56} />
+          <div className="w-10 h-10 rounded-full border-3 border-[#97D7FF] border-t-transparent animate-spin mt-2" />
           <p className="text-xs text-[#97D7FF]/80 font-medium tracking-wide">
             Connecting to Six9Chat Realtime Engine...
           </p>
@@ -134,35 +124,14 @@ export function ChatWorkspace() {
       <div className="pointer-events-none absolute top-1/3 -right-32 w-[550px] h-[550px] rounded-full bg-[#4D8DBA]/25 blur-[150px]" />
       <div className="pointer-events-none absolute -bottom-32 left-1/3 w-[480px] h-[480px] rounded-full bg-[#97D7FF]/15 blur-[140px]" />
 
-      {/* Main Full-Screen WhatsApp Web Layout (Strict 100% width x 100% height) */}
+      {/* Main Responsive WhatsApp Web Layout (100% width x 100% height) */}
       <div className="flex flex-row w-full h-full min-h-0 overflow-hidden relative z-10">
-        {/* Leftmost Vertical Navigation Rail */}
-        <div className="hidden md:flex h-full min-h-0 shrink-0">
-          <NavigationRail
-            activeTab={activeRailTab}
-            onTabChange={(tab) => {
-              setActiveRailTab(tab);
-              if (tab === "chats") setActiveFilter("all");
-              if (tab === "archived") setActiveFilter("pinned");
-            }}
-            currentUser={activeUser}
-            hasUnreadStories={stories.some((s) => !s.viewed)}
-            onOpenStories={() => openStory(stories[0])}
-            onOpenChannels={() => setIsCommunityOpen(true)}
-            onOpenCommunities={() => setIsCommunityOpen(true)}
-            onOpenAi={() => setIsNewChatOpen(true)}
-            onOpenSettings={() => setIsProfileModalOpen(true)}
-            onOpenProfile={() => setIsProfileModalOpen(true)}
-            onOpenArchived={() => setActiveFilter("pinned")}
-          />
-        </div>
-
-        {/* Main Chats Sidebar Pane */}
+        {/* Main Chats Sidebar Pane: Full screen on mobile when mobileView === 'sidebar', 380-450px on desktop */}
         <div
           className={`h-full min-h-0 shrink-0 border-r border-[#4D8DBA]/35 transition-all duration-200 ${
             mobileView === "chat"
-              ? "hidden md:flex md:w-[380px] lg:w-[420px] xl:w-[440px]"
-              : "w-full md:w-[380px] lg:w-[420px] xl:w-[440px] flex flex-col"
+              ? "hidden md:flex md:w-[380px] lg:w-[420px] xl:w-[450px]"
+              : "w-full md:w-[380px] lg:w-[420px] xl:w-[450px] flex flex-col"
           }`}
         >
           <Sidebar
@@ -187,10 +156,12 @@ export function ChatWorkspace() {
           />
         </div>
 
-        {/* Right Pane: WhatsApp Conversation Window */}
+        {/* Right Pane: WhatsApp Conversation Window: Full screen on mobile when mobileView === 'chat', flex-1 on desktop */}
         <div
           className={`flex-1 min-w-0 min-h-0 h-full bg-[#053b53] transition-all duration-200 ${
-            mobileView === "sidebar" ? "hidden md:flex" : "flex flex-col"
+            mobileView === "sidebar"
+              ? "hidden md:flex md:flex-col"
+              : "w-full flex flex-col"
           }`}
         >
           <ChatWindow
@@ -250,31 +221,24 @@ export function ChatWorkspace() {
       <CommunityModal
         isOpen={isCommunityOpen}
         onClose={() => setIsCommunityOpen(false)}
-        onCreateCommunity={(name, description, isChannel) => {
-          const newId = createGroup(
-            name,
-            [currentUser.name, "Alex Rivers", "Elena Vance"],
-            isChannel ? "📢" : "👥"
-          );
-          selectContact(newId);
-          setIsCommunityOpen(false);
-          setMobileView("chat");
-        }}
+        onCreateCommunity={() => setIsCommunityOpen(false)}
       />
 
-      {/* Profile & Account Drawer Modal */}
+      {/* User Profile & Account Settings Modal */}
       <ProfileModal
         isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
         currentUser={activeUser}
+        onClose={() => setIsProfileModalOpen(false)}
         onSignOut={signOut}
       />
 
-      {/* Profile Onboarding Modal */}
-      <ProfileOnboardingModal
-        isOpen={needsOnboarding}
-        onComplete={() => setNeedsOnboarding(false)}
-      />
+      {/* Profile Onboarding Modal for First Time Signups */}
+      {needsOnboarding && (
+        <ProfileOnboardingModal
+          isOpen={needsOnboarding}
+          onComplete={() => setNeedsOnboarding(false)}
+        />
+      )}
     </div>
   );
 }
