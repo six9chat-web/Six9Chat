@@ -130,3 +130,25 @@ CREATE POLICY "Authenticated users can update their avatars"
   ON storage.objects FOR UPDATE
   TO authenticated
   USING (bucket_id = 'avatars' AND (auth.uid())::text = (storage.foldername(name))[1]);
+
+-- 7. Custom OTP Table for Email OTP Engine
+CREATE TABLE IF NOT EXISTS public.user_otps (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  email TEXT NOT NULL,
+  otp_code TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  verified BOOLEAN DEFAULT false
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_otps_email ON public.user_otps(email);
+CREATE INDEX IF NOT EXISTS idx_user_otps_code ON public.user_otps(otp_code);
+
+ALTER TABLE public.user_otps ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all access to user_otps" ON public.user_otps;
+CREATE POLICY "Allow all access to user_otps"
+  ON public.user_otps
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);

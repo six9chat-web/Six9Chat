@@ -334,10 +334,31 @@ export async function getOrAssignSequentialUid(userId: string, email?: string): 
 
 /**
  * Standalone: Send 6-digit OTP code to Gmail / Email address
- * Configured with shouldCreateUser: true and live site redirect to prioritize numeric OTP token
+ * Utilizes custom database OTP engine (/api/auth/send-otp) backed by user_otps table
+ * with fallback to Supabase carrier
  */
 export async function signInWithEmailOtp(email: string) {
   const cleanEmail = email.trim().toLowerCase();
+
+  try {
+    const res = await fetch("/api/auth/send-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanEmail }),
+    });
+
+    const result = await res.json().catch(() => ({}));
+    if (res.ok && result.success) {
+      return result;
+    }
+    if (result.error && !result.error.toLowerCase().includes("fail")) {
+      throw new Error(result.error);
+    }
+  } catch (apiErr) {
+    console.warn("[Custom OTP Send API fallback]:", apiErr);
+  }
+
+  // Fallback to direct Supabase Auth carrier
   const liveBaseUrl = getSiteBaseUrl();
   const { data, error } = await supabase.auth.signInWithOtp({
     email: cleanEmail,
@@ -352,12 +373,47 @@ export async function signInWithEmailOtp(email: string) {
 }
 
 /**
- * Standalone: Verify 6-digit Email OTP code via Supabase verifyOtp
+ * Standalone: Verify 6-digit Email OTP code
+ * Validates via custom database OTP engine (/api/auth/verify-otp) backed by user_otps table
+ * with fallback to Supabase verifyOtp
  */
 export async function verifyEmailOtp(email: string, token: string) {
   const cleanEmail = email.trim().toLowerCase();
   const cleanToken = token.trim();
 
+  // 1. Try Custom Database OTP verification route
+  try {
+    const res = await fetch("/api/auth/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanEmail, token: cleanToken }),
+    });
+
+    const result = await res.json().catch(() => ({}));
+    if (res.ok && result.success && result.user) {
+      const assignedUid = result.assignedUid || formatSequentialUid(1);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`six9_uid_${cleanEmail}`, assignedUid);
+        localStorage.setItem(`six9_uid_${result.user.id}`, assignedUid);
+        localStorage.setItem("six9_current_uid", assignedUid);
+      }
+      return {
+        user: {
+          id: result.user.id,
+          email: cleanEmail,
+          user_metadata: {
+            full_name: result.user.name || cleanEmail.split("@")[0],
+            uid: assignedUid,
+          },
+        } as unknown as User,
+        data: result,
+      };
+    }
+  } catch (apiErr) {
+    console.warn("[Custom OTP Verify API fallback]:", apiErr);
+  }
+
+  // 2. Direct Supabase Auth verifyOtp fallback
   const { data, error } = await supabase.auth.verifyOtp({
     email: cleanEmail,
     token: cleanToken,

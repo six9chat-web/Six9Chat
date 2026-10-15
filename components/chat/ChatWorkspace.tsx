@@ -12,6 +12,7 @@ import { CommunityModal } from "@/components/chat/CommunityModal";
 import { ProfileModal } from "@/components/chat/ProfileModal";
 import { ProfileOnboardingModal } from "@/components/auth/ProfileOnboardingModal";
 import { AuthLogo } from "@/components/auth/AuthLogo";
+import { Fingerprint, Search } from "lucide-react";
 import { useRealtimeChat } from "@/hooks/useRealtimeChat";
 import { useAuth } from "@/lib/auth";
 
@@ -148,6 +149,7 @@ export function ChatWorkspace() {
             stories={stories}
             onOpenStories={() => openStory(stories[0])}
             onOpenNewChat={() => setIsNewChatOpen(true)}
+            onAddNewContact={handleAddNewContact}
             onOpenNewGroup={() => setIsNewGroupOpen(true)}
             onOpenCommunity={() => setIsCommunityOpen(true)}
             supabaseStatus={supabaseStatus}
@@ -172,20 +174,54 @@ export function ChatWorkspace() {
               : "w-full flex flex-col"
           }`}
         >
-          <ChatWindow
-            contact={activeContact}
-            messages={activeMessages}
-            isTyping={isTyping}
-            onSendMessage={sendMessage}
-            onReactToMessage={addReaction}
-            onBackToSidebar={handleBackToSidebarMobile}
-            onVoiceCall={() => startCall("audio")}
-            onVideoCall={() => startCall("video")}
-            onOpenContactInfo={() => {
-              setProfileModalTarget("contact");
-              setIsProfileModalOpen(true);
-            }}
-          />
+          {activeContact ? (
+            <ChatWindow
+              contact={activeContact}
+              messages={activeMessages}
+              isTyping={isTyping}
+              onSendMessage={sendMessage}
+              onReactToMessage={addReaction}
+              onBackToSidebar={handleBackToSidebarMobile}
+              onVoiceCall={() => startCall("audio")}
+              onVideoCall={() => startCall("video")}
+              onOpenContactInfo={() => {
+                setProfileModalTarget("contact");
+                setIsProfileModalOpen(true);
+              }}
+            />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center select-none bg-gradient-to-b from-[#053b53] to-[#032433]">
+              <div className="relative mb-6">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-[#086288] via-[#4D8DBA] to-[#97D7FF] p-1 shadow-[0_0_40px_rgba(151,215,255,0.3)] flex items-center justify-center">
+                  <div className="w-full h-full rounded-full bg-[#053b53] flex items-center justify-center">
+                    <span className="font-extrabold text-2xl text-white font-mono">
+                      S<span className="text-[#97D7FF]">9</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <h2 className="text-2xl font-bold text-white tracking-tight mb-2">
+                Six9Chat Real-Time Network
+              </h2>
+
+              {activeUser?.uid && (
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#086288] border border-[#4D8DBA]/60 text-[#FFEFC4] font-mono text-sm font-bold shadow-md mb-4">
+                  <Fingerprint className="w-4 h-4 text-[#97D7FF]" />
+                  <span>Your UID: {activeUser.uid}</span>
+                </div>
+              )}
+
+              <p className="max-w-md text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
+                Connect and exchange encrypted real-time messages. Add contacts directly by their system UID using the search bar on the left.
+              </p>
+
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#032433] border border-[#4D8DBA]/40 text-xs text-slate-300 shadow-sm">
+                <Search className="w-4 h-4 text-[#97D7FF]" />
+                <span>Use &ldquo;Add User by UID&rdquo; to start a conversation</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -238,7 +274,7 @@ export function ChatWorkspace() {
       {/* User Profile & Contact Information Modal */}
       <ProfileModal
         isOpen={isProfileModalOpen}
-        currentUser={profileModalTarget === "self" ? activeUser : activeContact}
+        currentUser={profileModalTarget === "self" || !activeContact ? activeUser : activeContact}
         isOwnProfile={profileModalTarget === "self"}
         onClose={() => setIsProfileModalOpen(false)}
         onSignOut={signOut}

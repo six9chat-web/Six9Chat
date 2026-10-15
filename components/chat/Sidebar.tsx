@@ -25,6 +25,7 @@ interface SidebarProps {
   onOpenNewChat: () => void;
   onOpenNewGroup?: () => void;
   onOpenCommunity?: () => void;
+  onAddNewContact?: (name: string, phoneOrUid: string) => void;
   supabaseStatus: "checking" | "connected" | "pending" | "error";
   channelConnected: boolean;
   onSignOut?: () => void;
@@ -42,6 +43,7 @@ export function Sidebar({
   activeFilter,
   onFilterChange,
   onOpenNewChat,
+  onAddNewContact,
   onOpenProfile,
 }: SidebarProps) {
   const filterTabs: { id: ChatFilterType; label: string }[] = [
@@ -107,7 +109,7 @@ export function Sidebar({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search or start a new chat"
+            placeholder="Add User by UID (e.g. S9-02)..."
             className="w-full h-10 pl-10 pr-9 rounded-full bg-[#032433] border border-[#4D8DBA]/40 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
           />
           {searchQuery && (
@@ -120,6 +122,33 @@ export function Sidebar({
             </button>
           )}
         </div>
+
+        {/* Quick Add by UID action card */}
+        {searchQuery.trim().length > 1 && (
+          <div className="mt-2 p-2 rounded-xl bg-[#086288] border border-[#4D8DBA]/60 flex items-center justify-between text-xs text-white shadow-md">
+            <div className="flex items-center gap-2 min-w-0 pr-2">
+              <span className="w-2 h-2 rounded-full bg-[#97D7FF] animate-pulse shrink-0" />
+              <span className="truncate font-mono font-bold text-[#FFEFC4] text-[11px]">
+                {searchQuery.trim().toUpperCase()}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (onAddNewContact) {
+                  onAddNewContact(
+                    `User ${searchQuery.trim().toUpperCase()}`,
+                    searchQuery.trim().toUpperCase()
+                  );
+                  onSearchChange("");
+                }
+              }}
+              className="px-2.5 py-1 rounded-lg bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-[11px] transition cursor-pointer shrink-0"
+            >
+              + Chat Now
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 3. Filter Pill Tabs: All, Unread, Pinned, Groups, Communities */}

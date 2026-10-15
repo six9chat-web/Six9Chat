@@ -63,7 +63,7 @@ export function useRealtimeChat() {
 
   // Active contact lookup
   const activeContact = useMemo(() => {
-    return contacts.find((c) => c.id === activeContactId) || contacts[0];
+    return contacts.find((c) => c.id === activeContactId) || (contacts.length > 0 ? contacts[0] : null);
   }, [contacts, activeContactId]);
 
   // Current conversation messages
