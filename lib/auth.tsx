@@ -340,112 +340,56 @@ export async function getOrAssignSequentialUid(userId: string, email?: string): 
 export async function signInWithEmailOtp(email: string) {
   const cleanEmail = email.trim().toLowerCase();
 
-  try {
-    const res = await fetch("/api/auth/send-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: cleanEmail }),
-    });
-
-    const result = await res.json().catch(() => ({}));
-    if (res.ok && result.success) {
-      return result;
-    }
-    if (result.error && !result.error.toLowerCase().includes("fail")) {
-      throw new Error(result.error);
-    }
-  } catch (apiErr) {
-    console.warn("[Custom OTP Send API fallback]:", apiErr);
-  }
-
-  // Fallback to direct Supabase Auth carrier
-  const liveBaseUrl = getSiteBaseUrl();
-  const { data, error } = await supabase.auth.signInWithOtp({
-    email: cleanEmail,
-    options: {
-      shouldCreateUser: true,
-      emailRedirectTo: `${liveBaseUrl}/auth/callback`,
-    },
+  const res = await fetch("/api/auth/send-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: cleanEmail }),
   });
 
-  if (error) throw error;
-  return data;
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok || !result.success) {
+    throw new Error(result.error || "Failed to send 6-digit verification code.");
+  }
+  return result;
 }
 
 /**
  * Standalone: Verify 6-digit Email OTP code
  * Validates via custom database OTP engine (/api/auth/verify-otp) backed by user_otps table
- * with fallback to Supabase verifyOtp
+ * completely bypassing default Supabase email verification
  */
 export async function verifyEmailOtp(email: string, token: string) {
   const cleanEmail = email.trim().toLowerCase();
   const cleanToken = token.trim();
 
-  // 1. Try Custom Database OTP verification route
-  try {
-    const res = await fetch("/api/auth/verify-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: cleanEmail, token: cleanToken }),
-    });
-
-    const result = await res.json().catch(() => ({}));
-    if (res.ok && result.success && result.user) {
-      const assignedUid = result.assignedUid || formatSequentialUid(1);
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`six9_uid_${cleanEmail}`, assignedUid);
-        localStorage.setItem(`six9_uid_${result.user.id}`, assignedUid);
-        localStorage.setItem("six9_current_uid", assignedUid);
-      }
-      return {
-        user: {
-          id: result.user.id,
-          email: cleanEmail,
-          user_metadata: {
-            full_name: result.user.name || cleanEmail.split("@")[0],
-            uid: assignedUid,
-          },
-        } as unknown as User,
-        data: result,
-      };
-    }
-  } catch (apiErr) {
-    console.warn("[Custom OTP Verify API fallback]:", apiErr);
-  }
-
-  // 2. Direct Supabase Auth verifyOtp fallback
-  const { data, error } = await supabase.auth.verifyOtp({
-    email: cleanEmail,
-    token: cleanToken,
-    type: "email",
+  const res = await fetch("/api/auth/verify-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: cleanEmail, token: cleanToken }),
   });
 
-  if (error) throw error;
-
-  if (data.user) {
-    const assignedUid = await getOrAssignSequentialUid(data.user.id, cleanEmail);
-    try {
-      const existing = await getUserProfile(data.user.id);
-      if (!existing) {
-        await ensureProfileExists({
-          id: data.user.id,
-          username: `user_${assignedUid.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`,
-          full_name: cleanEmail.split("@")[0],
-          avatar_url: "",
-          email: cleanEmail,
-          uid: assignedUid,
-          phone: "",
-          status: "Hey there! I am using Six9Chat 🚀",
-        });
-      } else if (!existing.uid) {
-        await updateUserProfile(data.user.id, { uid: assignedUid });
-      }
-    } catch (e) {
-      console.warn("Profile fetch/upsert notice:", e);
+  const result = await res.json().catch(() => ({}));
+  if (res.ok && result.success && result.user) {
+    const assignedUid = result.assignedUid || formatSequentialUid(1);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`six9_uid_${cleanEmail}`, assignedUid);
+      localStorage.setItem(`six9_uid_${result.user.id}`, assignedUid);
+      localStorage.setItem("six9_current_uid", assignedUid);
     }
+    return {
+      user: {
+        id: result.user.id,
+        email: cleanEmail,
+        user_metadata: {
+          full_name: result.user.name || cleanEmail.split("@")[0],
+          uid: assignedUid,
+        },
+      } as unknown as User,
+      data: result,
+    };
   }
 
-  return data;
+  throw new Error(result.error || "Invalid or expired verification code.");
 }
 
 /**

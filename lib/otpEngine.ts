@@ -199,23 +199,10 @@ export async function dispatchOtpEmail(
     }
   }
 
-  // 3. Fallback: Supabase carrier dispatch
-  try {
-    const liveBase =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://six9chat.vercel.app";
-
-    await supabaseServer.auth.signInWithOtp({
-      email: cleanEmail,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: `${liveBase}/auth/callback`,
-      },
-    });
-  } catch (carrierErr) {
-    console.warn("[OTP Engine] Carrier dispatch notice:", carrierErr);
-  }
+  // 3. Supabase default SMTP is completely bypassed to prevent locked default email templates
+  console.log(
+    `[Six9 Direct OTP Engine] Supabase default SMTP completely bypassed. 6-digit OTP [${code}] for ${cleanEmail} is recorded in user_otps table with 5-minute expiry.`
+  );
 
   return { success: true, method: "database_logged" };
 }

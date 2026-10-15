@@ -18,23 +18,7 @@ export async function POST(request: Request) {
     const cleanToken = String(token).trim();
 
     // 1. Verify against Supabase user_otps database engine
-    let isValid = await verifyOtp(cleanEmail, cleanToken);
-
-    // 2. Secondary fallback check: Supabase Auth verifyOtp
-    if (!isValid) {
-      try {
-        const { data: supaVerify, error: supaErr } = await supabaseServer.auth.verifyOtp({
-          email: cleanEmail,
-          token: cleanToken,
-          type: "email",
-        });
-        if (!supaErr && supaVerify?.user) {
-          isValid = true;
-        }
-      } catch (err) {
-        console.warn("[verify-otp fallback notice]:", err);
-      }
-    }
+    const isValid = await verifyOtp(cleanEmail, cleanToken);
 
     if (!isValid) {
       return NextResponse.json(
