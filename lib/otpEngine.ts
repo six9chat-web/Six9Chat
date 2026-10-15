@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { Resend } from "resend";
 import nodemailer from "nodemailer";
 
 // Initialize Supabase Admin / Server Client
@@ -31,11 +32,11 @@ export function generate6DigitOtp(): string {
 }
 
 /**
- * Store 6-digit OTP into Supabase user_otps table & memory cache
+ * Store 6-digit OTP into Supabase user_otps table & memory cache with 5-minute expiry
  */
 export async function storeOtp(email: string, code: string): Promise<boolean> {
   const cleanEmail = email.trim().toLowerCase();
-  const expiresAtMs = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
+  const expiresAtMs = Date.now() + 5 * 60 * 1000; // 5 minutes expiry
   const expiresAtIso = new Date(expiresAtMs).toISOString();
 
   // 1. Always update memory cache for instantaneous 0ms verification
@@ -113,16 +114,61 @@ export async function verifyOtp(email: string, code: string): Promise<boolean> {
 }
 
 /**
- * Dispatch 6-digit OTP code to user's Gmail / Email
+ * Dispatch 6-digit OTP code to user's Gmail / Email address directly
+ * Uses Resend / Nodemailer direct dispatch to bypass default email limits
  */
-export async function dispatchOtpEmail(email: string, code: string): Promise<{ success: boolean; method: string }> {
+export async function dispatchOtpEmail(
+  email: string,
+  code: string
+): Promise<{ success: boolean; method: string }> {
   const cleanEmail = email.trim().toLowerCase();
-  console.log(`[Six9 Custom OTP Engine] Dispatched 6-digit OTP [${code}] for: ${cleanEmail}`);
+  console.log(`[Six9 Direct OTP Engine] Dispatched 6-digit OTP [${code}] for: ${cleanEmail}`);
 
-  let sent = false;
-  let method = "supabase_carrier";
+  const emailHtml = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background-color: #053b53; border-radius: 20px; color: #ffffff; text-align: center; border: 1px solid #4D8DBA;">
+      <div style="margin-bottom: 24px;">
+        <span style="font-size: 28px; font-weight: 900; letter-spacing: -0.5px; color: #ffffff;">
+          Six<span style="color: #97D7FF;">9</span>Chat
+        </span>
+      </div>
+      <h2 style="font-size: 20px; font-weight: 700; color: #ffffff; margin: 0 0 8px 0;">Your Verification Code</h2>
+      <p style="font-size: 14px; color: #cbd5e1; margin: 0 0 24px 0; line-height: 1.5;">
+        Use the 6-digit code below to complete your login and connect to the real-time chat network.
+      </p>
+      <div style="background-color: #086288; border: 2px solid #4D8DBA; border-radius: 14px; padding: 20px 10px; margin: 24px 0;">
+        <span style="font-size: 38px; font-weight: 800; letter-spacing: 10px; color: #FFEFC4; font-family: monospace; display: block; text-shadow: 0 0 20px rgba(151,215,255,0.4);">
+          ${code}
+        </span>
+      </div>
+      <p style="font-size: 12px; color: #97D7FF; font-weight: 600; margin: 0 0 16px 0;">
+        ⏱️ This code expires in 5 minutes.
+      </p>
+      <p style="font-size: 11px; color: #94a3b8; margin: 16px 0 0 0; line-height: 1.4;">
+        If you didn't request this code, you can safely ignore this email.
+      </p>
+    </div>
+  `;
 
-  // 1. Try Direct SMTP (Gmail App Password or Custom SMTP) if configured
+  // 1. Try Direct Resend Dispatcher
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey) {
+    try {
+      const resend = new Resend(resendKey);
+      const fromEmail = process.env.RESEND_FROM_EMAIL || "Six9Chat <onboarding@resend.dev>";
+      await resend.emails.send({
+        from: fromEmail,
+        to: cleanEmail,
+        subject: `Your Six9Chat Verification Code: ${code}`,
+        text: `Your Six9Chat 6-digit verification code is: ${code}. This code expires in 5 minutes.`,
+        html: emailHtml,
+      });
+      return { success: true, method: "resend_direct" };
+    } catch (resendErr) {
+      console.warn("[OTP Engine] Resend dispatch note:", resendErr);
+    }
+  }
+
+  // 2. Try Direct SMTP / Gmail App Password via Nodemailer
   const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
   const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
 
@@ -143,28 +189,17 @@ export async function dispatchOtpEmail(email: string, code: string): Promise<{ s
         from: `"Six9Chat" <${smtpUser}>`,
         to: cleanEmail,
         subject: `Your Six9Chat Verification Code: ${code}`,
-        text: `Your Six9Chat 6-digit verification code is: ${code}. This code expires in 10 minutes.`,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 28px; background-color: #053b53; border-radius: 18px; color: #ffffff; text-align: center;">
-            <h1 style="color: #ffffff; margin-bottom: 8px; font-size: 26px;">Six<span style="color: #97D7FF;">9</span>Chat</h1>
-            <p style="color: #97D7FF; font-size: 14px; margin-bottom: 24px;">Your 6-Digit Verification Code</p>
-            <div style="background-color: #086288; border: 1px solid #4D8DBA; border-radius: 12px; padding: 20px; margin: 20px 0;">
-              <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #FFEFC4; font-family: monospace;">${code}</span>
-            </div>
-            <p style="color: #cbd5e1; font-size: 12px; margin-top: 16px;">Enter this code on the Six9Chat verification screen. Code expires in 10 minutes.</p>
-          </div>
-        `,
+        text: `Your Six9Chat 6-digit verification code is: ${code}. This code expires in 5 minutes.`,
+        html: emailHtml,
       });
 
-      sent = true;
-      method = "direct_smtp";
-      return { success: true, method };
+      return { success: true, method: "nodemailer_direct" };
     } catch (smtpErr) {
-      console.warn("[OTP Engine] SMTP dispatch exception:", smtpErr);
+      console.warn("[OTP Engine] Nodemailer direct dispatch note:", smtpErr);
     }
   }
 
-  // 2. Trigger Supabase Carrier dispatch
+  // 3. Fallback: Supabase carrier dispatch
   try {
     const liveBase =
       process.env.NEXT_PUBLIC_APP_URL ||
@@ -178,12 +213,11 @@ export async function dispatchOtpEmail(email: string, code: string): Promise<{ s
         emailRedirectTo: `${liveBase}/auth/callback`,
       },
     });
-    sent = true;
   } catch (carrierErr) {
     console.warn("[OTP Engine] Carrier dispatch notice:", carrierErr);
   }
 
-  return { success: true, method: sent ? method : "database_logged" };
+  return { success: true, method: "database_logged" };
 }
 
 /**

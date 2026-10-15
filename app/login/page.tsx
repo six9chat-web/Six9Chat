@@ -513,8 +513,8 @@ function LoginContent() {
                         {cleanEmail}
                       </span>
                     </p>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Paste or type your 6-digit code below (or click the sign-in link in your email)
+                    <p className="text-[11px] text-[#97D7FF] mt-1">
+                      Paste or type your 6-digit code below (expires in 5 minutes)
                     </p>
                   </div>
 
