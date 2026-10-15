@@ -169,50 +169,34 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 /**
- * Standalone: System-Generated Unique ID (UID) Generator
- * Format: S9-XXXXXX (e.g. S9-7K9W2M)
+ * Standalone: System-Generated Sequential Unique ID (UID) Generator
+ * Format: S9-XXXX (e.g. S9-1001, S9-1002)
  * Fully SSR-safe and deterministic for Next.js 16
  */
 export function generateSystemUid(seed?: string): string {
   if (typeof window === "undefined") {
-    if (!seed) return "S9-ACTIVE";
-  } else {
-    if (seed) {
-      const existing = localStorage.getItem(`six9_uid_${seed}`);
-      if (existing) return existing;
-    }
-    const currentStored = localStorage.getItem("six9_current_uid");
-    if (currentStored && !seed) return currentStored;
+    return "S9-1001";
   }
-
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let hash = 0;
-  const rawSeed = seed || "default-six9-client";
-
-  for (let i = 0; i < rawSeed.length; i++) {
-    hash = (hash << 5) - hash + rawSeed.charCodeAt(i);
-    hash |= 0;
+  if (seed) {
+    const existing = localStorage.getItem(`six9_uid_${seed}`);
+    if (existing && /^S9-\d+$/i.test(existing)) return existing;
   }
+  const currentStored = localStorage.getItem("six9_current_uid");
+  if (currentStored && /^S9-\d+$/i.test(currentStored) && !seed) return currentStored;
 
-  const absHash = Math.abs(hash);
-  let code = "";
-  let temp = absHash;
-  for (let i = 0; i < 6; i++) {
-    code += chars[(temp + i * 7) % chars.length];
-    temp = Math.floor(temp / 7) + 17;
-  }
+  const storedLast = localStorage.getItem("six9_last_seq_num");
+  const nextNum = storedLast ? parseInt(storedLast, 10) + 1 : 1001;
+  const uid = `S9-${nextNum}`;
 
-  const uid = `S9-${code}`;
-  if (typeof window !== "undefined") {
-    if (seed) localStorage.setItem(`six9_uid_${seed}`, uid);
-    localStorage.setItem("six9_current_uid", uid);
-  }
+  localStorage.setItem("six9_last_seq_num", String(nextNum));
+  if (seed) localStorage.setItem(`six9_uid_${seed}`, uid);
+  localStorage.setItem("six9_current_uid", uid);
   return uid;
 }
 
 export function getCurrentUserUid(userIdOrEmail?: string): string {
   if (typeof window === "undefined") {
-    return "S9-ACTIVE";
+    return "S9-1001";
   }
   if (userIdOrEmail) {
     const stored = localStorage.getItem(`six9_uid_${userIdOrEmail}`);
@@ -224,7 +208,105 @@ export function getCurrentUserUid(userIdOrEmail?: string): string {
 }
 
 /**
+ * Check if the user has an assigned sequential UID in Supabase profile database (e.g., S9-1001).
+ * If not, query highest UID and assign a new sequential UID instantly.
+ */
+export async function getOrAssignSequentialUid(userId: string, email?: string): Promise<string> {
+  const cleanEmail = email?.trim().toLowerCase() || "";
+
+  // 1. Fast cache check
+  if (typeof window !== "undefined") {
+    const cachedUid =
+      localStorage.getItem(`six9_uid_${userId}`) ||
+      (cleanEmail ? localStorage.getItem(`six9_uid_${cleanEmail}`) : null);
+    if (cachedUid && /^S9-\d+$/i.test(cachedUid)) {
+      localStorage.setItem("six9_current_uid", cachedUid);
+      return cachedUid;
+    }
+  }
+
+  try {
+    // 2. Query Supabase profiles table for existing user profile
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("uid")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profile?.uid && /^S9-\d+$/i.test(profile.uid)) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`six9_uid_${userId}`, profile.uid);
+        if (cleanEmail) localStorage.setItem(`six9_uid_${cleanEmail}`, profile.uid);
+        localStorage.setItem("six9_current_uid", profile.uid);
+      }
+      return profile.uid;
+    }
+
+    // 3. Find highest sequential number in Supabase profiles
+    const { data: allProfiles } = await supabase
+      .from("profiles")
+      .select("uid");
+
+    let highestSeq = 1000;
+    if (allProfiles && allProfiles.length > 0) {
+      for (const p of allProfiles) {
+        if (p.uid) {
+          const match = p.uid.match(/^S9-(\d+)$/i);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > highestSeq) highestSeq = num;
+          }
+        }
+      }
+    }
+
+    // Check local counter fallback
+    if (typeof window !== "undefined") {
+      const storedLast = localStorage.getItem("six9_last_seq_num");
+      if (storedLast) {
+        const lastNum = parseInt(storedLast, 10);
+        if (lastNum > highestSeq) highestSeq = lastNum;
+      }
+    }
+
+    const nextSeq = highestSeq + 1;
+    const assignedUid = `S9-${nextSeq}`;
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("six9_last_seq_num", String(nextSeq));
+      localStorage.setItem(`six9_uid_${userId}`, assignedUid);
+      if (cleanEmail) localStorage.setItem(`six9_uid_${cleanEmail}`, assignedUid);
+      localStorage.setItem("six9_current_uid", assignedUid);
+    }
+
+    // Update Supabase profile with the sequential UID
+    await supabase
+      .from("profiles")
+      .update({ uid: assignedUid, updated_at: new Date().toISOString() })
+      .eq("id", userId);
+
+    return assignedUid;
+  } catch (err) {
+    console.warn("getOrAssignSequentialUid exception:", err);
+    let nextSeq = 1001;
+    if (typeof window !== "undefined") {
+      const storedLast = localStorage.getItem("six9_last_seq_num");
+      if (storedLast) nextSeq = parseInt(storedLast, 10) + 1;
+      localStorage.setItem("six9_last_seq_num", String(nextSeq));
+      const fallbackUid = `S9-${nextSeq}`;
+      localStorage.setItem(`six9_uid_${userId}`, fallbackUid);
+      if (cleanEmail) localStorage.setItem(`six9_uid_${cleanEmail}`, fallbackUid);
+      localStorage.setItem("six9_current_uid", fallbackUid);
+      return fallbackUid;
+    }
+    return `S9-${nextSeq}`;
+  }
+}
+
+/**
  * Standalone: Send 6-digit OTP code to Gmail / Email address
+ * Explicitly configured with shouldCreateUser: true and no emailRedirectTo
+ * to enforce sending a 6-digit numeric OTP code instead of a magic link.
  */
 export async function signInWithEmailOtp(email: string) {
   const cleanEmail = email.trim().toLowerCase();
@@ -232,10 +314,6 @@ export async function signInWithEmailOtp(email: string) {
     email: cleanEmail,
     options: {
       shouldCreateUser: true,
-      emailRedirectTo:
-        typeof window !== "undefined"
-          ? `${window.location.origin}/auth/callback`
-          : undefined,
     },
   });
 
@@ -244,7 +322,7 @@ export async function signInWithEmailOtp(email: string) {
 }
 
 /**
- * Standalone: Verify 6-digit Email OTP code
+ * Standalone: Verify 6-digit Email OTP code via Supabase verifyOtp
  */
 export async function verifyEmailOtp(email: string, token: string) {
   const cleanEmail = email.trim().toLowerCase();
@@ -259,13 +337,13 @@ export async function verifyEmailOtp(email: string, token: string) {
   if (error) throw error;
 
   if (data.user) {
-    const assignedUid = generateSystemUid(data.user.id || cleanEmail);
+    const assignedUid = await getOrAssignSequentialUid(data.user.id, cleanEmail);
     try {
       const existing = await getUserProfile(data.user.id);
       if (!existing) {
         await ensureProfileExists({
           id: data.user.id,
-          username: `user_${data.user.id.slice(0, 6)}`,
+          username: `user_${assignedUid.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`,
           full_name: cleanEmail.split("@")[0],
           avatar_url: "",
           email: cleanEmail,
@@ -273,6 +351,8 @@ export async function verifyEmailOtp(email: string, token: string) {
           phone: "",
           status: "Hey there! I am using Six9Chat 🚀",
         });
+      } else if (!existing.uid) {
+        await updateUserProfile(data.user.id, { uid: assignedUid });
       }
     } catch (e) {
       console.warn("Profile fetch/upsert notice:", e);

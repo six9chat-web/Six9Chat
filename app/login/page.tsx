@@ -24,6 +24,7 @@ import {
   ensureProfileExists,
   setMockSession,
   generateSystemUid,
+  getOrAssignSequentialUid,
 } from "@/lib/auth";
 
 export default function LoginPage() {
@@ -228,7 +229,7 @@ function LoginContent() {
     setIsLoading(true);
     try {
       let verifiedUserId = "";
-      const assignedUid = generateSystemUid(cleanEmail);
+      let assignedUid = "S9-1001";
 
       if (isMockMode) {
         if (generatedOtp && token !== generatedOtp && token !== "123456") {
@@ -237,6 +238,7 @@ function LoginContent() {
 
         const safePrefix = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
         verifiedUserId = `user_${safePrefix}`;
+        assignedUid = await getOrAssignSequentialUid(verifiedUserId, cleanEmail);
 
         // Save session locally and in cookie
         setMockSession({
@@ -257,7 +259,7 @@ function LoginContent() {
           status: "Hey there! I am using Six9Chat 🚀",
         });
 
-        setSuccessMessage("Code verified! Redirecting to chat...");
+        setSuccessMessage(`Code verified! Assigned UID: ${assignedUid}. Redirecting to chat...`);
       } else {
         const result = await verifyEmailOtp(cleanEmail, token);
         const userId = result.user?.id;
@@ -267,6 +269,8 @@ function LoginContent() {
         }
 
         verifiedUserId = userId;
+        assignedUid = await getOrAssignSequentialUid(userId, cleanEmail);
+
         await ensureProfileExists({
           id: userId,
           username: `user_${assignedUid.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`,
@@ -276,7 +280,7 @@ function LoginContent() {
           status: "Hey there! I am using Six9Chat 🚀",
         });
 
-        setSuccessMessage("Verification successful! Connecting to real-time chat...");
+        setSuccessMessage(`Verified successfully! Assigned UID: ${assignedUid}. Connecting to real-time chat...`);
       }
 
       // Store UID in local storage for instant access across tabs
