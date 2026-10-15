@@ -393,6 +393,45 @@ export async function verifyEmailOtp(email: string, token: string) {
 }
 
 /**
+ * Standalone: Direct Email + 4-Digit Passcode / PIN Authentication
+ * Seamless instant login & registration bypassing all email delays
+ */
+export async function signInWithPasscode(email: string, passcode: string) {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanPasscode = passcode.trim();
+
+  const res = await fetch("/api/auth/passcode-login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: cleanEmail, passcode: cleanPasscode }),
+  });
+
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok || !result.success || !result.user) {
+    throw new Error(result.error || "Failed to sign in with passcode.");
+  }
+
+  const assignedUid = result.assignedUid || formatSequentialUid(1);
+  if (typeof window !== "undefined") {
+    localStorage.setItem(`six9_uid_${cleanEmail}`, assignedUid);
+    localStorage.setItem(`six9_uid_${result.user.id}`, assignedUid);
+    localStorage.setItem("six9_current_uid", assignedUid);
+  }
+
+  return {
+    user: {
+      id: result.user.id,
+      email: cleanEmail,
+      user_metadata: {
+        full_name: result.user.name || cleanEmail.split("@")[0],
+        uid: assignedUid,
+      },
+    } as unknown as User,
+    data: result,
+  };
+}
+
+/**
  * Standalone: Send OTP to a Phone Number
  */
 export async function signInWithPhoneOtp(phone: string) {

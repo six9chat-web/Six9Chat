@@ -5,24 +5,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Mail,
+  Lock,
   ArrowRight,
-  ArrowLeft,
   AlertCircle,
   CheckCircle2,
   RefreshCw,
   Fingerprint,
+  ShieldCheck,
+  Globe,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { LanguageSelector } from "@/components/auth/LanguageSelector";
 import { Language, DEFAULT_LANGUAGE, TRANSLATIONS } from "@/lib/languages";
-import {
-  signInWithEmailOtp,
-  verifyEmailOtp,
-  getCurrentUser,
-  ensureProfileExists,
-  generateSystemUid,
-  getOrAssignSequentialUid,
-} from "@/lib/auth";
+import { signInWithPasscode, getCurrentUser } from "@/lib/auth";
 
 export default function LoginPage() {
   return (
@@ -43,29 +38,15 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get("redirect") || "/chat";
 
-  // Flow:
-  // Step 1 = Language Selection
-  // Step 2 = Gmail / Email Input
-  // Step 3 = 6-Digit OTP Verification -> Direct redirect to /chat
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-
-  // Step 1: Language
+  // State
   const [selectedLanguage, setSelectedLanguage] = useState<Language>(DEFAULT_LANGUAGE);
-
-  // Step 2: Gmail / Email
   const [email, setEmail] = useState("");
-
-  // Step 3: OTP Code
-  const [otpCode, setOtpCode] = useState(["", "", "", "", "", ""]);
-  const [countdown, setCountdown] = useState(0);
-  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
-
-  // Feedback State
+  const [passcode, setPasscode] = useState(["", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const t = TRANSLATIONS[selectedLanguage.code] || TRANSLATIONS.en;
+  const passcodeInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Check if user is already authenticated on mount
   useEffect(() => {
@@ -78,166 +59,95 @@ function LoginContent() {
     checkAuth();
   }, [router]);
 
-  // Resend OTP countdown timer
-  useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [countdown]);
-
-  // Auto-focus first OTP digit when entering Step 3
-  useEffect(() => {
-    if (step === 3) {
-      setTimeout(() => {
-        otpInputRefs.current[0]?.focus();
-      }, 100);
-    }
-  }, [step]);
-
-  // Email format validation
   const cleanEmail = email.trim().toLowerCase();
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
+  const passval = passcode.join("");
+  const isPasscodeComplete = passval.length === 4;
 
-  // STEP 1 -> STEP 2
-  const handleProceedFromLanguage = () => {
-    setStep(2);
+  // Handle Passcode Digit Change
+  const handlePasscodeChange = (index: number, val: string) => {
+    const digits = val.replace(/\D/g, "");
+
+    // Handle 4-digit paste into any box
+    if (digits.length > 1) {
+      const parts = digits.slice(0, 4).split("");
+      const next = ["", "", "", ""];
+      parts.forEach((d, i) => {
+        if (i < 4) next[i] = d;
+      });
+      setPasscode(next);
+      const targetIdx = Math.min(parts.length, 3);
+      passcodeInputRefs.current[targetIdx]?.focus();
+      return;
+    }
+
+    const next = [...passcode];
+    next[index] = digits;
+    setPasscode(next);
+
+    // Auto-advance
+    if (digits && index < 3) {
+      passcodeInputRefs.current[index + 1]?.focus();
+    }
   };
 
-  // STEP 2: Send Real Gmail / Email OTP
-  const handleSendOtp = async (e?: React.FormEvent) => {
-    if (e && e.preventDefault) e.preventDefault();
+  const handlePasscodeKeyDown = (
+    index: number,
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key === "Backspace" && !passcode[index] && index > 0) {
+      passcodeInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePasscodePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
+    if (!pasted) return;
+    const parts = pasted.split("");
+    const next = ["", "", "", ""];
+    parts.forEach((d, i) => {
+      if (i < 4) next[i] = d;
+    });
+    setPasscode(next);
+    const targetIdx = Math.min(parts.length, 3);
+    passcodeInputRefs.current[targetIdx]?.focus();
+  };
+
+  // Submit Direct Passcode Auth
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
     if (!cleanEmail || !isEmailValid) {
-      setErrorMessage("Please enter a valid Gmail or Email address.");
+      setErrorMessage("Please enter a valid Gmail / Email address.");
+      return;
+    }
+
+    if (!isPasscodeComplete) {
+      setErrorMessage("Please enter your 4-digit passcode.");
       return;
     }
 
     setIsLoading(true);
     try {
-      // Trigger Supabase Real Email OTP verification
-      await signInWithEmailOtp(cleanEmail);
-      setStep(3);
-      setCountdown(60);
-      setSuccessMessage(`6-digit verification code sent to ${cleanEmail}`);
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.warn("Supabase Email OTP response:", errMsg);
+      const result = await signInWithPasscode(cleanEmail, passval);
+      const assignedUid = result.user?.user_metadata?.uid || "S9-01";
 
-      if (errMsg.toLowerCase().includes("rate limit") || errMsg.toLowerCase().includes("security purposes")) {
-        setStep(3);
-        setCountdown(60);
-        setSuccessMessage(`A verification code was recently sent to ${cleanEmail}. Please check your Gmail inbox.`);
-      } else {
-        setErrorMessage(errMsg || "Failed to send verification code. Please check the email address.");
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      setSuccessMessage(
+        `Welcome to Six9Chat! Assigned UID: ${assignedUid}. Connecting to chat...`
+      );
 
-  // STEP 3: Handle OTP Digit Input Traversal & Full Paste
-  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (!pastedData) return;
-    const digits = pastedData.split("");
-    const updated = ["", "", "", "", "", ""];
-    digits.forEach((d, i) => {
-      if (i < 6) updated[i] = d;
-    });
-    setOtpCode(updated);
-    const targetIdx = Math.min(digits.length, 5);
-    otpInputRefs.current[targetIdx]?.focus();
-  };
-
-  const handleOtpDigitChange = (index: number, value: string) => {
-    const numericVal = value.replace(/\D/g, "");
-
-    // Handle full paste
-    if (numericVal.length > 1) {
-      const digits = numericVal.slice(0, 6).split("");
-      const updated = [...otpCode];
-      digits.forEach((d, i) => {
-        if (i < 6) updated[i] = d;
-      });
-      setOtpCode(updated);
-      const nextIdx = Math.min(digits.length, 5);
-      otpInputRefs.current[nextIdx]?.focus();
-      return;
-    }
-
-    const updated = [...otpCode];
-    updated[index] = numericVal;
-    setOtpCode(updated);
-
-    if (numericVal && index < 5) {
-      otpInputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (
-    index: number,
-    e: React.KeyboardEvent<HTMLInputElement>
-  ) => {
-    if (e.key === "Backspace" && !otpCode[index] && index > 0) {
-      otpInputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  // STEP 3: Verify OTP & Navigate Directly to Real-Time Chat
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    const token = otpCode.join("");
-    if (token.length !== 6) {
-      setErrorMessage("Please enter the complete 6-digit verification code");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const result = await verifyEmailOtp(cleanEmail, token);
-      const userId = result.user?.id;
-
-      if (!userId) {
-        throw new Error("Verification failed. Please check the code in your email and try again.");
-      }
-
-      const assignedUid = await getOrAssignSequentialUid(userId, cleanEmail);
-
-      await ensureProfileExists({
-        id: userId,
-        username: `user_${assignedUid.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`,
-        full_name: cleanEmail.split("@")[0],
-        email: cleanEmail,
-        uid: assignedUid,
-        status: "Hey there! I am using Six9Chat 🚀",
-      });
-
-      // Store UID in local storage for instant access across tabs
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`six9_uid_${cleanEmail}`, assignedUid);
-        localStorage.setItem(`six9_uid_${userId}`, assignedUid);
-        localStorage.setItem("six9_current_uid", assignedUid);
-      }
-
-      setSuccessMessage(`Verified successfully! Assigned UID: ${assignedUid}. Connecting to real-time chat...`);
-
-      // Seamless direct transition straight to the main Real-Time Chat screen
+      // Instant redirect straight to the clean chat interface
       setTimeout(() => {
         router.push(redirectPath);
         router.refresh();
       }, 400);
     } catch (err: unknown) {
       const message =
-        err instanceof Error
-          ? err.message
-          : "Invalid verification code. Please check and try again.";
+        err instanceof Error ? err.message : "Authentication error. Please try again.";
       setErrorMessage(message);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -258,336 +168,153 @@ function LoginContent() {
         <div className="flex items-center gap-3">
           <Logo size={42} showText={true} />
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-300">
-          <span className="w-2 h-2 rounded-full bg-[#97D7FF] animate-pulse" />
-          <span>Realtime Network Active</span>
+
+        <div className="flex items-center gap-2">
+          <LanguageSelector
+            selectedLanguage={selectedLanguage}
+            onSelect={setSelectedLanguage}
+          />
         </div>
       </header>
 
-      {/* Main Centered Glassmorphic Container Card */}
-      <main className="relative z-20 flex-1 flex items-center justify-center px-4 py-8">
+      {/* Main Container */}
+      <main className="relative z-20 flex-1 flex flex-col items-center justify-center p-4 sm:p-6 my-auto">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: "easeOut" }}
-          className="w-full max-w-[480px] bg-[#086288]/95 backdrop-blur-2xl rounded-3xl border border-[#4D8DBA]/60 shadow-[0_20px_70px_rgba(5,59,83,0.7)] overflow-hidden"
+          transition={{ duration: 0.35 }}
+          className="w-full max-w-md bg-[#032433]/90 border border-[#4D8DBA]/40 rounded-3xl p-6 sm:p-8 backdrop-blur-2xl shadow-[0_20px_60px_rgba(3,36,51,0.7)]"
         >
-          {/* Card Top Branding Header */}
-          <div className="p-7 pb-5 border-b border-[#4D8DBA]/35 bg-gradient-to-b from-[#053b53]/50 to-transparent text-center">
-            {/* Step Navigation Pill */}
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#97D7FF] shadow-[0_0_8px_#97D7FF]" />
-                <span className="text-xs font-bold tracking-[0.2em] text-[#FFEFC4] uppercase font-mono">
-                  SIX9 CHAT
+          {/* Card Header */}
+          <div className="text-center mb-6">
+            <div className="w-12 h-12 rounded-2xl bg-[#086288] border border-[#4D8DBA]/50 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-[#086288]/40">
+              <ShieldCheck className="w-6 h-6 text-[#97D7FF]" />
+            </div>
+            <h1 className="text-2xl font-black text-white tracking-tight">
+              Sign In to Six9Chat
+            </h1>
+            <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+              Enter your email and 4-digit passcode for instant access
+            </p>
+          </div>
+
+          {/* Feedback Alerts */}
+          <AnimatePresence mode="wait">
+            {errorMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="mb-5 p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs flex items-center gap-2.5"
+              >
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span className="leading-snug">{errorMessage}</span>
+              </motion.div>
+            )}
+
+            {successMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="mb-5 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs flex items-center gap-2.5"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="leading-snug">{successMessage}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* 1. Gmail / Email Input */}
+            <div>
+              <label
+                htmlFor="user-email"
+                className="block text-xs font-semibold text-slate-200 mb-1.5"
+              >
+                Gmail / Email Address
+              </label>
+              <div className="relative flex items-center">
+                <Mail className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
+                <input
+                  id="user-email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@gmail.com"
+                  disabled={isLoading}
+                  className="w-full h-12 pl-10 pr-4 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
+                />
+              </div>
+            </div>
+
+            {/* 2. 4-Digit Passcode / PIN Input */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-200">
+                  4-Digit Passcode / PIN
+                </label>
+                <span className="text-[11px] text-[#97D7FF] font-medium">
+                  {isPasscodeComplete ? "4/4 entered" : "Enter 4 digits"}
                 </span>
               </div>
-              <span className="text-[11px] font-semibold px-3 py-1 rounded-full bg-[#053b53] border border-[#4D8DBA]/40 text-slate-200 shadow-sm">
-                Step {step} of 3
+
+              <div className="flex justify-between gap-3 max-w-[280px] mx-auto py-1">
+                {passcode.map((digit, idx) => (
+                  <input
+                    key={`pin-${idx}`}
+                    ref={(el) => {
+                      passcodeInputRefs.current[idx] = el;
+                    }}
+                    id={`pin-${idx}`}
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={digit}
+                    onChange={(e) => handlePasscodeChange(idx, e.target.value)}
+                    onKeyDown={(e) => handlePasscodeKeyDown(idx, e)}
+                    onPaste={handlePasscodePaste}
+                    disabled={isLoading}
+                    className="w-14 h-14 text-center text-2xl font-bold font-mono bg-[#053b53] border border-[#4D8DBA]/50 rounded-2xl text-[#FFEFC4] focus:outline-none focus:border-[#97D7FF] focus:ring-2 focus:ring-[#97D7FF]/30 transition shadow-inner"
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* System UID Info Badge */}
+            <div className="p-3 rounded-2xl bg-[#053b53]/80 border border-[#4D8DBA]/35 text-xs text-slate-300 flex items-center gap-2.5">
+              <Fingerprint className="w-4 h-4 text-[#97D7FF] shrink-0" />
+              <span className="text-[11px] leading-relaxed">
+                Sequential UID (starting from <strong>S9-01</strong>) automatically assigned on login.
               </span>
             </div>
 
-            {/* S9 Circular Brand Logo */}
-            <div className="flex justify-center mb-3">
-              <div className="relative p-1 rounded-full bg-gradient-to-tr from-[#97D7FF]/30 via-[#4D8DBA]/20 to-[#FFEFC4]/20 shadow-[0_0_24px_rgba(151,215,255,0.3)]">
-                <Logo size={68} showText={false} />
-              </div>
-            </div>
-
-            {/* Stepper Progress Bar (3 steps) */}
-            <div className="flex items-center gap-2 max-w-[180px] mx-auto mt-2">
-              {[1, 2, 3].map((s) => (
-                <div
-                  key={s}
-                  className={`flex-1 h-1 rounded-full transition-all duration-300 ${
-                    step >= s ? "bg-[#97D7FF]" : "bg-[#053b53]"
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Feedback Messages */}
-          <div className="px-7 pt-4">
-            <AnimatePresence>
-              {errorMessage && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="p-3.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs flex items-start gap-2.5 mb-3"
-                >
-                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
-                  <span className="flex-1 leading-relaxed">{errorMessage}</span>
-                </motion.div>
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isLoading || !isEmailValid || !isPasscodeComplete}
+              className="w-full h-12 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm active:scale-[0.99] transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#97D7FF] cursor-pointer"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-[#086288]" />
+                  <span>Connecting to Six9Chat...</span>
+                </>
+              ) : (
+                <>
+                  <span>Enter Six9Chat</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
               )}
-              {successMessage && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2.5 mb-3"
-                >
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
-                  <span className="flex-1 leading-relaxed">{successMessage}</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Multi-Step Forms */}
-          <div className="p-7 pt-2">
-            <AnimatePresence mode="wait">
-              {/* ========================================================================= */}
-              {/* STEP 1: LANGUAGE SELECTION */}
-              {/* ========================================================================= */}
-              {step === 1 && (
-                <motion.div
-                  key="step-1-language"
-                  initial={{ opacity: 0, x: -16 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 16 }}
-                  transition={{ duration: 0.25 }}
-                  className="space-y-6 text-center"
-                >
-                  <div>
-                    <h2 className="text-2xl font-bold text-white tracking-tight">
-                      {t.welcome}
-                    </h2>
-                    <p className="text-slate-300 text-xs sm:text-sm mt-1.5">
-                      {t.selectLanguage}
-                    </p>
-                  </div>
-
-                  {/* Multi-language Dropdown with Flags */}
-                  <div className="text-left pt-1">
-                    <label className="block text-xs font-medium text-slate-300 mb-2">
-                      Language / زبان / لغة
-                    </label>
-                    <LanguageSelector
-                      selectedLanguage={selectedLanguage}
-                      onSelect={setSelectedLanguage}
-                    />
-                  </div>
-
-                  {/* Next / Continue CTA Button */}
-                  <button
-                    type="button"
-                    onClick={handleProceedFromLanguage}
-                    className="w-full py-3.5 px-4 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm active:scale-[0.99] transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>{t.next}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </motion.div>
-              )}
-
-              {/* ========================================================================= */}
-              {/* STEP 2: GMAIL / EMAIL ADDRESS INPUT */}
-              {/* ========================================================================= */}
-              {step === 2 && (
-                <motion.form
-                  key="step-2-email"
-                  initial={{ opacity: 0, x: 16 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -16 }}
-                  transition={{ duration: 0.25 }}
-                  onSubmit={handleSendOtp}
-                  className="space-y-5"
-                >
-                  <div className="text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 flex items-center justify-center mx-auto mb-3 text-[#97D7FF] shadow-inner">
-                      <Mail className="w-6 h-6" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-white tracking-tight">
-                      Sign in with Gmail
-                    </h2>
-                    <p className="text-slate-300 text-xs sm:text-sm mt-1.5 leading-relaxed">
-                      Enter your Gmail or Email address to receive your 6-digit OTP code.
-                    </p>
-                  </div>
-
-                  {/* Clean Email Input */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1.5">
-                      Gmail / Email Address
-                    </label>
-                    <div className="relative">
-                      <Mail className="w-4 h-4 text-[#4D8DBA] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        type="email"
-                        inputMode="email"
-                        placeholder="yourname@gmail.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full h-12 bg-[#053b53] border border-[#4D8DBA]/50 rounded-2xl pl-10 pr-4 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition font-sans"
-                        required
-                        autoFocus
-                      />
-                    </div>
-
-                    <div className="text-[11px] text-slate-300 mt-2 pl-0.5 flex items-center justify-between min-h-[20px]">
-                      {email.length > 0 ? (
-                        isEmailValid ? (
-                          <span className="text-[#97D7FF] text-[10px] flex items-center gap-1 font-medium bg-[#97D7FF]/15 px-2 py-0.5 rounded-full border border-[#97D7FF]/30">
-                            <CheckCircle2 className="w-3 h-3 text-[#97D7FF]" />
-                            Valid email format
-                          </span>
-                        ) : (
-                          <span className="text-amber-300 text-[10px]">
-                            Enter full email address (e.g. name@gmail.com)
-                          </span>
-                        )
-                      ) : (
-                        <span className="text-slate-400 text-[10px]">
-                          Fast OTP authentication via Supabase
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* System Unique ID Preview notice */}
-                  <div className="p-3 rounded-2xl bg-[#053b53]/80 border border-[#4D8DBA]/35 text-xs text-slate-300 flex items-center gap-2.5">
-                    <Fingerprint className="w-4 h-4 text-[#97D7FF] shrink-0" />
-                    <span className="text-[11px] leading-relaxed">
-                      A unique system identifier (UID) will be automatically assigned to your session upon verification.
-                    </span>
-                  </div>
-
-                  {/* Buttons: Back to Language & Send Code */}
-                  <div className="flex items-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setStep(1)}
-                      disabled={isLoading}
-                      className="py-3.5 px-4 rounded-xl bg-[#053b53] text-slate-200 hover:bg-[#4D8DBA]/30 text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                      <span>Back</span>
-                    </button>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading || !isEmailValid}
-                      className="flex-1 py-3.5 px-4 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm active:scale-[0.99] transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-[#97D7FF] disabled:hover:text-[#086288] disabled:active:scale-100 cursor-pointer"
-                    >
-                      {isLoading ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 animate-spin text-[#086288]" />
-                          <span>Sending code...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Send Verification Code</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </motion.form>
-              )}
-
-              {/* ========================================================================= */}
-              {/* STEP 3: 6-DIGIT OTP VERIFICATION SCREEN */}
-              {/* ========================================================================= */}
-              {step === 3 && (
-                <motion.form
-                  key="step-3-otp"
-                  initial={{ opacity: 0, x: 16 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -16 }}
-                  transition={{ duration: 0.25 }}
-                  onSubmit={handleVerifyOtp}
-                  className="space-y-6"
-                >
-                  <div className="text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 flex items-center justify-center mx-auto mb-3 text-[#97D7FF] shadow-inner">
-                      <Mail className="w-6 h-6" />
-                    </div>
-                    <h2 className="text-xl font-bold text-white tracking-tight">
-                      Check Your Email
-                    </h2>
-                    <p className="text-xs text-slate-300 mt-1">
-                      Enter the 6-digit verification code sent to{" "}
-                      <span className="text-[#FFEFC4] font-medium select-all">
-                        {cleanEmail}
-                      </span>
-                    </p>
-                    <p className="text-[11px] text-[#97D7FF] mt-1">
-                      Paste or type your 6-digit code below (expires in 5 minutes)
-                    </p>
-                  </div>
-
-                  {/* 6 Individual Digital Input Boxes */}
-                  <div className="flex justify-between gap-2 max-w-[340px] mx-auto">
-                    {otpCode.map((digit, idx) => (
-                      <input
-                        key={`otp-${idx}`}
-                        ref={(el) => {
-                          otpInputRefs.current[idx] = el;
-                        }}
-                        id={`otp-${idx}`}
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={6}
-                        value={digit}
-                        onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
-                        onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                        onPaste={handleOtpPaste}
-                        className="w-12 h-14 text-center text-2xl font-bold font-mono bg-[#053b53] border border-[#4D8DBA]/50 rounded-xl text-[#FFEFC4] focus:outline-none focus:border-[#97D7FF] focus:ring-2 focus:ring-[#97D7FF]/30 transition"
-                      />
-                    ))}
-                  </div>
-
-                  {/* Submit Button */}
-                  <button
-                    type="submit"
-                    disabled={isLoading || otpCode.join("").length < 6}
-                    className="w-full py-3.5 px-4 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-                  >
-                    {isLoading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-[#086288]" />
-                        <span>Verifying...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Verify & Enter Chat</span>
-                        <CheckCircle2 className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-
-                  {/* Footer Links: Edit email & Resend Code Timer */}
-                  <div className="flex items-center justify-between text-xs text-slate-300 pt-2 border-t border-[#4D8DBA]/35">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStep(2);
-                        setOtpCode(["", "", "", "", "", ""]);
-                      }}
-                      className="hover:text-white transition cursor-pointer"
-                    >
-                      ← Edit email
-                    </button>
-                    <button
-                      type="button"
-                      disabled={countdown > 0 || isLoading}
-                      onClick={() => handleSendOtp()}
-                      className="text-[#97D7FF] hover:underline disabled:text-slate-400 disabled:no-underline font-medium cursor-pointer"
-                    >
-                      {countdown > 0 ? `${t.resendCode} in ${countdown}s` : t.resendCode}
-                    </button>
-                  </div>
-                </motion.form>
-              )}
-            </AnimatePresence>
-          </div>
+            </button>
+          </form>
         </motion.div>
       </main>
 
       <footer className="relative z-20 py-4 text-center text-xs text-slate-300">
-        Six9Chat • Supabase Gmail OTP &amp; System UID Architecture
+        Six9Chat • Direct Passcode &amp; System UID Architecture
       </footer>
     </div>
   );
