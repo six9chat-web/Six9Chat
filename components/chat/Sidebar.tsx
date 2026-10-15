@@ -46,19 +46,25 @@ export function Sidebar({
   onAddNewContact,
   onOpenProfile,
 }: SidebarProps) {
+  const userRecord = currentUser as unknown as Record<string, unknown>;
+  const currentUsername =
+    (typeof userRecord?.username === "string" && userRecord.username ? userRecord.username : null) ||
+    (currentUser?.name && currentUser.name !== "You" ? currentUser.name : null) ||
+    (currentUser?.email ? currentUser.email.split("@")[0] : null) ||
+    "user";
+
   const filterTabs: { id: ChatFilterType; label: string }[] = [
     { id: "all", label: "All" },
     { id: "unread", label: "Unread" },
     { id: "pinned", label: "Pinned" },
     { id: "groups", label: "Groups" },
-    { id: "communities", label: "Communities" },
   ];
 
   return (
     <aside className="w-full h-full min-h-0 flex flex-col bg-[#053b53] border-r border-[#4D8DBA]/30 z-20 shrink-0 select-none overflow-hidden">
-      {/* 1. Header Bar: Profile Avatar + "Chats" title + WhatsApp New Chat Button */}
+      {/* 1. Header Bar: Profile Avatar + Username + New Chat Button */}
       <div className="h-16 px-4 bg-[#086288] border-b border-[#4D8DBA]/35 backdrop-blur-xl flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           {/* User Profile Avatar / Settings trigger */}
           <button
             type="button"
@@ -76,15 +82,17 @@ export function Sidebar({
               currentUser?.avatar || currentUser?.name?.slice(0, 2).toUpperCase() || "ME"
             )}
           </button>
-          <div className="flex flex-col">
-            <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-tight">
-              Chats
+          <div
+            onClick={onOpenProfile}
+            className="flex flex-col min-w-0 cursor-pointer group"
+            title="View Profile & Settings"
+          >
+            <h1 className="text-base sm:text-lg font-bold text-white tracking-tight leading-tight group-hover:text-[#97D7FF] transition truncate">
+              {currentUser?.name || currentUsername}
             </h1>
-            {currentUser?.uid && (
-              <span className="text-[10px] font-mono font-semibold text-[#97D7FF] tracking-wider leading-tight">
-                UID: {currentUser.uid}
-              </span>
-            )}
+            <span className="text-[11px] font-mono font-medium text-[#97D7FF] leading-tight truncate">
+              @{currentUsername.toLowerCase().replace(/^@/, "")}
+            </span>
           </div>
         </div>
 
@@ -101,7 +109,7 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* 2. Rounded Search Bar ("Search or start a new chat") */}
+      {/* 2. Rounded Search Bar ("Add User by Username (e.g. alexrivers)...") */}
       <div className="px-3 pt-3 pb-2 shrink-0">
         <div className="relative flex items-center w-full">
           <Search className="w-4 h-4 text-slate-300 absolute left-3.5 pointer-events-none" />
@@ -109,7 +117,7 @@ export function Sidebar({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Add User by UID (e.g. S9-02)..."
+            placeholder="Add User by Username (e.g. alexrivers)..."
             className="w-full h-10 pl-10 pr-9 rounded-full bg-[#032433] border border-[#4D8DBA]/40 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
           />
           {searchQuery && (
@@ -123,22 +131,23 @@ export function Sidebar({
           )}
         </div>
 
-        {/* Quick Add by UID action card */}
+        {/* Quick Add by Username action card */}
         {searchQuery.trim().length > 1 && (
           <div className="mt-2 p-2 rounded-xl bg-[#086288] border border-[#4D8DBA]/60 flex items-center justify-between text-xs text-white shadow-md">
             <div className="flex items-center gap-2 min-w-0 pr-2">
               <span className="w-2 h-2 rounded-full bg-[#97D7FF] animate-pulse shrink-0" />
               <span className="truncate font-mono font-bold text-[#FFEFC4] text-[11px]">
-                {searchQuery.trim().toUpperCase()}
+                @{searchQuery.trim().replace(/^@/, "").toLowerCase()}
               </span>
             </div>
             <button
               type="button"
               onClick={() => {
                 if (onAddNewContact) {
+                  const cleanHandle = searchQuery.trim().replace(/^@/, "");
                   onAddNewContact(
-                    `User ${searchQuery.trim().toUpperCase()}`,
-                    searchQuery.trim().toUpperCase()
+                    cleanHandle.charAt(0).toUpperCase() + cleanHandle.slice(1),
+                    cleanHandle.toLowerCase()
                   );
                   onSearchChange("");
                 }
@@ -151,7 +160,7 @@ export function Sidebar({
         )}
       </div>
 
-      {/* 3. Filter Pill Tabs: All, Unread, Pinned, Groups, Communities */}
+      {/* 3. Filter Pill Tabs: All, Unread, Pinned, Groups */}
       <div className="px-3 pb-2.5 shrink-0 overflow-x-auto no-scrollbar flex items-center gap-1.5">
         {filterTabs.map((tab) => {
           const isActive = activeFilter === tab.id;

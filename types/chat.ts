@@ -75,6 +75,7 @@ export interface ChatContact {
 export interface UserProfile {
   id: string;
   name: string;
+  username?: string;
   status: "online" | "offline" | "busy" | "away";
   statusText: string;
   avatar: string;

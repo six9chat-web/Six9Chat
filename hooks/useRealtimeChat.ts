@@ -473,9 +473,16 @@ export function useRealtimeChat() {
             (user.user_metadata?.uid as string) ||
             getCurrentUserUid(user.id);
 
+          const username =
+            profile?.username ||
+            (user.user_metadata?.username as string) ||
+            (userEmail ? userEmail.split("@")[0] : null) ||
+            displayName.toLowerCase().replace(/\s+/g, "_");
+
           setCurrentUser({
             id: user.id,
             name: displayName,
+            username: username,
             status: "online",
             statusText:
               profile?.status ||

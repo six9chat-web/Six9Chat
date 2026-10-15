@@ -61,7 +61,7 @@ export function ChatList({
         <Users className="w-10 h-10 stroke-[1.5] text-[#4D8DBA] mb-2" />
         <p className="text-sm font-semibold text-slate-200">No active chats yet</p>
         <p className="text-xs text-[#97D7FF]/80 mt-1 max-w-[220px] leading-relaxed">
-          Search a user by their UID (e.g. S9-02) in the search bar above to start messaging.
+          Search a user by Username in the search bar above to start messaging.
         </p>
       </div>
     );

@@ -14,7 +14,6 @@ import {
   Trash2,
   Loader2,
   Mail,
-  Lock,
   AtSign,
   Sparkles,
   Eye,
@@ -551,16 +550,12 @@ export function ProfileModal({
                 </p>
               </div>
 
-              {/* Clean Read-Only Email Address Box (Replaces old UID box) */}
+              {/* Clean Email Address Box */}
               <div className="bg-[#053b53] p-3.5 rounded-2xl border border-[#4D8DBA]/40 space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-300 font-medium flex items-center gap-1.5 text-xs">
                     <Mail className="w-3.5 h-3.5 text-[#97D7FF]" />
                     <span>Email Address</span>
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#032433] text-slate-300 border border-[#4D8DBA]/40 font-medium flex items-center gap-1">
-                    <Lock className="w-2.5 h-2.5 text-slate-400" />
-                    <span>Read-only</span>
                   </span>
                 </div>
                 <p className="text-sm font-mono text-slate-100 pt-1 select-all truncate">

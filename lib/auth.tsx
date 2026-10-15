@@ -565,6 +565,7 @@ export interface MockSessionData {
   email?: string;
   phone?: string;
   fullName?: string;
+  username?: string;
   avatarUrl?: string;
   statusText?: string;
   uid?: string;
@@ -682,6 +683,7 @@ export async function getCurrentSession(): Promise<Session | null> {
       user_metadata: {
         full_name: mock.fullName || "Six9 Member",
         name: mock.fullName || "Six9 Member",
+        username: mock.username || mock.fullName?.toLowerCase().replace(/\s+/g, "_") || "user",
         avatar_url: mock.avatarUrl || "",
         phone: mock.phone,
         status: mock.statusText || "Hey there! I am using Six9Chat 🚀",
@@ -732,7 +734,7 @@ export async function getUserProfile(userId: string): Promise<Profile | null> {
       if (mock && mock.userId === userId) {
         return {
           id: mock.userId,
-          username: `user_${mock.userId.slice(0, 6)}`,
+          username: mock.username || mock.fullName?.toLowerCase().replace(/\s+/g, "_") || `user_${mock.userId.slice(0, 6)}`,
           full_name: mock.fullName || "",
           avatar_url: mock.avatarUrl || "",
           status: mock.statusText || "Hey there! I am using Six9Chat",

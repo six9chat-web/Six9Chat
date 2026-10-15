@@ -12,7 +12,6 @@ import { CommunityModal } from "@/components/chat/CommunityModal";
 import { ProfileModal } from "@/components/chat/ProfileModal";
 import { ProfileOnboardingModal } from "@/components/auth/ProfileOnboardingModal";
 import { AuthLogo } from "@/components/auth/AuthLogo";
-import { Fingerprint, Search } from "lucide-react";
 import { useRealtimeChat } from "@/hooks/useRealtimeChat";
 import { useAuth } from "@/lib/auth";
 
@@ -205,21 +204,9 @@ export function ChatWorkspace() {
                 Six9Chat Real-Time Network
               </h2>
 
-              {activeUser?.uid && (
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#086288] border border-[#4D8DBA]/60 text-[#FFEFC4] font-mono text-sm font-bold shadow-md mb-4">
-                  <Fingerprint className="w-4 h-4 text-[#97D7FF]" />
-                  <span>Your UID: {activeUser.uid}</span>
-                </div>
-              )}
-
-              <p className="max-w-md text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
-                Connect and exchange encrypted real-time messages. Add contacts directly by their system UID using the search bar on the left.
+              <p className="max-w-md text-xs sm:text-sm text-slate-300 leading-relaxed">
+                Connect and exchange encrypted real-time messages. Search for friends by username to start messaging.
               </p>
-
-              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#032433] border border-[#4D8DBA]/40 text-xs text-slate-300 shadow-sm">
-                <Search className="w-4 h-4 text-[#97D7FF]" />
-                <span>Use &ldquo;Add User by UID&rdquo; to start a conversation</span>
-              </div>
             </div>
           )}
         </div>
