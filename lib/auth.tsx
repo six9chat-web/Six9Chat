@@ -169,13 +169,39 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 /**
+ * Base site URL helper prioritizing live Vercel domain over localhost
+ */
+export function getSiteBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP_URL.includes("localhost")) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
+  }
+  if (process.env.NEXT_PUBLIC_SITE_URL && !process.env.NEXT_PUBLIC_SITE_URL.includes("localhost")) {
+    return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, "");
+  }
+  if (typeof window !== "undefined") {
+    if (!window.location.origin.includes("localhost") && !window.location.origin.includes("127.0.0.1")) {
+      return window.location.origin;
+    }
+  }
+  return "https://six9chat.vercel.app";
+}
+
+/**
+ * Format sequential UID starting from S9-01 (e.g., S9-01, S9-02, S9-03...)
+ */
+export function formatSequentialUid(num: number): string {
+  const padded = num < 10 ? `0${num}` : `${num}`;
+  return `S9-${padded}`;
+}
+
+/**
  * Standalone: System-Generated Sequential Unique ID (UID) Generator
- * Format: S9-XXXX (e.g. S9-1001, S9-1002)
+ * Format: S9-XX (e.g. S9-01, S9-02, S9-03...)
  * Fully SSR-safe and deterministic for Next.js 16
  */
 export function generateSystemUid(seed?: string): string {
   if (typeof window === "undefined") {
-    return "S9-1001";
+    return "S9-01";
   }
   if (seed) {
     const existing = localStorage.getItem(`six9_uid_${seed}`);
@@ -185,8 +211,8 @@ export function generateSystemUid(seed?: string): string {
   if (currentStored && /^S9-\d+$/i.test(currentStored) && !seed) return currentStored;
 
   const storedLast = localStorage.getItem("six9_last_seq_num");
-  const nextNum = storedLast ? parseInt(storedLast, 10) + 1 : 1001;
-  const uid = `S9-${nextNum}`;
+  const nextNum = storedLast ? parseInt(storedLast, 10) + 1 : 1;
+  const uid = formatSequentialUid(nextNum);
 
   localStorage.setItem("six9_last_seq_num", String(nextNum));
   if (seed) localStorage.setItem(`six9_uid_${seed}`, uid);
@@ -196,7 +222,7 @@ export function generateSystemUid(seed?: string): string {
 
 export function getCurrentUserUid(userIdOrEmail?: string): string {
   if (typeof window === "undefined") {
-    return "S9-1001";
+    return "S9-01";
   }
   if (userIdOrEmail) {
     const stored = localStorage.getItem(`six9_uid_${userIdOrEmail}`);
@@ -208,8 +234,8 @@ export function getCurrentUserUid(userIdOrEmail?: string): string {
 }
 
 /**
- * Check if the user has an assigned sequential UID in Supabase profile database (e.g., S9-1001).
- * If not, query highest UID and assign a new sequential UID instantly.
+ * Check if the user has an assigned sequential UID in Supabase profile database (starting from S9-01).
+ * If not, query highest UID and assign a new sequential UID instantly (S9-01, S9-02, S9-03...).
  */
 export async function getOrAssignSequentialUid(userId: string, email?: string): Promise<string> {
   const cleanEmail = email?.trim().toLowerCase() || "";
@@ -242,19 +268,19 @@ export async function getOrAssignSequentialUid(userId: string, email?: string): 
       return profile.uid;
     }
 
-    // 3. Find highest sequential number in Supabase profiles
+    // 3. Find highest sequential number in Supabase profiles (starts at 0 -> first is S9-01)
     const { data: allProfiles } = await supabase
       .from("profiles")
       .select("uid");
 
-    let highestSeq = 1000;
+    let highestSeq = 0;
     if (allProfiles && allProfiles.length > 0) {
       for (const p of allProfiles) {
         if (p.uid) {
           const match = p.uid.match(/^S9-(\d+)$/i);
           if (match) {
             const num = parseInt(match[1], 10);
-            if (num > highestSeq) highestSeq = num;
+            if (num < 1000 && num > highestSeq) highestSeq = num;
           }
         }
       }
@@ -265,12 +291,12 @@ export async function getOrAssignSequentialUid(userId: string, email?: string): 
       const storedLast = localStorage.getItem("six9_last_seq_num");
       if (storedLast) {
         const lastNum = parseInt(storedLast, 10);
-        if (lastNum > highestSeq) highestSeq = lastNum;
+        if (lastNum < 1000 && lastNum > highestSeq) highestSeq = lastNum;
       }
     }
 
     const nextSeq = highestSeq + 1;
-    const assignedUid = `S9-${nextSeq}`;
+    const assignedUid = formatSequentialUid(nextSeq);
 
     if (typeof window !== "undefined") {
       localStorage.setItem("six9_last_seq_num", String(nextSeq));
@@ -288,32 +314,36 @@ export async function getOrAssignSequentialUid(userId: string, email?: string): 
     return assignedUid;
   } catch (err) {
     console.warn("getOrAssignSequentialUid exception:", err);
-    let nextSeq = 1001;
+    let nextSeq = 1;
     if (typeof window !== "undefined") {
       const storedLast = localStorage.getItem("six9_last_seq_num");
-      if (storedLast) nextSeq = parseInt(storedLast, 10) + 1;
+      if (storedLast) {
+        const lastNum = parseInt(storedLast, 10);
+        if (lastNum < 1000) nextSeq = lastNum + 1;
+      }
       localStorage.setItem("six9_last_seq_num", String(nextSeq));
-      const fallbackUid = `S9-${nextSeq}`;
+      const fallbackUid = formatSequentialUid(nextSeq);
       localStorage.setItem(`six9_uid_${userId}`, fallbackUid);
       if (cleanEmail) localStorage.setItem(`six9_uid_${cleanEmail}`, fallbackUid);
       localStorage.setItem("six9_current_uid", fallbackUid);
       return fallbackUid;
     }
-    return `S9-${nextSeq}`;
+    return formatSequentialUid(nextSeq);
   }
 }
 
 /**
  * Standalone: Send 6-digit OTP code to Gmail / Email address
- * Explicitly configured with shouldCreateUser: true and no emailRedirectTo
- * to enforce sending a 6-digit numeric OTP code instead of a magic link.
+ * Configured with shouldCreateUser: true and live site redirect to prioritize numeric OTP token
  */
 export async function signInWithEmailOtp(email: string) {
   const cleanEmail = email.trim().toLowerCase();
+  const liveBaseUrl = getSiteBaseUrl();
   const { data, error } = await supabase.auth.signInWithOtp({
     email: cleanEmail,
     options: {
       shouldCreateUser: true,
+      emailRedirectTo: `${liveBaseUrl}/auth/callback`,
     },
   });
 
@@ -977,7 +1007,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+          redirectTo: `${getSiteBaseUrl()}/auth/callback`,
         },
       });
       if (error) throw error;

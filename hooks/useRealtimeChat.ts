@@ -14,6 +14,7 @@ import {
   getUserProfile,
   onAuthStateChange,
   signOut as authSignOut,
+  getCurrentUserUid,
 } from "@/lib/auth";
 
 export interface CallModalState {
@@ -470,9 +471,7 @@ export function useRealtimeChat() {
           const assignedUid =
             profile?.uid ||
             (user.user_metadata?.uid as string) ||
-            (typeof window !== "undefined" ? localStorage.getItem(`six9_uid_${user.id}`) : null) ||
-            (typeof window !== "undefined" ? localStorage.getItem("six9_current_uid") : null) ||
-            `S9-${user.id.slice(0, 6).toUpperCase()}`;
+            getCurrentUserUid(user.id);
 
           setCurrentUser({
             id: user.id,

@@ -8,7 +8,7 @@ export const CURRENT_USER: UserProfile = {
   avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80",
   phone: "+1 (555) 019-2834",
   email: "you@six9chat.com",
-  uid: "S9-1001",
+  uid: "S9-01",
 };
 
 export const INITIAL_CONTACTS: ChatContact[] = [

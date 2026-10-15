@@ -181,7 +181,21 @@ function LoginContent() {
     }
   };
 
-  // STEP 3: Handle OTP Digit Input Traversal
+  // STEP 3: Handle OTP Digit Input Traversal & Full Paste
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!pastedData) return;
+    const digits = pastedData.split("");
+    const updated = ["", "", "", "", "", ""];
+    digits.forEach((d, i) => {
+      if (i < 6) updated[i] = d;
+    });
+    setOtpCode(updated);
+    const targetIdx = Math.min(digits.length, 5);
+    otpInputRefs.current[targetIdx]?.focus();
+  };
+
   const handleOtpDigitChange = (index: number, value: string) => {
     const numericVal = value.replace(/\D/g, "");
 
@@ -229,7 +243,7 @@ function LoginContent() {
     setIsLoading(true);
     try {
       let verifiedUserId = "";
-      let assignedUid = "S9-1001";
+      let assignedUid = "S9-01";
 
       if (isMockMode) {
         if (generatedOtp && token !== generatedOtp && token !== "123456") {
@@ -619,6 +633,9 @@ function LoginContent() {
                         {cleanEmail}
                       </span>
                     </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Paste or type your 6-digit code below (or click the sign-in link in your email)
+                    </p>
                   </div>
 
                   {/* 6 Individual Digital Input Boxes */}
@@ -636,6 +653,7 @@ function LoginContent() {
                         value={digit}
                         onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
                         onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                        onPaste={handleOtpPaste}
                         className="w-12 h-14 text-center text-2xl font-bold font-mono bg-[#053b53] border border-[#4D8DBA]/50 rounded-xl text-[#FFEFC4] focus:outline-none focus:border-[#97D7FF] focus:ring-2 focus:ring-[#97D7FF]/30 transition"
                       />
                     ))}

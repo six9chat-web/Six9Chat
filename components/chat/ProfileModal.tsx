@@ -19,7 +19,7 @@ import {
   Mail,
 } from "lucide-react";
 import { UserProfile, ChatContact } from "@/types/chat";
-import { uploadAvatar } from "@/lib/auth";
+import { uploadAvatar, getCurrentUserUid } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 interface ProfileModalProps {
@@ -67,9 +67,7 @@ export function ProfileModal({
 
   const displayUid =
     (typeof userRecord.uid === "string" && userRecord.uid ? userRecord.uid : null) ||
-    (typeof window !== "undefined" ? localStorage.getItem(`six9_uid_${currentUser.id}`) : null) ||
-    (typeof window !== "undefined" ? localStorage.getItem("six9_current_uid") : null) ||
-    `S9-${currentUser.id.slice(0, 6).toUpperCase()}`;
+    getCurrentUserUid(currentUser.id);
 
   const userEmail = (typeof userRecord.email === "string" ? userRecord.email : null) || "";
 

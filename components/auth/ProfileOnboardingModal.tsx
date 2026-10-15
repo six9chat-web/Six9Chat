@@ -155,7 +155,7 @@ export function ProfileOnboardingModal({
                     (typeof window !== "undefined"
                       ? localStorage.getItem("six9_current_uid")
                       : null) ||
-                    "S9-USER"}
+                    "S9-01"}
                 </span>
               </div>
             </div>
