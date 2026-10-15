@@ -185,3 +185,51 @@ export async function dispatchOtpEmail(email: string, code: string): Promise<{ s
 
   return { success: true, method: sent ? method : "database_logged" };
 }
+
+/**
+ * Assign sequential UID starting from S9-01 (S9-01, S9-02, S9-03...)
+ */
+export async function assignSequentialUid(email: string): Promise<string> {
+  const cleanEmail = email.trim().toLowerCase();
+
+  // 1. Check if user profile already has an assigned S9-XX UID
+  try {
+    const { data: existingProf } = await supabaseServer
+      .from("profiles")
+      .select("uid")
+      .eq("email", cleanEmail)
+      .maybeSingle();
+
+    if (existingProf?.uid && /^S9-\d+$/i.test(existingProf.uid)) {
+      return existingProf.uid;
+    }
+  } catch (err) {
+    console.warn("[assignSequentialUid check note]:", err);
+  }
+
+  // 2. Query highest sequential UID in profiles
+  let highestSeq = 0;
+  try {
+    const { data: allProfiles } = await supabaseServer
+      .from("profiles")
+      .select("uid");
+
+    if (allProfiles && allProfiles.length > 0) {
+      for (const p of allProfiles) {
+        if (p.uid) {
+          const match = p.uid.match(/^S9-(\d+)$/i);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num < 1000 && num > highestSeq) highestSeq = num;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[assignSequentialUid query error]:", err);
+  }
+
+  const nextSeq = highestSeq + 1;
+  const padded = nextSeq < 10 ? `0${nextSeq}` : `${nextSeq}`;
+  return `S9-${padded}`;
+}

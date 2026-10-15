@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { verifyOtp, supabaseServer } from "@/lib/otpEngine";
+import { verifyOtp, assignSequentialUid, supabaseServer } from "@/lib/otpEngine";
 
 export async function POST(request: Request) {
   try {
@@ -43,32 +43,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Sequential UID Assignment Starting from S9-01
-    // Query highest sequential UID in profiles
-    let highestSeq = 0;
-    try {
-      const { data: allProfiles } = await supabaseServer
-        .from("profiles")
-        .select("uid");
-
-      if (allProfiles && allProfiles.length > 0) {
-        for (const p of allProfiles) {
-          if (p.uid) {
-            const match = p.uid.match(/^S9-(\d+)$/i);
-            if (match) {
-              const num = parseInt(match[1], 10);
-              if (num < 1000 && num > highestSeq) highestSeq = num;
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("[verify-otp UID query notice]:", e);
-    }
-
-    const nextSeq = highestSeq + 1;
-    const padded = nextSeq < 10 ? `0${nextSeq}` : `${nextSeq}`;
-    const assignedUid = `S9-${padded}`;
+    // 3. Sequential UID Assignment Starting from S9-01 (S9-01, S9-02, S9-03...)
+    const assignedUid = await assignSequentialUid(cleanEmail);
 
     // Stable deterministic user ID
     const safePrefix = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
