@@ -432,6 +432,84 @@ export async function signInWithPasscode(email: string, passcode: string) {
 }
 
 /**
+ * Realtime check username availability and get alternatives if taken
+ */
+export async function checkUsername(username: string): Promise<{
+  available: boolean;
+  suggestions: string[];
+}> {
+  try {
+    const res = await fetch(`/api/auth/check-username?username=${encodeURIComponent(username)}`);
+    const data = await res.json().catch(() => ({}));
+    return {
+      available: Boolean(data.available),
+      suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+    };
+  } catch (err) {
+    console.warn("[checkUsername error]:", err);
+    return { available: false, suggestions: [] };
+  }
+}
+
+/**
+ * Register a new user with Username, Email, Password and Sequential UID S9-01
+ */
+export async function registerWithCredentials(params: {
+  username: string;
+  email: string;
+  password: string;
+}) {
+  const res = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok || !result.success || !result.user) {
+    throw new Error(result.error || "Failed to create account.");
+  }
+
+  const assignedUid = result.assignedUid || "S9-01";
+  if (typeof window !== "undefined") {
+    localStorage.setItem(`six9_uid_${params.email.toLowerCase()}`, assignedUid);
+    localStorage.setItem(`six9_uid_${params.username.toLowerCase()}`, assignedUid);
+    localStorage.setItem(`six9_uid_${result.user.id}`, assignedUid);
+    localStorage.setItem("six9_current_uid", assignedUid);
+  }
+
+  return result;
+}
+
+/**
+ * Login existing user with Username/Email and Password
+ */
+export async function loginWithCredentials(params: {
+  identifier: string;
+  password: string;
+}) {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok || !result.success || !result.user) {
+    throw new Error(result.error || "Failed to sign in.");
+  }
+
+  const assignedUid = result.assignedUid || "S9-01";
+  if (typeof window !== "undefined") {
+    localStorage.setItem(`six9_uid_${params.identifier.toLowerCase()}`, assignedUid);
+    localStorage.setItem(`six9_uid_${result.user.id}`, assignedUid);
+    localStorage.setItem("six9_current_uid", assignedUid);
+  }
+
+  return result;
+}
+
+/**
  * Standalone: Send OTP to a Phone Number
  */
 export async function signInWithPhoneOtp(phone: string) {

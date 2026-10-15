@@ -1,23 +1,32 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  User,
   Mail,
   Lock,
   ArrowRight,
   AlertCircle,
   CheckCircle2,
+  Check,
   RefreshCw,
   Fingerprint,
-  ShieldCheck,
-  Globe,
+  Eye,
+  EyeOff,
+  AtSign,
+  Sparkles,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { LanguageSelector } from "@/components/auth/LanguageSelector";
-import { Language, DEFAULT_LANGUAGE, TRANSLATIONS } from "@/lib/languages";
-import { signInWithPasscode, getCurrentUser } from "@/lib/auth";
+import { Language, DEFAULT_LANGUAGE } from "@/lib/languages";
+import {
+  checkUsername,
+  registerWithCredentials,
+  loginWithCredentials,
+  getCurrentUser,
+} from "@/lib/auth";
 
 export default function LoginPage() {
   return (
@@ -28,127 +37,181 @@ export default function LoginPage() {
         </div>
       }
     >
-      <LoginContent />
+      <AuthContent />
     </React.Suspense>
   );
 }
 
-function LoginContent() {
+function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get("redirect") || "/chat";
 
-  // State
+  // Mode: "login" | "signup"
+  const [mode, setMode] = useState<"login" | "signup">("login");
   const [selectedLanguage, setSelectedLanguage] = useState<Language>(DEFAULT_LANGUAGE);
-  const [email, setEmail] = useState("");
-  const [passcode, setPasscode] = useState(["", "", "", ""]);
+
+  // Common Form State
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const passcodeInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  // Sign In State
+  const [loginIdentifier, setLoginIdentifier] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
-  // Check if user is already authenticated on mount
+  // Sign Up State
+  const [signupUsername, setSignupUsername] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+
+  // Realtime Username Check State
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+  const checkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto redirect if already authenticated
   useEffect(() => {
-    async function checkAuth() {
+    async function checkExistingAuth() {
       const user = await getCurrentUser();
       if (user) {
-        router.push("/chat");
+        router.push(redirectPath);
       }
     }
-    checkAuth();
-  }, [router]);
+    checkExistingAuth();
+  }, [router, redirectPath]);
 
-  const cleanEmail = email.trim().toLowerCase();
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
-  const passval = passcode.join("");
-  const isPasscodeComplete = passval.length === 4;
-
-  // Handle Passcode Digit Change
-  const handlePasscodeChange = (index: number, val: string) => {
-    const digits = val.replace(/\D/g, "");
-
-    // Handle 4-digit paste into any box
-    if (digits.length > 1) {
-      const parts = digits.slice(0, 4).split("");
-      const next = ["", "", "", ""];
-      parts.forEach((d, i) => {
-        if (i < 4) next[i] = d;
-      });
-      setPasscode(next);
-      const targetIdx = Math.min(parts.length, 3);
-      passcodeInputRefs.current[targetIdx]?.focus();
+  // Debounced realtime username availability check
+  const performUsernameCheck = useCallback(async (name: string) => {
+    const clean = name.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+    if (!clean || clean.length < 3) {
+      setUsernameAvailable(null);
+      setUsernameSuggestions([]);
+      setIsCheckingUsername(false);
       return;
     }
 
-    const next = [...passcode];
-    next[index] = digits;
-    setPasscode(next);
+    setIsCheckingUsername(true);
+    try {
+      const res = await checkUsername(clean);
+      setUsernameAvailable(res.available);
+      setUsernameSuggestions(res.available ? [] : res.suggestions);
+    } catch {
+      setUsernameAvailable(null);
+    } finally {
+      setIsCheckingUsername(false);
+    }
+  }, []);
 
-    // Auto-advance
-    if (digits && index < 3) {
-      passcodeInputRefs.current[index + 1]?.focus();
+  const handleUsernameChange = (val: string) => {
+    const clean = val.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    setSignupUsername(clean);
+    setUsernameAvailable(null);
+    setUsernameSuggestions([]);
+
+    if (checkTimeoutRef.current) {
+      clearTimeout(checkTimeoutRef.current);
+    }
+
+    if (clean.length >= 3) {
+      setIsCheckingUsername(true);
+      checkTimeoutRef.current = setTimeout(() => {
+        performUsernameCheck(clean);
+      }, 250);
+    } else {
+      setIsCheckingUsername(false);
     }
   };
 
-  const handlePasscodeKeyDown = (
-    index: number,
-    e: React.KeyboardEvent<HTMLInputElement>
-  ) => {
-    if (e.key === "Backspace" && !passcode[index] && index > 0) {
-      passcodeInputRefs.current[index - 1]?.focus();
-    }
+  const handleSelectSuggestion = (suggested: string) => {
+    setSignupUsername(suggested);
+    performUsernameCheck(suggested);
   };
 
-  const handlePasscodePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
-    if (!pasted) return;
-    const parts = pasted.split("");
-    const next = ["", "", "", ""];
-    parts.forEach((d, i) => {
-      if (i < 4) next[i] = d;
-    });
-    setPasscode(next);
-    const targetIdx = Math.min(parts.length, 3);
-    passcodeInputRefs.current[targetIdx]?.focus();
-  };
-
-  // Submit Direct Passcode Auth
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Submit Handler
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!cleanEmail || !isEmailValid) {
-      setErrorMessage("Please enter a valid Gmail / Email address.");
-      return;
-    }
+    if (mode === "login") {
+      // Handle Login
+      if (!loginIdentifier.trim()) {
+        setErrorMessage("Please enter your username or email address.");
+        return;
+      }
+      if (!loginPassword.trim()) {
+        setErrorMessage("Please enter your password.");
+        return;
+      }
 
-    if (!isPasscodeComplete) {
-      setErrorMessage("Please enter your 4-digit passcode.");
-      return;
-    }
+      setIsLoading(true);
+      try {
+        const result = await loginWithCredentials({
+          identifier: loginIdentifier,
+          password: loginPassword,
+        });
 
-    setIsLoading(true);
-    try {
-      const result = await signInWithPasscode(cleanEmail, passval);
-      const assignedUid = result.user?.user_metadata?.uid || "S9-01";
+        const assignedUid = result.assignedUid || "S9-01";
+        setSuccessMessage(`Welcome back! UID: ${assignedUid}. Loading chat...`);
 
-      setSuccessMessage(
-        `Welcome to Six9Chat! Assigned UID: ${assignedUid}. Connecting to chat...`
-      );
+        setTimeout(() => {
+          router.push(redirectPath);
+          router.refresh();
+        }, 350);
+      } catch (err: unknown) {
+        setErrorMessage(err instanceof Error ? err.message : "Sign in failed. Please check credentials.");
+        setIsLoading(false);
+      }
+    } else {
+      // Handle Signup
+      const cleanUser = signupUsername.trim().toLowerCase();
+      const cleanMail = signupEmail.trim().toLowerCase();
 
-      // Instant redirect straight to the clean chat interface
-      setTimeout(() => {
-        router.push(redirectPath);
-        router.refresh();
-      }, 400);
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Authentication error. Please try again.";
-      setErrorMessage(message);
-      setIsLoading(false);
+      if (!cleanUser || cleanUser.length < 3) {
+        setErrorMessage("Username must be at least 3 characters.");
+        return;
+      }
+      if (usernameAvailable === false) {
+        setErrorMessage("Please choose an available username.");
+        return;
+      }
+      if (!cleanMail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanMail)) {
+        setErrorMessage("Please enter a valid email address.");
+        return;
+      }
+      if (!signupPassword || signupPassword.length < 4) {
+        setErrorMessage("Password must be at least 4 characters.");
+        return;
+      }
+      if (signupPassword !== signupConfirmPassword) {
+        setErrorMessage("Passwords do not match. Please verify.");
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const result = await registerWithCredentials({
+          username: cleanUser,
+          email: cleanMail,
+          password: signupPassword,
+        });
+
+        const assignedUid = result.assignedUid || "S9-01";
+        setSuccessMessage(`Account created! Assigned UID: ${assignedUid}. Entering chat...`);
+
+        setTimeout(() => {
+          router.push(redirectPath);
+          router.refresh();
+        }, 350);
+      } catch (err: unknown) {
+        setErrorMessage(err instanceof Error ? err.message : "Failed to create account.");
+        setIsLoading(false);
+      }
     }
   };
 
@@ -157,7 +220,7 @@ function LoginContent() {
       dir={selectedLanguage.direction || "ltr"}
       className="relative min-h-screen w-screen bg-[#053b53] text-slate-100 flex flex-col font-sans overflow-x-hidden selection:bg-[#97D7FF] selection:text-[#086288]"
     >
-      {/* Ambient Glow Elements with Deep Ocean & Sky Accents */}
+      {/* Ambient Glow Elements */}
       <div className="h-44 w-full bg-gradient-to-r from-[#086288]/40 via-[#4D8DBA]/30 to-[#97D7FF]/25 absolute top-0 left-0 border-b border-[#4D8DBA]/35 backdrop-blur-3xl" />
       <div className="pointer-events-none absolute -top-32 -left-32 w-[550px] h-[550px] rounded-full bg-[#086288]/40 blur-[160px] animate-pulse-glow" />
       <div className="pointer-events-none absolute top-1/4 -right-32 w-[600px] h-[600px] rounded-full bg-[#4D8DBA]/25 blur-[160px]" />
@@ -185,16 +248,49 @@ function LoginContent() {
           transition={{ duration: 0.35 }}
           className="w-full max-w-md bg-[#032433]/90 border border-[#4D8DBA]/40 rounded-3xl p-6 sm:p-8 backdrop-blur-2xl shadow-[0_20px_60px_rgba(3,36,51,0.7)]"
         >
-          {/* Card Header */}
+          {/* Dual Flow Toggle Tabs */}
+          <div className="grid grid-cols-2 p-1 bg-[#053b53] rounded-2xl border border-[#4D8DBA]/35 mb-6">
+            <button
+              type="button"
+              onClick={() => {
+                setMode("login");
+                setErrorMessage(null);
+                setSuccessMessage(null);
+              }}
+              className={`py-2.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                mode === "login"
+                  ? "bg-[#086288] text-white shadow-md border border-[#4D8DBA]/50"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signup");
+                setErrorMessage(null);
+                setSuccessMessage(null);
+              }}
+              className={`py-2.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                mode === "signup"
+                  ? "bg-[#086288] text-white shadow-md border border-[#4D8DBA]/50"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
+
+          {/* Card Header Title */}
           <div className="text-center mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-[#086288] border border-[#4D8DBA]/50 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-[#086288]/40">
-              <ShieldCheck className="w-6 h-6 text-[#97D7FF]" />
-            </div>
             <h1 className="text-2xl font-black text-white tracking-tight">
-              Sign In to Six9Chat
+              {mode === "login" ? "Welcome to Six9Chat" : "Create Your Account"}
             </h1>
-            <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-              Enter your email and 4-digit passcode for instant access
+            <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+              {mode === "login"
+                ? "Sign in with your username or email address"
+                : "Real-time username verification & sequential UID generation"}
             </p>
           </div>
 
@@ -226,95 +322,296 @@ function LoginContent() {
           </AnimatePresence>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* 1. Gmail / Email Input */}
-            <div>
-              <label
-                htmlFor="user-email"
-                className="block text-xs font-semibold text-slate-200 mb-1.5"
-              >
-                Gmail / Email Address
-              </label>
-              <div className="relative flex items-center">
-                <Mail className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
-                <input
-                  id="user-email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@gmail.com"
-                  disabled={isLoading}
-                  className="w-full h-12 pl-10 pr-4 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
-                />
-              </div>
-            </div>
+          <form onSubmit={handleAuthSubmit} className="space-y-4">
+            {mode === "signup" ? (
+              // =========================================================
+              // SIGN UP FORM (Username live check, Email, Password, Confirm)
+              // =========================================================
+              <>
+                {/* 1. Username Field with Realtime Check */}
+                <div>
+                  <label
+                    htmlFor="signup-username"
+                    className="block text-xs font-semibold text-slate-200 mb-1"
+                  >
+                    Username
+                  </label>
+                  <div className="relative flex items-center">
+                    <AtSign className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
+                    <input
+                      id="signup-username"
+                      type="text"
+                      autoComplete="username"
+                      value={signupUsername}
+                      onChange={(e) => handleUsernameChange(e.target.value)}
+                      placeholder="e.g. alexrivers"
+                      disabled={isLoading}
+                      className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
+                    />
 
-            {/* 2. 4-Digit Passcode / PIN Input */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold text-slate-200">
-                  4-Digit Passcode / PIN
-                </label>
-                <span className="text-[11px] text-[#97D7FF] font-medium">
-                  {isPasscodeComplete ? "4/4 entered" : "Enter 4 digits"}
-                </span>
-              </div>
+                    {/* Right Tick Mark Indicator */}
+                    <div className="absolute right-3 flex items-center justify-center">
+                      {isCheckingUsername ? (
+                        <RefreshCw className="w-4 h-4 text-slate-400 animate-spin" />
+                      ) : usernameAvailable === true ? (
+                        <div
+                          title="Username is available!"
+                          className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 animate-in fade-in"
+                        >
+                          <Check className="w-4 h-4 stroke-[3]" />
+                        </div>
+                      ) : (
+                        <div
+                          title={
+                            usernameAvailable === false
+                              ? "Username is taken"
+                              : "Enter at least 3 characters"
+                          }
+                          className="flex items-center justify-center w-6 h-6 rounded-full text-slate-500"
+                        >
+                          <Check className="w-4 h-4 stroke-[2]" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-              <div className="flex justify-between gap-3 max-w-[280px] mx-auto py-1">
-                {passcode.map((digit, idx) => (
-                  <input
-                    key={`pin-${idx}`}
-                    ref={(el) => {
-                      passcodeInputRefs.current[idx] = el;
-                    }}
-                    id={`pin-${idx}`}
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={digit}
-                    onChange={(e) => handlePasscodeChange(idx, e.target.value)}
-                    onKeyDown={(e) => handlePasscodeKeyDown(idx, e)}
-                    onPaste={handlePasscodePaste}
-                    disabled={isLoading}
-                    className="w-14 h-14 text-center text-2xl font-bold font-mono bg-[#053b53] border border-[#4D8DBA]/50 rounded-2xl text-[#FFEFC4] focus:outline-none focus:border-[#97D7FF] focus:ring-2 focus:ring-[#97D7FF]/30 transition shadow-inner"
-                  />
-                ))}
-              </div>
-            </div>
+                  {/* 3 Alternative Username Suggestions if Taken */}
+                  {usernameAvailable === false && usernameSuggestions.length > 0 && (
+                    <div className="mt-2 p-2.5 rounded-xl bg-[#086288]/50 border border-[#4D8DBA]/40 text-xs">
+                      <p className="text-slate-300 text-[11px] font-medium mb-1.5 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-[#FFEFC4]" />
+                        <span>Username taken. Try these available options:</span>
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {usernameSuggestions.map((sug) => (
+                          <button
+                            key={sug}
+                            type="button"
+                            onClick={() => handleSelectSuggestion(sug)}
+                            className="px-2.5 py-1 rounded-lg bg-[#053b53] hover:bg-[#97D7FF] text-[#FFEFC4] hover:text-[#086288] border border-[#4D8DBA]/50 font-mono text-[11px] font-bold transition cursor-pointer"
+                          >
+                            @{sug}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-            {/* System UID Info Badge */}
-            <div className="p-3 rounded-2xl bg-[#053b53]/80 border border-[#4D8DBA]/35 text-xs text-slate-300 flex items-center gap-2.5">
-              <Fingerprint className="w-4 h-4 text-[#97D7FF] shrink-0" />
-              <span className="text-[11px] leading-relaxed">
-                Sequential UID (starting from <strong>S9-01</strong>) automatically assigned on login.
-              </span>
-            </div>
+                {/* 2. Email Address Field */}
+                <div>
+                  <label
+                    htmlFor="signup-email"
+                    className="block text-xs font-semibold text-slate-200 mb-1"
+                  >
+                    Email Address
+                  </label>
+                  <div className="relative flex items-center">
+                    <Mail className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
+                    <input
+                      id="signup-email"
+                      type="email"
+                      autoComplete="email"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      placeholder="name@gmail.com"
+                      disabled={isLoading}
+                      className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. Password Field */}
+                <div>
+                  <label
+                    htmlFor="signup-password"
+                    className="block text-xs font-semibold text-slate-200 mb-1"
+                  >
+                    Password
+                  </label>
+                  <div className="relative flex items-center">
+                    <Lock className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
+                    <input
+                      id="signup-password"
+                      type={showSignupPassword ? "text" : "password"}
+                      value={signupPassword}
+                      onChange={(e) => setSignupPassword(e.target.value)}
+                      placeholder="••••••••"
+                      disabled={isLoading}
+                      className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSignupPassword(!showSignupPassword)}
+                      className="absolute right-3 text-slate-400 hover:text-white transition cursor-pointer"
+                    >
+                      {showSignupPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4. Confirm Password Field */}
+                <div>
+                  <label
+                    htmlFor="signup-confirm-password"
+                    className="block text-xs font-semibold text-slate-200 mb-1"
+                  >
+                    Confirm Password
+                  </label>
+                  <div className="relative flex items-center">
+                    <Lock className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
+                    <input
+                      id="signup-confirm-password"
+                      type={showSignupPassword ? "text" : "password"}
+                      value={signupConfirmPassword}
+                      onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      disabled={isLoading}
+                      className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Sequential UID Notice Pill */}
+                <div className="p-3 rounded-2xl bg-[#053b53]/80 border border-[#4D8DBA]/35 text-xs text-slate-300 flex items-center gap-2.5">
+                  <Fingerprint className="w-4 h-4 text-[#97D7FF] shrink-0" />
+                  <span className="text-[11px] leading-relaxed">
+                    Sequential UID starting from <strong>S9-01</strong> automatically assigned on signup.
+                  </span>
+                </div>
+              </>
+            ) : (
+              // =========================================================
+              // SIGN IN FORM (Username or Email, Password)
+              // =========================================================
+              <>
+                {/* 1. Username or Email */}
+                <div>
+                  <label
+                    htmlFor="login-identifier"
+                    className="block text-xs font-semibold text-slate-200 mb-1"
+                  >
+                    Username or Email Address
+                  </label>
+                  <div className="relative flex items-center">
+                    <User className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
+                    <input
+                      id="login-identifier"
+                      type="text"
+                      autoComplete="username"
+                      value={loginIdentifier}
+                      onChange={(e) => setLoginIdentifier(e.target.value)}
+                      placeholder="Username or name@gmail.com"
+                      disabled={isLoading}
+                      className="w-full h-12 pl-10 pr-4 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Password */}
+                <div>
+                  <label
+                    htmlFor="login-password"
+                    className="block text-xs font-semibold text-slate-200 mb-1"
+                  >
+                    Password
+                  </label>
+                  <div className="relative flex items-center">
+                    <Lock className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
+                    <input
+                      id="login-password"
+                      type={showLoginPassword ? "text" : "password"}
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="••••••••"
+                      disabled={isLoading}
+                      className="w-full h-12 pl-10 pr-10 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      className="absolute right-3 text-slate-400 hover:text-white transition cursor-pointer"
+                    >
+                      {showLoginPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading || !isEmailValid || !isPasscodeComplete}
-              className="w-full h-12 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm active:scale-[0.99] transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#97D7FF] cursor-pointer"
+              disabled={isLoading}
+              className="w-full h-12 mt-2 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm active:scale-[0.99] transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               {isLoading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-[#086288]" />
-                  <span>Connecting to Six9Chat...</span>
+                  <span>
+                    {mode === "login" ? "Signing In..." : "Creating Account..."}
+                  </span>
                 </>
               ) : (
                 <>
-                  <span>Enter Six9Chat</span>
+                  <span>
+                    {mode === "login"
+                      ? "Sign In & Enter Chat"
+                      : "Create Account & Enter Chat"}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
+
+          {/* Bottom Toggle Footer */}
+          <div className="mt-5 pt-4 text-center border-t border-[#4D8DBA]/25">
+            {mode === "login" ? (
+              <p className="text-xs text-slate-300">
+                Don&apos;t have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("signup");
+                    setErrorMessage(null);
+                    setSuccessMessage(null);
+                  }}
+                  className="font-bold text-[#97D7FF] hover:underline cursor-pointer ml-1"
+                >
+                  Create New Account
+                </button>
+              </p>
+            ) : (
+              <p className="text-xs text-slate-300">
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("login");
+                    setErrorMessage(null);
+                    setSuccessMessage(null);
+                  }}
+                  className="font-bold text-[#97D7FF] hover:underline cursor-pointer ml-1"
+                >
+                  Sign In
+                </button>
+              </p>
+            )}
+          </div>
         </motion.div>
       </main>
 
       <footer className="relative z-20 py-4 text-center text-xs text-slate-300">
-        Six9Chat • Direct Passcode &amp; System UID Architecture
+        Six9Chat • Realtime Username Check &amp; S9-01 UID System
       </footer>
     </div>
   );
