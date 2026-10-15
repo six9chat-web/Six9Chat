@@ -10,8 +10,6 @@ import {
   AlertCircle,
   CheckCircle2,
   RefreshCw,
-  Check,
-  Sparkles,
   Fingerprint,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
@@ -22,7 +20,6 @@ import {
   verifyEmailOtp,
   getCurrentUser,
   ensureProfileExists,
-  setMockSession,
   generateSystemUid,
   getOrAssignSequentialUid,
 } from "@/lib/auth";
@@ -62,15 +59,6 @@ function LoginContent() {
   const [otpCode, setOtpCode] = useState(["", "", "", "", "", ""]);
   const [countdown, setCountdown] = useState(0);
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
-
-  // Fallback Mock State for Dev/Test Mode
-  const [isMockMode, setIsMockMode] = useState(false);
-  const [generatedOtp, setGeneratedOtp] = useState<string | null>(null);
-  const [mockOtpNotification, setMockOtpNotification] = useState<{
-    code: string;
-    email: string;
-    reason: string;
-  } | null>(null);
 
   // Feedback State
   const [isLoading, setIsLoading] = useState(false);
@@ -116,23 +104,11 @@ function LoginContent() {
     setStep(2);
   };
 
-  // Auto-fill OTP helper for testing
-  const handleAutoFillOtp = (code: string) => {
-    const digits = code.slice(0, 6).split("");
-    const updated = ["", "", "", "", "", ""];
-    digits.forEach((d, i) => {
-      if (i < 6) updated[i] = d;
-    });
-    setOtpCode(updated);
-    otpInputRefs.current[5]?.focus();
-  };
-
-  // STEP 2: Send Email OTP
+  // STEP 2: Send Real Gmail / Email OTP
   const handleSendOtp = async (e?: React.FormEvent) => {
     if (e && e.preventDefault) e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
-    setMockOtpNotification(null);
 
     if (!cleanEmail || !isEmailValid) {
       setErrorMessage("Please enter a valid Gmail or Email address.");
@@ -141,10 +117,8 @@ function LoginContent() {
 
     setIsLoading(true);
     try {
-      // Trigger Supabase Email OTP / Magic Link code verification flow
+      // Trigger Supabase Real Email OTP verification
       await signInWithEmailOtp(cleanEmail);
-      setIsMockMode(false);
-      setGeneratedOtp(null);
       setStep(3);
       setCountdown(60);
       setSuccessMessage(`6-digit verification code sent to ${cleanEmail}`);
@@ -152,27 +126,10 @@ function LoginContent() {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.warn("Supabase Email OTP response:", errMsg);
 
-      // Check if email provider is unconfigured, rate-limited, or in local dev/test mode
-      const isProviderFallback =
-        errMsg.toLowerCase().includes("rate limit") ||
-        errMsg.toLowerCase().includes("smtp") ||
-        errMsg.toLowerCase().includes("provider") ||
-        errMsg.toLowerCase().includes("disabled") ||
-        errMsg.toLowerCase().includes("not configured") ||
-        errMsg.toLowerCase().includes("email");
-
-      if (isProviderFallback) {
-        // Fallback Mock Mode for local testing and resilience
-        const mockCode = "123456";
-        setIsMockMode(true);
-        setGeneratedOtp(mockCode);
+      if (errMsg.toLowerCase().includes("rate limit") || errMsg.toLowerCase().includes("security purposes")) {
         setStep(3);
         setCountdown(60);
-        setMockOtpNotification({
-          code: mockCode,
-          email: cleanEmail,
-          reason: "Email OTP verification active. Dev testing code generated.",
-        });
+        setSuccessMessage(`A verification code was recently sent to ${cleanEmail}. Please check your Gmail inbox.`);
       } else {
         setErrorMessage(errMsg || "Failed to send verification code. Please check the email address.");
       }
@@ -242,69 +199,32 @@ function LoginContent() {
 
     setIsLoading(true);
     try {
-      let verifiedUserId = "";
-      let assignedUid = "S9-01";
+      const result = await verifyEmailOtp(cleanEmail, token);
+      const userId = result.user?.id;
 
-      if (isMockMode) {
-        if (generatedOtp && token !== generatedOtp && token !== "123456") {
-          throw new Error(`Invalid code. Please enter ${generatedOtp} (or 123456).`);
-        }
-
-        const safePrefix = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
-        verifiedUserId = `user_${safePrefix}`;
-        assignedUid = await getOrAssignSequentialUid(verifiedUserId, cleanEmail);
-
-        // Save session locally and in cookie
-        setMockSession({
-          userId: verifiedUserId,
-          email: cleanEmail,
-          fullName: cleanEmail.split("@")[0],
-          avatarUrl: "",
-          statusText: "Hey there! I am using Six9Chat 🚀",
-          uid: assignedUid,
-        });
-
-        await ensureProfileExists({
-          id: verifiedUserId,
-          username: `user_${assignedUid.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`,
-          full_name: cleanEmail.split("@")[0],
-          email: cleanEmail,
-          uid: assignedUid,
-          status: "Hey there! I am using Six9Chat 🚀",
-        });
-
-        setSuccessMessage(`Code verified! Assigned UID: ${assignedUid}. Redirecting to chat...`);
-      } else {
-        const result = await verifyEmailOtp(cleanEmail, token);
-        const userId = result.user?.id;
-
-        if (!userId) {
-          throw new Error("Verification failed. Please try again.");
-        }
-
-        verifiedUserId = userId;
-        assignedUid = await getOrAssignSequentialUid(userId, cleanEmail);
-
-        await ensureProfileExists({
-          id: userId,
-          username: `user_${assignedUid.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`,
-          full_name: cleanEmail.split("@")[0],
-          email: cleanEmail,
-          uid: assignedUid,
-          status: "Hey there! I am using Six9Chat 🚀",
-        });
-
-        setSuccessMessage(`Verified successfully! Assigned UID: ${assignedUid}. Connecting to real-time chat...`);
+      if (!userId) {
+        throw new Error("Verification failed. Please check the code in your email and try again.");
       }
+
+      const assignedUid = await getOrAssignSequentialUid(userId, cleanEmail);
+
+      await ensureProfileExists({
+        id: userId,
+        username: `user_${assignedUid.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`,
+        full_name: cleanEmail.split("@")[0],
+        email: cleanEmail,
+        uid: assignedUid,
+        status: "Hey there! I am using Six9Chat 🚀",
+      });
 
       // Store UID in local storage for instant access across tabs
       if (typeof window !== "undefined") {
         localStorage.setItem(`six9_uid_${cleanEmail}`, assignedUid);
-        if (verifiedUserId) {
-          localStorage.setItem(`six9_uid_${verifiedUserId}`, assignedUid);
-        }
+        localStorage.setItem(`six9_uid_${userId}`, assignedUid);
         localStorage.setItem("six9_current_uid", assignedUid);
       }
+
+      setSuccessMessage(`Verified successfully! Assigned UID: ${assignedUid}. Connecting to real-time chat...`);
 
       // Seamless direct transition straight to the main Real-Time Chat screen
       setTimeout(() => {
@@ -390,46 +310,6 @@ function LoginContent() {
           {/* Feedback Messages */}
           <div className="px-7 pt-4">
             <AnimatePresence>
-              {mockOtpNotification && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="p-4 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/60 shadow-xl mb-3.5 backdrop-blur-xl"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#4D8DBA]/30 border border-[#97D7FF]/40 flex items-center justify-center shrink-0 text-[#FFEFC4]">
-                      <Sparkles className="w-5 h-5 animate-pulse text-[#FFEFC4]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-[#FFEFC4] uppercase tracking-wider">
-                          OTP Ready for Testing
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#97D7FF]/20 text-[#97D7FF] border border-[#97D7FF]/30">
-                          Dev Verification
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-200 mt-1 leading-relaxed">
-                        Your Gmail OTP verification code is:
-                      </p>
-                      <div className="flex items-center gap-2.5 mt-2.5">
-                        <span className="font-mono text-base font-extrabold text-[#FFEFC4] tracking-widest px-3 py-1 rounded-lg bg-[#086288] border border-[#4D8DBA]/60 shadow-inner select-all">
-                          {mockOtpNotification.code}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleAutoFillOtp(mockOtpNotification.code)}
-                          className="text-xs px-3 py-1.5 rounded-lg bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Auto-Fill Code</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
               {errorMessage && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
