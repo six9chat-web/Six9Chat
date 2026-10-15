@@ -79,6 +79,8 @@ export interface UserProfile {
   statusText: string;
   avatar: string;
   phone: string;
+  email?: string;
+  uid?: string;
 }
 
 export interface StoryItem {

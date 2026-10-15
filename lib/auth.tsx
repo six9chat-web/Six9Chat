@@ -18,6 +18,8 @@ export interface Profile {
   avatar_url: string;
   status: string;
   phone: string;
+  email?: string;
+  uid?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -31,6 +33,7 @@ export interface SignUpParams {
   username?: string;
   avatarUrl?: string;
   status?: string;
+  uid?: string;
 }
 
 export interface AuthResultData {
@@ -47,6 +50,9 @@ export interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   needsOnboarding: boolean;
+  currentUserUid: string;
+  signInWithEmailOtp: (email: string) => Promise<{ error: AuthError | Error | null; data: AuthResultData | null }>;
+  verifyEmailOtp: (email: string, token: string) => Promise<{ error: AuthError | Error | null; data: AuthResultData | null }>;
   signInWithPhone: (phone: string) => Promise<{ error: AuthError | Error | null; data: AuthResultData | null }>;
   signInWithPhoneOtp: (phone: string) => Promise<{ error: AuthError | Error | null; data: AuthResultData | null }>;
   verifyPhoneOtp: (phone: string, token: string) => Promise<{ error: AuthError | Error | null; data: AuthResultData | null }>;
@@ -63,6 +69,8 @@ export interface AuthContextType {
     avatar: string;
     statusText?: string;
     phone?: string;
+    email?: string;
+    uid?: string;
   }) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
   setNeedsOnboarding: (val: boolean) => void;
@@ -161,6 +169,120 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 /**
+ * Standalone: System-Generated Unique ID (UID) Generator
+ * Format: S9-XXXXXX (e.g. S9-7K9W2M)
+ * Fully SSR-safe and deterministic for Next.js 16
+ */
+export function generateSystemUid(seed?: string): string {
+  if (typeof window === "undefined") {
+    if (!seed) return "S9-ACTIVE";
+  } else {
+    if (seed) {
+      const existing = localStorage.getItem(`six9_uid_${seed}`);
+      if (existing) return existing;
+    }
+    const currentStored = localStorage.getItem("six9_current_uid");
+    if (currentStored && !seed) return currentStored;
+  }
+
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let hash = 0;
+  const rawSeed = seed || "default-six9-client";
+
+  for (let i = 0; i < rawSeed.length; i++) {
+    hash = (hash << 5) - hash + rawSeed.charCodeAt(i);
+    hash |= 0;
+  }
+
+  const absHash = Math.abs(hash);
+  let code = "";
+  let temp = absHash;
+  for (let i = 0; i < 6; i++) {
+    code += chars[(temp + i * 7) % chars.length];
+    temp = Math.floor(temp / 7) + 17;
+  }
+
+  const uid = `S9-${code}`;
+  if (typeof window !== "undefined") {
+    if (seed) localStorage.setItem(`six9_uid_${seed}`, uid);
+    localStorage.setItem("six9_current_uid", uid);
+  }
+  return uid;
+}
+
+export function getCurrentUserUid(userIdOrEmail?: string): string {
+  if (typeof window === "undefined") {
+    return "S9-ACTIVE";
+  }
+  if (userIdOrEmail) {
+    const stored = localStorage.getItem(`six9_uid_${userIdOrEmail}`);
+    if (stored) return stored;
+  }
+  const current = localStorage.getItem("six9_current_uid");
+  if (current) return current;
+  return generateSystemUid(userIdOrEmail);
+}
+
+/**
+ * Standalone: Send 6-digit OTP code to Gmail / Email address
+ */
+export async function signInWithEmailOtp(email: string) {
+  const cleanEmail = email.trim().toLowerCase();
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email: cleanEmail,
+    options: {
+      shouldCreateUser: true,
+      emailRedirectTo:
+        typeof window !== "undefined"
+          ? `${window.location.origin}/auth/callback`
+          : undefined,
+    },
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Standalone: Verify 6-digit Email OTP code
+ */
+export async function verifyEmailOtp(email: string, token: string) {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanToken = token.trim();
+
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: cleanEmail,
+    token: cleanToken,
+    type: "email",
+  });
+
+  if (error) throw error;
+
+  if (data.user) {
+    const assignedUid = generateSystemUid(data.user.id || cleanEmail);
+    try {
+      const existing = await getUserProfile(data.user.id);
+      if (!existing) {
+        await ensureProfileExists({
+          id: data.user.id,
+          username: `user_${data.user.id.slice(0, 6)}`,
+          full_name: cleanEmail.split("@")[0],
+          avatar_url: "",
+          email: cleanEmail,
+          uid: assignedUid,
+          phone: "",
+          status: "Hey there! I am using Six9Chat 🚀",
+        });
+      }
+    } catch (e) {
+      console.warn("Profile fetch/upsert notice:", e);
+    }
+  }
+
+  return data;
+}
+
+/**
  * Standalone: Send OTP to a Phone Number
  */
 export async function signInWithPhoneOtp(phone: string) {
@@ -213,10 +335,12 @@ export async function verifyPhoneOtp(phone: string, token: string) {
 
 export interface MockSessionData {
   userId: string;
-  phone: string;
+  email?: string;
+  phone?: string;
   fullName?: string;
   avatarUrl?: string;
   statusText?: string;
+  uid?: string;
 }
 
 export function getMockSession(): MockSessionData | null {
@@ -556,11 +680,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 1. Attempt to fetch database profile
       const dbProfile = await getUserProfile(authUser.id);
 
+      const assignedUid =
+        dbProfile?.uid ||
+        authUser.user_metadata?.uid ||
+        generateSystemUid(authUser.id || authUser.email || authUser.phone);
+
+      const userEmail =
+        dbProfile?.email ||
+        authUser.email ||
+        (typeof authUser.user_metadata?.email === "string" ? authUser.user_metadata.email : "");
+
       const name =
         dbProfile?.full_name ||
         authUser.user_metadata?.full_name ||
         authUser.user_metadata?.name ||
-        authUser.email?.split("@")[0] ||
+        (userEmail ? userEmail.split("@")[0] : null) ||
         authUser.phone ||
         "Six9 Member";
 
@@ -584,13 +718,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           "Hey there! I am using Six9Chat 🚀",
         avatar: dbProfile?.avatar_url || authUser.user_metadata?.avatar_url || initials,
         phone: dbProfile?.phone || authUser.phone || authUser.user_metadata?.phone || "",
+        email: userEmail,
+        uid: assignedUid,
       };
 
       setProfile(loadedProfile);
 
       // Check if user requires onboarding
-      if (!name || name === "Six9 Member" || name.startsWith("+")) {
-        setNeedsOnboarding(true);
+      if (!name || name === "Six9 Member") {
+        setNeedsOnboarding(false);
       } else {
         setNeedsOnboarding(false);
       }
@@ -619,14 +755,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Check for active local mock session
           const mock = getMockSession();
           if (mock) {
+            const mockUid = mock.uid || generateSystemUid(mock.userId || mock.email || mock.phone);
+            const mockName = mock.fullName || (mock.email ? mock.email.split("@")[0] : "Six9 Member");
             const mockUser = {
               id: mock.userId,
+              email: mock.email,
               app_metadata: {},
               user_metadata: {
-                full_name: mock.fullName || "Six9 Member",
-                name: mock.fullName || "Six9 Member",
+                full_name: mockName,
+                name: mockName,
                 avatar_url: mock.avatarUrl || "",
-                phone: mock.phone,
+                phone: mock.phone || "",
+                email: mock.email || "",
+                uid: mockUid,
                 status: mock.statusText || "Hey there! I am using Six9Chat 🚀",
               },
               aud: "authenticated",
@@ -690,6 +831,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadProfile]);
 
   // Context Actions
+  const handleSignInWithEmailOtp = useCallback(async (email: string) => {
+    try {
+      const data = await signInWithEmailOtp(email);
+      return { error: null, data };
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err : new Error(String(err)), data: null };
+    }
+  }, []);
+
+  const handleVerifyEmailOtp = useCallback(async (email: string, token: string) => {
+    try {
+      const data = await verifyEmailOtp(email, token);
+      return { error: null, data };
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err : new Error(String(err)), data: null };
+    }
+  }, []);
+
   const handleSignInWithPhone = useCallback(async (phoneNumber: string) => {
     try {
       const data = await signInWithPhoneOtp(phoneNumber);
@@ -768,12 +927,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       avatar: string;
       statusText?: string;
       phone?: string;
+      email?: string;
+      uid?: string;
     }) => {
       if (!user) {
         return { error: new Error("No authenticated user to update") };
       }
 
       try {
+        const assignedUid =
+          profileData.uid ||
+          profile?.uid ||
+          generateSystemUid(user.id || user.email || profileData.email);
+
         await supabase.auth.updateUser({
           data: {
             full_name: profileData.name,
@@ -782,6 +948,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             about: profileData.statusText || "Hey there! I am using Six9Chat 🚀",
             status: profileData.statusText || "Hey there! I am using Six9Chat 🚀",
             phone: profileData.phone || "",
+            email: profileData.email || user.email || "",
+            uid: assignedUid,
           },
         });
 
@@ -791,6 +959,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           avatar_url: profileData.avatar,
           status: profileData.statusText || "Hey there! I am using Six9Chat 🚀",
           phone: profileData.phone || "",
+          email: profileData.email || user.email || "",
+          uid: assignedUid,
         });
 
         const updated: UserProfile = {
@@ -800,6 +970,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           statusText: profileData.statusText || "Hey there! I am using Six9Chat 🚀",
           avatar: profileData.avatar,
           phone: profileData.phone || "",
+          email: profileData.email || user.email || "",
+          uid: assignedUid,
         };
 
         setProfile(updated);
@@ -809,7 +981,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: err instanceof Error ? err : new Error(String(err)) };
       }
     },
-    [user]
+    [user, profile]
   );
 
   const refreshProfile = useCallback(async () => {
@@ -817,6 +989,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await loadProfile(user);
     }
   }, [user, loadProfile]);
+
+  const activeUid =
+    profile?.uid ||
+    (user ? getCurrentUserUid(user.id || user.email || undefined) : getCurrentUserUid());
 
   return (
     <AuthContext.Provider
@@ -827,6 +1003,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isAuthenticated: Boolean(user),
         needsOnboarding,
+        currentUserUid: activeUid,
+        signInWithEmailOtp: handleSignInWithEmailOtp,
+        verifyEmailOtp: handleVerifyEmailOtp,
         signInWithPhone: handleSignInWithPhone,
         signInWithPhoneOtp: handleSignInWithPhone,
         verifyPhoneOtp: handleVerifyPhoneOtp,

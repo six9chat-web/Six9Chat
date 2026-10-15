@@ -451,10 +451,14 @@ export function useRealtimeChat() {
         const user = await getCurrentUser();
         if (user) {
           const profile = await getUserProfile(user.id);
+          const userEmail =
+            profile?.email ||
+            user.email ||
+            (typeof user.user_metadata?.email === "string" ? user.user_metadata.email : "");
           const displayName =
             profile?.full_name ||
             (user.user_metadata?.full_name as string) ||
-            user.email?.split("@")[0] ||
+            (userEmail ? userEmail.split("@")[0] : null) ||
             "You";
           const initials = displayName
             .split(" ")
@@ -462,6 +466,13 @@ export function useRealtimeChat() {
             .join("")
             .toUpperCase()
             .slice(0, 2);
+
+          const assignedUid =
+            profile?.uid ||
+            (user.user_metadata?.uid as string) ||
+            (typeof window !== "undefined" ? localStorage.getItem(`six9_uid_${user.id}`) : null) ||
+            (typeof window !== "undefined" ? localStorage.getItem("six9_current_uid") : null) ||
+            `S9-${user.id.slice(0, 6).toUpperCase()}`;
 
           setCurrentUser({
             id: user.id,
@@ -477,6 +488,8 @@ export function useRealtimeChat() {
               user.phone ||
               (user.user_metadata?.phone as string) ||
               "",
+            email: userEmail,
+            uid: assignedUid,
           });
         }
       } catch (err) {

@@ -11,6 +11,7 @@ import {
   Upload,
   ShieldCheck,
   AlertCircle,
+  Fingerprint,
 } from "lucide-react";
 import { useAuth, uploadAvatar } from "@/lib/auth";
 
@@ -141,9 +142,22 @@ export function ProfileOnboardingModal({
 
           {/* Modal Header */}
           <div className="relative text-center pb-4 border-b border-[#4D8DBA]/35">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#97D7FF]/20 text-[#FFEFC4] border border-[#4D8DBA]/50 text-xs font-bold uppercase tracking-wider mb-2">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Welcome to Six9Chat</span>
+            <div className="inline-flex items-center gap-2 mb-2 flex-wrap justify-center">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#97D7FF]/20 text-[#FFEFC4] border border-[#4D8DBA]/50 text-xs font-bold uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Welcome to Six9Chat</span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#032433] text-[#97D7FF] border border-[#97D7FF]/40 text-xs font-mono font-bold shadow-sm">
+                <Fingerprint className="w-3.5 h-3.5 text-[#FFEFC4]" />
+                <span>
+                  UID:{" "}
+                  {profile?.uid ||
+                    (typeof window !== "undefined"
+                      ? localStorage.getItem("six9_current_uid")
+                      : null) ||
+                    "S9-USER"}
+                </span>
+              </div>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
               Create Your Profile

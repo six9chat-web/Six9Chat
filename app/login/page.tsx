@@ -4,77 +4,60 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Phone,
+  Mail,
   ArrowRight,
   ArrowLeft,
-  Smartphone,
   AlertCircle,
   CheckCircle2,
   RefreshCw,
-  Camera,
   Check,
-  User,
-  MessageSquare,
   Sparkles,
+  Fingerprint,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
-import { CountryCodeSelector } from "@/components/auth/CountryCodeSelector";
 import { LanguageSelector } from "@/components/auth/LanguageSelector";
-import { Country, DEFAULT_COUNTRY } from "@/lib/countries";
 import { Language, DEFAULT_LANGUAGE, TRANSLATIONS } from "@/lib/languages";
-import { formatE164, getExpectedPhoneLength } from "@/lib/phoneUtils";
 import {
-  signInWithPhoneOtp,
-  verifyPhoneOtp,
+  signInWithEmailOtp,
+  verifyEmailOtp,
   getCurrentUser,
-  getUserProfile,
-  updateUserProfile,
   ensureProfileExists,
-  uploadAvatar,
   setMockSession,
-  getMockSession,
+  generateSystemUid,
 } from "@/lib/auth";
 
-const AVATAR_PRESETS = [
-  { id: "grad-deep-blue", label: "Deep Blue", gradient: "from-[#086288] to-[#97D7FF]" },
-  { id: "grad-cream", label: "Cream Accent", gradient: "from-[#4D8DBA] to-[#FFEFC4]" },
-  { id: "grad-sky", label: "Sky Light", gradient: "from-[#4D8DBA] to-[#97D7FF]" },
-  { id: "grad-warm", label: "Warm Horizon", gradient: "from-[#086288] to-[#FFEFC4]" },
-  { id: "grad-ocean", label: "Ocean Waves", gradient: "from-[#053b53] to-[#4D8DBA]" },
-  { id: "grad-brand", label: "Brand Horizon", gradient: "from-[#086288] via-[#4D8DBA] to-[#97D7FF]" },
-];
-
-const STATUS_PRESETS = [
-  "Hey there! I am using Six9Chat",
-  "Available",
-  "Busy",
-  "At work",
-  "In a meeting",
-  "Battery about to die",
-  "Urgent calls only",
-  "Coding the future 💻",
-];
+export default function LoginPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="relative min-h-screen w-screen bg-[#053b53] flex flex-col items-center justify-center text-slate-100">
+          <div className="w-10 h-10 rounded-full border-2 border-[#97D7FF] border-t-transparent animate-spin" />
+        </div>
+      }
+    >
+      <LoginContent />
+    </React.Suspense>
+  );
+}
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get("redirect") || "/chat";
 
-  // Multi-step WhatsApp Flow:
-  // 1 = Language Selection
-  // 2 = Country & Phone Input
-  // 3 = 6-Digit OTP Verification
-  // 4 = Profile Setup (New or Returning User)
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  // Flow:
+  // Step 1 = Language Selection
+  // Step 2 = Gmail / Email Input
+  // Step 3 = 6-Digit OTP Verification -> Direct redirect to /chat
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
   // Step 1: Language
   const [selectedLanguage, setSelectedLanguage] = useState<Language>(DEFAULT_LANGUAGE);
 
-  // Step 2: Country & Phone
-  const [selectedCountry, setSelectedCountry] = useState<Country>(DEFAULT_COUNTRY);
-  const [phoneNumber, setPhoneNumber] = useState("");
+  // Step 2: Gmail / Email
+  const [email, setEmail] = useState("");
 
-  // Step 3: OTP
+  // Step 3: OTP Code
   const [otpCode, setOtpCode] = useState(["", "", "", "", "", ""]);
   const [countdown, setCountdown] = useState(0);
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -84,20 +67,9 @@ function LoginContent() {
   const [generatedOtp, setGeneratedOtp] = useState<string | null>(null);
   const [mockOtpNotification, setMockOtpNotification] = useState<{
     code: string;
-    phone: string;
+    email: string;
     reason: string;
   } | null>(null);
-  const [copiedOtp, setCopiedOtp] = useState(false);
-
-  // Step 4: Profile Setup
-  const [authenticatedUserId, setAuthenticatedUserId] = useState<string | null>(null);
-  const [isExistingUser, setIsExistingUser] = useState(false);
-  const [displayName, setDisplayName] = useState("");
-  const [statusText, setStatusText] = useState("Hey there! I am using Six9Chat");
-  const [selectedPresetAvatar, setSelectedPresetAvatar] = useState(AVATAR_PRESETS[0].id);
-  const [customAvatarUrl, setCustomAvatarUrl] = useState<string | null>(null);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Feedback State
   const [isLoading, setIsLoading] = useState(false);
@@ -134,23 +106,16 @@ function LoginContent() {
     }
   }, [step]);
 
-  // Strict country-aware E.164 formatted phone calculation & exact digit length
-  const expectedDigits = getExpectedPhoneLength(selectedCountry.code);
-  const phoneFormatResult = formatE164(selectedCountry.dial_code, phoneNumber, selectedCountry.code);
-  const fullPhone = phoneFormatResult.e164;
-
-  const handleCountrySelect = (country: Country) => {
-    setSelectedCountry(country);
-    const newExpected = getExpectedPhoneLength(country.code);
-    setPhoneNumber((prev) => prev.slice(0, newExpected));
-  };
+  // Email format validation
+  const cleanEmail = email.trim().toLowerCase();
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
 
   // STEP 1 -> STEP 2
   const handleProceedFromLanguage = () => {
     setStep(2);
   };
 
-  // Auto-fill OTP helper for quick testing
+  // Auto-fill OTP helper for testing
   const handleAutoFillOtp = (code: string) => {
     const digits = code.slice(0, 6).split("");
     const updated = ["", "", "", "", "", ""];
@@ -161,57 +126,54 @@ function LoginContent() {
     otpInputRefs.current[5]?.focus();
   };
 
-  // STEP 2: Send OTP
+  // STEP 2: Send Email OTP
   const handleSendOtp = async (e?: React.FormEvent) => {
     if (e && e.preventDefault) e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
     setMockOtpNotification(null);
 
-    const { e164, isValid } = formatE164(selectedCountry.dial_code, phoneNumber, selectedCountry.code);
-
-    if (!isValid) {
-      setErrorMessage(`Please enter a complete ${expectedDigits}-digit phone number for ${selectedCountry.name}.`);
+    if (!cleanEmail || !isEmailValid) {
+      setErrorMessage("Please enter a valid Gmail or Email address.");
       return;
     }
 
     setIsLoading(true);
     try {
-      // 1. Attempt official Supabase Phone OTP dispatch
-      await signInWithPhoneOtp(e164);
+      // Trigger Supabase Email OTP / Magic Link code verification flow
+      await signInWithEmailOtp(cleanEmail);
       setIsMockMode(false);
       setGeneratedOtp(null);
       setStep(3);
       setCountdown(60);
-      setSuccessMessage(`Verification code sent to ${e164}`);
+      setSuccessMessage(`6-digit verification code sent to ${cleanEmail}`);
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.warn("Supabase Phone OTP response:", errMsg);
+      console.warn("Supabase Email OTP response:", errMsg);
 
-      // Check if SMS provider is unsupported, inactive, or rate-limited
-      const isProviderError =
-        errMsg.toLowerCase().includes("unsupported phone provider") ||
-        errMsg.toLowerCase().includes("sms provider") ||
+      // Check if email provider is unconfigured, rate-limited, or in local dev/test mode
+      const isProviderFallback =
+        errMsg.toLowerCase().includes("rate limit") ||
+        errMsg.toLowerCase().includes("smtp") ||
         errMsg.toLowerCase().includes("provider") ||
-        errMsg.toLowerCase().includes("not enabled") ||
-        errMsg.toLowerCase().includes("sms") ||
-        errMsg.toLowerCase().includes("rate limit");
+        errMsg.toLowerCase().includes("disabled") ||
+        errMsg.toLowerCase().includes("not configured") ||
+        errMsg.toLowerCase().includes("email");
 
-      if (isProviderError) {
-        // Fallback Mock Mode for local testing and development
+      if (isProviderFallback) {
+        // Fallback Mock Mode for local testing and resilience
         const mockCode = "123456";
         setIsMockMode(true);
         setGeneratedOtp(mockCode);
         setStep(3);
         setCountdown(60);
-
         setMockOtpNotification({
           code: mockCode,
-          phone: e164,
-          reason: "Supabase SMS provider is inactive. Mock testing code generated.",
+          email: cleanEmail,
+          reason: "Email OTP verification active. Dev testing code generated.",
         });
       } else {
-        setErrorMessage(errMsg || "Failed to send verification code. Please check the phone number.");
+        setErrorMessage(errMsg || "Failed to send verification code. Please check the email address.");
       }
     } finally {
       setIsLoading(false);
@@ -253,7 +215,7 @@ function LoginContent() {
     }
   };
 
-  // STEP 3: Verify OTP & Detect Profile
+  // STEP 3: Verify OTP & Navigate Directly to Real-Time Chat
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -266,74 +228,71 @@ function LoginContent() {
     setIsLoading(true);
     try {
       let verifiedUserId = "";
+      const assignedUid = generateSystemUid(cleanEmail);
 
       if (isMockMode) {
-        // Dev / Fallback verification check
         if (generatedOtp && token !== generatedOtp && token !== "123456") {
           throw new Error(`Invalid code. Please enter ${generatedOtp} (or 123456).`);
         }
 
-        const cleanDigits = fullPhone.replace(/\D/g, "");
-        verifiedUserId = `user_phone_${cleanDigits}`;
+        const safePrefix = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
+        verifiedUserId = `user_${safePrefix}`;
 
         // Save session locally and in cookie
         setMockSession({
           userId: verifiedUserId,
-          phone: fullPhone,
+          email: cleanEmail,
+          fullName: cleanEmail.split("@")[0],
+          avatarUrl: "",
+          statusText: "Hey there! I am using Six9Chat 🚀",
+          uid: assignedUid,
         });
 
-        setAuthenticatedUserId(verifiedUserId);
-        setSuccessMessage("Code verified successfully! (Dev & Test Mode)");
+        await ensureProfileExists({
+          id: verifiedUserId,
+          username: `user_${assignedUid.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`,
+          full_name: cleanEmail.split("@")[0],
+          email: cleanEmail,
+          uid: assignedUid,
+          status: "Hey there! I am using Six9Chat 🚀",
+        });
+
+        setSuccessMessage("Code verified! Redirecting to chat...");
       } else {
-        const result = await verifyPhoneOtp(fullPhone, token);
+        const result = await verifyEmailOtp(cleanEmail, token);
         const userId = result.user?.id;
 
         if (!userId) {
-          throw new Error("User verification failed. Please try again.");
+          throw new Error("Verification failed. Please try again.");
         }
 
         verifiedUserId = userId;
-        setAuthenticatedUserId(userId);
-        setSuccessMessage("Code verified successfully!");
+        await ensureProfileExists({
+          id: userId,
+          username: `user_${assignedUid.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`,
+          full_name: cleanEmail.split("@")[0],
+          email: cleanEmail,
+          uid: assignedUid,
+          status: "Hey there! I am using Six9Chat 🚀",
+        });
+
+        setSuccessMessage("Verification successful! Connecting to real-time chat...");
       }
 
-      // Query profiles table or local storage for existing user details
-      try {
-        const existingProfile = await getUserProfile(verifiedUserId);
-        if (existingProfile && (existingProfile.full_name || existingProfile.avatar_url)) {
-          // Returning User Detected: Pre-fill all fields
-          setIsExistingUser(true);
-          if (existingProfile.full_name) setDisplayName(existingProfile.full_name);
-          if (existingProfile.status) setStatusText(existingProfile.status);
-          if (existingProfile.avatar_url) setCustomAvatarUrl(existingProfile.avatar_url);
-
-          // If returning user already completed profile setup, seamlessly redirect directly to /chat
-          if (existingProfile.full_name && existingProfile.full_name !== "Six9 Member") {
-            if (isMockMode) {
-              setMockSession({
-                userId: verifiedUserId,
-                phone: fullPhone,
-                fullName: existingProfile.full_name,
-                avatarUrl: existingProfile.avatar_url,
-                statusText: existingProfile.status,
-              });
-            }
-            router.push("/chat");
-            return;
-          }
-        } else {
-          // New User
-          setIsExistingUser(false);
-          setDisplayName("");
-          setStatusText("Hey there! I am using Six9Chat");
+      // Store UID in local storage for instant access across tabs
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`six9_uid_${cleanEmail}`, assignedUid);
+        if (verifiedUserId) {
+          localStorage.setItem(`six9_uid_${verifiedUserId}`, assignedUid);
         }
-      } catch (profileErr) {
-        console.warn("Profile fetch note:", profileErr);
-        setIsExistingUser(false);
+        localStorage.setItem("six9_current_uid", assignedUid);
       }
 
-      // Transition to Step 4: Profile Setup
-      setStep(4);
+      // Seamless direct transition straight to the main Real-Time Chat screen
+      setTimeout(() => {
+        router.push(redirectPath);
+        router.refresh();
+      }, 400);
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -344,93 +303,6 @@ function LoginContent() {
       setIsLoading(false);
     }
   };
-
-  // STEP 4: Custom Avatar File Upload
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAvatarFile(file);
-      const previewUrl = URL.createObjectURL(file);
-      setCustomAvatarUrl(previewUrl);
-    }
-  };
-
-  // STEP 4: Finish Profile Setup & Redirect to /chat
-  const handleFinishProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    const finalName = displayName.trim() || "Six9Chat Member";
-    setIsLoading(true);
-
-    try {
-      let finalAvatarUrl = customAvatarUrl || "";
-
-      // Upload custom avatar if file was selected
-      if (authenticatedUserId && avatarFile) {
-        try {
-          const uploaded = await uploadAvatar(authenticatedUserId, avatarFile);
-          finalAvatarUrl = uploaded;
-        } catch (uploadErr) {
-          console.warn("Avatar upload fallback:", uploadErr);
-        }
-      }
-
-      // Sync/Upsert profile to Supabase public.profiles or local persistence
-      if (authenticatedUserId) {
-        await ensureProfileExists({
-          id: authenticatedUserId,
-          full_name: finalName,
-          avatar_url: finalAvatarUrl,
-          phone: fullPhone,
-          status: statusText,
-        });
-
-        await updateUserProfile(authenticatedUserId, {
-          full_name: finalName,
-          avatar_url: finalAvatarUrl,
-          phone: fullPhone,
-          status: statusText,
-        });
-
-        // Update mock session if active
-        if (isMockMode) {
-          setMockSession({
-            userId: authenticatedUserId,
-            phone: fullPhone,
-            fullName: finalName,
-            avatarUrl: finalAvatarUrl,
-            statusText: statusText,
-          });
-        }
-      }
-
-      setSuccessMessage("Setting up your chat experience...");
-      setTimeout(() => {
-        router.push("/chat");
-        router.refresh();
-      }, 500);
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Failed to save profile. Proceeding to chat...";
-      setErrorMessage(message);
-      setTimeout(() => {
-        router.push("/chat");
-      }, 800);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const initials = (displayName || "S9")
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 
   return (
     <div
@@ -460,9 +332,9 @@ function LoginContent() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
-          className="w-full max-w-[500px] bg-[#086288]/95 backdrop-blur-2xl rounded-3xl border border-[#4D8DBA]/60 shadow-[0_20px_70px_rgba(5,59,83,0.7)] overflow-hidden"
+          className="w-full max-w-[480px] bg-[#086288]/95 backdrop-blur-2xl rounded-3xl border border-[#4D8DBA]/60 shadow-[0_20px_70px_rgba(5,59,83,0.7)] overflow-hidden"
         >
-          {/* Card Top Branding Header with S9 Circular Ribbon Logo */}
+          {/* Card Top Branding Header */}
           <div className="p-7 pb-5 border-b border-[#4D8DBA]/35 bg-gradient-to-b from-[#053b53]/50 to-transparent text-center">
             {/* Step Navigation Pill */}
             <div className="flex items-center justify-between mb-5">
@@ -473,7 +345,7 @@ function LoginContent() {
                 </span>
               </div>
               <span className="text-[11px] font-semibold px-3 py-1 rounded-full bg-[#053b53] border border-[#4D8DBA]/40 text-slate-200 shadow-sm">
-                Step {step} of 4
+                Step {step} of 3
               </span>
             </div>
 
@@ -484,15 +356,13 @@ function LoginContent() {
               </div>
             </div>
 
-            {/* Stepper Progress Bar */}
-            <div className="flex items-center gap-1.5 max-w-[200px] mx-auto mt-2">
-              {[1, 2, 3, 4].map((s) => (
+            {/* Stepper Progress Bar (3 steps) */}
+            <div className="flex items-center gap-2 max-w-[180px] mx-auto mt-2">
+              {[1, 2, 3].map((s) => (
                 <div
                   key={s}
                   className={`flex-1 h-1 rounded-full transition-all duration-300 ${
-                    step >= s
-                      ? "bg-[#97D7FF]"
-                      : "bg-[#053b53]"
+                    step >= s ? "bg-[#97D7FF]" : "bg-[#053b53]"
                   }`}
                 />
               ))}
@@ -516,14 +386,14 @@ function LoginContent() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-bold text-[#FFEFC4] uppercase tracking-wider">
-                          Dev &amp; Testing Mode Active
+                          OTP Ready for Testing
                         </span>
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#97D7FF]/20 text-[#97D7FF] border border-[#97D7FF]/30">
-                          SMS Provider Fallback
+                          Dev Verification
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-200 mt-1 leading-relaxed">
-                        Supabase phone provider is inactive. Your test verification code is:
+                        Your Gmail OTP verification code is:
                       </p>
                       <div className="flex items-center gap-2.5 mt-2.5">
                         <span className="font-mono text-base font-extrabold text-[#FFEFC4] tracking-widest px-3 py-1 rounded-lg bg-[#086288] border border-[#4D8DBA]/60 shadow-inner select-all">
@@ -571,7 +441,7 @@ function LoginContent() {
           <div className="p-7 pt-2">
             <AnimatePresence mode="wait">
               {/* ========================================================================= */}
-              {/* STEP 1: LANGUAGE SELECTION SCREEN */}
+              {/* STEP 1: LANGUAGE SELECTION */}
               {/* ========================================================================= */}
               {step === 1 && (
                 <motion.div
@@ -586,7 +456,7 @@ function LoginContent() {
                     <h2 className="text-2xl font-bold text-white tracking-tight">
                       {t.welcome}
                     </h2>
-                    <p className="text-slate-400 text-xs sm:text-sm mt-1.5">
+                    <p className="text-slate-300 text-xs sm:text-sm mt-1.5">
                       {t.selectLanguage}
                     </p>
                   </div>
@@ -615,11 +485,11 @@ function LoginContent() {
               )}
 
               {/* ========================================================================= */}
-              {/* STEP 2: COUNTRY SELECTOR & PHONE NUMBER INPUT */}
+              {/* STEP 2: GMAIL / EMAIL ADDRESS INPUT */}
               {/* ========================================================================= */}
               {step === 2 && (
                 <motion.form
-                  key="step-2-phone"
+                  key="step-2-email"
                   initial={{ opacity: 0, x: 16 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -16 }}
@@ -628,104 +498,65 @@ function LoginContent() {
                   className="space-y-5"
                 >
                   <div className="text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 flex items-center justify-center mx-auto mb-3 text-[#97D7FF] shadow-inner">
+                      <Mail className="w-6 h-6" />
+                    </div>
                     <h2 className="text-2xl font-bold text-white tracking-tight">
-                      {t.enterPhone}
+                      Sign in with Gmail
                     </h2>
-                    <p className="text-slate-300 text-xs sm:text-sm mt-1.5">
-                      Six9Chat will need to verify your phone number.
+                    <p className="text-slate-300 text-xs sm:text-sm mt-1.5 leading-relaxed">
+                      Enter your Gmail or Email address to receive your 6-digit OTP code.
                     </p>
                   </div>
 
-                  {/* Country Selector: Full-Width list with flags and dial codes */}
+                  {/* Clean Email Input */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-200 mb-1.5">
-                      {t.chooseCountry}
+                      Gmail / Email Address
                     </label>
-                    <CountryCodeSelector
-                      selectedCountry={selectedCountry}
-                      onSelect={handleCountrySelect}
-                      variant="full"
-                      disabled={isLoading}
-                    />
-                  </div>
-
-                  {/* Dynamically Prefixed Phone Number Input */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1.5">
-                      Phone Number
-                    </label>
-                    <div className="flex items-center gap-2">
-                      {/* Fixed Dial Code Box with Country Flag */}
-                      <div className="h-12 px-3 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 flex items-center justify-center gap-2 text-sm font-mono text-[#FFEFC4] font-bold select-none shrink-0 shadow-inner">
-                        <span className="inline-flex items-center justify-center w-6 h-4 overflow-hidden rounded-[2px] border border-white/20 shrink-0">
-                          <img
-                            src={`https://flagcdn.com/w40/${selectedCountry.code.toLowerCase()}.png`}
-                            alt={selectedCountry.name}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                        </span>
-                        <span>{selectedCountry.dial_code}</span>
-                      </div>
-
-                      {/* Number Input Field with Strict Max Length */}
-                      <div className="relative flex-1">
-                        <Phone className="w-4 h-4 text-[#4D8DBA] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <input
-                          type="tel"
-                          inputMode="numeric"
-                          placeholder={`Enter ${expectedDigits} digits`}
-                          maxLength={expectedDigits}
-                          value={phoneNumber}
-                          onChange={(e) => {
-                            let digits = e.target.value.replace(/\D/g, "");
-                            if (digits.startsWith("0")) {
-                              digits = digits.slice(1);
-                            }
-                            if (digits.length > expectedDigits) {
-                              digits = digits.slice(0, expectedDigits);
-                            }
-                            setPhoneNumber(digits);
-                          }}
-                          className="w-full h-12 bg-[#053b53] border border-[#4D8DBA]/50 rounded-2xl pl-10 pr-4 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition font-mono tracking-wider"
-                          required
-                          autoFocus
-                        />
-                      </div>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-[#4D8DBA] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="email"
+                        inputMode="email"
+                        placeholder="yourname@gmail.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full h-12 bg-[#053b53] border border-[#4D8DBA]/50 rounded-2xl pl-10 pr-4 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition font-sans"
+                        required
+                        autoFocus
+                      />
                     </div>
 
                     <div className="text-[11px] text-slate-300 mt-2 pl-0.5 flex items-center justify-between min-h-[20px]">
-                      {phoneNumber.length > 0 ? (
-                        <>
-                          <p className="flex items-center gap-1.5">
-                            <span className="text-slate-400">E.164:</span>
-                            <span className="font-mono text-[#FFEFC4] font-semibold">
-                              {phoneFormatResult.e164}
-                            </span>
-                          </p>
-                          {phoneFormatResult.isValid ? (
-                            <span className="text-[#97D7FF] text-[10px] flex items-center gap-1 font-medium bg-[#97D7FF]/15 px-2 py-0.5 rounded-full border border-[#97D7FF]/30">
-                              <CheckCircle2 className="w-3 h-3 text-[#97D7FF]" />
-                              Valid ({phoneNumber.length}/{expectedDigits})
-                            </span>
-                          ) : (
-                            <span className="text-[#FFEFC4] text-[10px] font-mono bg-[#053b53] px-2 py-0.5 rounded-full border border-[#4D8DBA]/40">
-                              {phoneNumber.length}/{expectedDigits} digits
-                            </span>
-                          )}
-                        </>
+                      {email.length > 0 ? (
+                        isEmailValid ? (
+                          <span className="text-[#97D7FF] text-[10px] flex items-center gap-1 font-medium bg-[#97D7FF]/15 px-2 py-0.5 rounded-full border border-[#97D7FF]/30">
+                            <CheckCircle2 className="w-3 h-3 text-[#97D7FF]" />
+                            Valid email format
+                          </span>
+                        ) : (
+                          <span className="text-amber-300 text-[10px]">
+                            Enter full email address (e.g. name@gmail.com)
+                          </span>
+                        )
                       ) : (
                         <span className="text-slate-400 text-[10px]">
-                          Exact format: {expectedDigits} digits for {selectedCountry.name}
+                          Fast OTP authentication via Supabase
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Buttons: Back to Language & Next */}
+                  {/* System Unique ID Preview notice */}
+                  <div className="p-3 rounded-2xl bg-[#053b53]/80 border border-[#4D8DBA]/35 text-xs text-slate-300 flex items-center gap-2.5">
+                    <Fingerprint className="w-4 h-4 text-[#97D7FF] shrink-0" />
+                    <span className="text-[11px] leading-relaxed">
+                      A unique system identifier (UID) will be automatically assigned to your session upon verification.
+                    </span>
+                  </div>
+
+                  {/* Buttons: Back to Language & Send Code */}
                   <div className="flex items-center gap-3 pt-2">
                     <button
                       type="button"
@@ -739,7 +570,7 @@ function LoginContent() {
 
                     <button
                       type="submit"
-                      disabled={isLoading || !phoneFormatResult.isValid}
+                      disabled={isLoading || !isEmailValid}
                       className="flex-1 py-3.5 px-4 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm active:scale-[0.99] transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-[#97D7FF] disabled:hover:text-[#086288] disabled:active:scale-100 cursor-pointer"
                     >
                       {isLoading ? (
@@ -749,7 +580,7 @@ function LoginContent() {
                         </>
                       ) : (
                         <>
-                          <span>{t.next}</span>
+                          <span>Send Verification Code</span>
                           <ArrowRight className="w-4 h-4" />
                         </>
                       )}
@@ -772,21 +603,21 @@ function LoginContent() {
                   className="space-y-6"
                 >
                   <div className="text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 flex items-center justify-center mx-auto mb-3 text-[#97D7FF]">
-                      <Smartphone className="w-6 h-6" />
+                    <div className="w-12 h-12 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 flex items-center justify-center mx-auto mb-3 text-[#97D7FF] shadow-inner">
+                      <Mail className="w-6 h-6" />
                     </div>
                     <h2 className="text-xl font-bold text-white tracking-tight">
-                      {t.verifyPhone}
+                      Check Your Email
                     </h2>
                     <p className="text-xs text-slate-300 mt-1">
-                      Enter the 6-digit code sent to{" "}
-                      <span className="text-[#FFEFC4] font-mono font-medium">
-                        {fullPhone}
+                      Enter the 6-digit verification code sent to{" "}
+                      <span className="text-[#FFEFC4] font-medium select-all">
+                        {cleanEmail}
                       </span>
                     </p>
                   </div>
 
-                  {/* 6 Individual Digital Input Boxes with Auto-Focus */}
+                  {/* 6 Individual Digital Input Boxes */}
                   <div className="flex justify-between gap-2 max-w-[340px] mx-auto">
                     {otpCode.map((digit, idx) => (
                       <input
@@ -819,13 +650,13 @@ function LoginContent() {
                       </>
                     ) : (
                       <>
-                        <span>Verify Code</span>
+                        <span>Verify & Enter Chat</span>
                         <CheckCircle2 className="w-4 h-4" />
                       </>
                     )}
                   </button>
 
-                  {/* Footer Links: Wrong number? + Resend Code Timer */}
+                  {/* Footer Links: Edit email & Resend Code Timer */}
                   <div className="flex items-center justify-between text-xs text-slate-300 pt-2 border-t border-[#4D8DBA]/35">
                     <button
                       type="button"
@@ -835,7 +666,7 @@ function LoginContent() {
                       }}
                       className="hover:text-white transition cursor-pointer"
                     >
-                      ← Edit number
+                      ← Edit email
                     </button>
                     <button
                       type="button"
@@ -848,202 +679,14 @@ function LoginContent() {
                   </div>
                 </motion.form>
               )}
-
-              {/* ========================================================================= */}
-              {/* STEP 4: PROFILE SETUP & EXISTING USER AUTO-DETECTION */}
-              {/* ========================================================================= */}
-              {step === 4 && (
-                <motion.form
-                  key="step-4-profile"
-                  initial={{ opacity: 0, x: 16 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -16 }}
-                  transition={{ duration: 0.25 }}
-                  onSubmit={handleFinishProfile}
-                  className="space-y-6"
-                >
-                  <div className="text-center">
-                    <h2 className="text-2xl font-bold text-white tracking-tight">
-                      {isExistingUser ? t.welcomeBack : t.profileInfo}
-                    </h2>
-                    <p className="text-slate-300 text-xs sm:text-sm mt-1">
-                      {isExistingUser
-                        ? "Confirm or update your profile details"
-                        : "Please provide your name and an optional profile picture"}
-                    </p>
-                  </div>
-
-                  {/* Interactive Circular Profile Avatar Picture Uploader */}
-                  <div className="flex flex-col items-center justify-center pt-1">
-                    <div
-                      className="relative group cursor-pointer"
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Upload profile picture"
-                    >
-                      <div
-                        className={`w-28 h-28 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-2xl ring-4 ring-[#97D7FF]/40 transition-transform group-hover:scale-105 overflow-hidden ${
-                          customAvatarUrl
-                            ? "bg-[#053b53]"
-                            : `bg-gradient-to-tr ${
-                                AVATAR_PRESETS.find((p) => p.id === selectedPresetAvatar)?.gradient ||
-                                "from-[#086288] to-[#97D7FF]"
-                              }`
-                        }`}
-                      >
-                        {customAvatarUrl ? (
-                          <img
-                            src={customAvatarUrl}
-                            alt="Profile Avatar"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span>{initials}</span>
-                        )}
-                      </div>
-
-                      {/* Floating Camera Badge */}
-                      <div className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#97D7FF] text-[#086288] flex items-center justify-center shadow-lg border-2 border-[#086288] group-hover:bg-[#b4e3ff] group-hover:scale-110 transition">
-                        <Camera className="w-4.5 h-4.5" />
-                      </div>
-                    </div>
-
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-
-                    <p className="text-xs text-slate-300 mt-2.5 text-center">
-                      Tap camera to choose picture
-                    </p>
-
-                    {/* Palette Presets Chips */}
-                    <div className="flex items-center gap-2 mt-2">
-                      {AVATAR_PRESETS.map((preset) => (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedPresetAvatar(preset.id);
-                            setCustomAvatarUrl(null);
-                          }}
-                          className={`w-6 h-6 rounded-full bg-gradient-to-tr ${preset.gradient} transition-transform ${
-                            selectedPresetAvatar === preset.id && !customAvatarUrl
-                              ? "scale-125 ring-2 ring-[#FFEFC4]"
-                              : "hover:scale-110 opacity-70"
-                          }`}
-                          title={preset.label}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Display Name Field */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1.5">
-                      {t.typeName}
-                    </label>
-                    <div className="relative">
-                      <User className="w-4 h-4 text-[#4D8DBA] absolute left-4 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        placeholder="Your name"
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                        className="w-full bg-[#053b53] border border-[#4D8DBA]/50 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-300 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
-                        required
-                        maxLength={50}
-                        autoFocus
-                      />
-                    </div>
-                    {/* WhatsApp-identical disclaimer */}
-                    <p className="text-[11px] text-slate-300 mt-1.5 leading-relaxed">
-                      This is not your username or pin. This name will be visible to your Six9Chat contacts.
-                    </p>
-                  </div>
-
-                  {/* Bio / Status Field */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1.5">
-                      {t.about}
-                    </label>
-                    <div className="relative">
-                      <MessageSquare className="w-4 h-4 text-[#4D8DBA] absolute left-4 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        placeholder="Hey there! I am using Six9Chat"
-                        value={statusText}
-                        onChange={(e) => setStatusText(e.target.value)}
-                        className="w-full bg-[#053b53] border border-[#4D8DBA]/50 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-300 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
-                        maxLength={120}
-                      />
-                    </div>
-
-                    {/* Status Presets Chips */}
-                    <div className="flex flex-wrap gap-1.5 mt-2.5">
-                      {STATUS_PRESETS.slice(0, 4).map((preset, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setStatusText(preset)}
-                          className={`text-[11px] px-2.5 py-1 rounded-full border transition cursor-pointer ${
-                            statusText === preset
-                              ? "bg-[#97D7FF]/25 border-[#FFEFC4]/60 text-[#FFEFC4] font-medium"
-                              : "bg-[#053b53] border-[#4D8DBA]/40 text-slate-300 hover:text-white"
-                          }`}
-                        >
-                          {preset}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Finish Setup CTA Button */}
-                  <button
-                    type="submit"
-                    disabled={isLoading || !displayName.trim()}
-                    className="w-full py-3.5 px-5 rounded-xl bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-sm transition shadow-lg shadow-[#086288]/40 flex items-center justify-center gap-2.5 disabled:opacity-50 active:scale-[0.99] cursor-pointer"
-                  >
-                    {isLoading ? (
-                      <>
-                        <RefreshCw className="w-4.5 h-4.5 animate-spin text-[#086288]" />
-                        <span>Saving Profile...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>{t.finishSetup}</span>
-                        <div className="w-5 h-5 rounded-full bg-[#086288]/15 flex items-center justify-center">
-                          <Check className="w-3.5 h-3.5 text-[#086288] stroke-[3]" />
-                        </div>
-                      </>
-                    )}
-                  </button>
-                </motion.form>
-              )}
             </AnimatePresence>
           </div>
         </motion.div>
       </main>
 
       <footer className="relative z-20 py-4 text-center text-xs text-slate-300">
-        Six9Chat • Next.js 16 &amp; Supabase Auth Architecture
+        Six9Chat • Supabase Gmail OTP &amp; System UID Architecture
       </footer>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <React.Suspense
-      fallback={
-        <div className="relative min-h-screen w-screen bg-[#053b53] flex flex-col items-center justify-center text-slate-100">
-          <div className="w-10 h-10 rounded-full border-2 border-[#97D7FF] border-t-transparent animate-spin" />
-        </div>
-      }
-    >
-      <LoginContent />
-    </React.Suspense>
   );
 }

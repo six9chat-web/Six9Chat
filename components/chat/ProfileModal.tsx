@@ -14,6 +14,9 @@ import {
   Pencil,
   Trash2,
   Loader2,
+  Fingerprint,
+  Copy,
+  Mail,
 } from "lucide-react";
 import { UserProfile, ChatContact } from "@/types/chat";
 import { uploadAvatar } from "@/lib/auth";
@@ -60,6 +63,23 @@ export function ProfileModal({
     "Hey there! I am using Six9Chat 🚀";
   const [aboutValue, setAboutValue] = useState(initialAbout);
   const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const [copiedUid, setCopiedUid] = useState(false);
+
+  const displayUid =
+    (typeof userRecord.uid === "string" && userRecord.uid ? userRecord.uid : null) ||
+    (typeof window !== "undefined" ? localStorage.getItem(`six9_uid_${currentUser.id}`) : null) ||
+    (typeof window !== "undefined" ? localStorage.getItem("six9_current_uid") : null) ||
+    `S9-${currentUser.id.slice(0, 6).toUpperCase()}`;
+
+  const userEmail = (typeof userRecord.email === "string" ? userRecord.email : null) || "";
+
+  const handleCopyUid = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(displayUid);
+      setCopiedUid(true);
+      setTimeout(() => setCopiedUid(false), 2000);
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -186,11 +206,17 @@ export function ProfileModal({
         >
           {/* Top Banner */}
           <div className="h-28 bg-gradient-to-r from-[#086288] via-[#4D8DBA] to-[#97D7FF] relative p-4 flex justify-between items-start">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#053b53]/90 border border-[#4D8DBA]/60 text-xs font-medium text-[#FFEFC4]">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>
-                {isOwnProfile ? "My Six9 Profile" : "Contact Information"}
-              </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#053b53]/90 border border-[#4D8DBA]/60 text-xs font-medium text-[#FFEFC4] shadow-sm">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>
+                  {isOwnProfile ? "My Six9 Profile" : "Contact Information"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#032433]/90 border border-[#97D7FF]/50 text-xs font-mono font-bold text-[#FFEFC4] shadow-sm backdrop-blur-sm">
+                <Fingerprint className="w-3.5 h-3.5 text-[#97D7FF]" />
+                <span>UID: {displayUid}</span>
+              </div>
             </div>
             <button
               type="button"
@@ -355,15 +381,27 @@ export function ProfileModal({
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-white">
-                    {currentUser.name}
-                  </h2>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h2 className="text-xl font-bold text-white">
+                      {currentUser.name}
+                    </h2>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs font-mono font-bold text-[#97D7FF] bg-[#053b53] px-2.5 py-0.5 rounded-full border border-[#4D8DBA]/50">
+                        UID: {displayUid}
+                      </span>
+                      {userEmail && (
+                        <span className="text-[11px] text-slate-300 font-mono truncate max-w-[180px]">
+                          {userEmail}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   {isOwnProfile && (
                     <button
                       type="button"
                       onClick={() => setIsEditingName(true)}
-                      className="p-1 text-slate-300 hover:text-[#97D7FF] transition cursor-pointer"
+                      className="p-1.5 text-slate-300 hover:text-[#97D7FF] transition cursor-pointer rounded-lg hover:bg-[#053b53]"
                       title="Edit name"
                     >
                       <Pencil className="w-3.5 h-3.5" />
@@ -428,16 +466,55 @@ export function ProfileModal({
                 )}
               </div>
 
-              {/* Phone Line */}
-              <div className="bg-[#053b53] p-3 rounded-2xl border border-[#4D8DBA]/40">
-                <span className="text-slate-300 font-medium block mb-1 flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-[#97D7FF]" />
-                  <span>Phone Number</span>
-                </span>
-                <p className="text-slate-100 text-sm font-mono">
-                  {currentUser.phone || "Not connected to SMS"}
-                </p>
+              {/* System Unique ID (UID) Card */}
+              <div className="bg-[#053b53] p-3.5 rounded-2xl border border-[#4D8DBA]/40 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                    <Fingerprint className="w-3.5 h-3.5 text-[#97D7FF]" />
+                    <span>System Unique ID (UID)</span>
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#97D7FF]/20 text-[#97D7FF] border border-[#97D7FF]/30 font-medium">
+                    Session UID
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="font-mono text-base font-extrabold text-[#FFEFC4] tracking-widest px-2.5 py-1 rounded-xl bg-[#032433] border border-[#4D8DBA]/50 shadow-inner select-all">
+                    {displayUid}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyUid}
+                    className="px-2.5 py-1 rounded-lg bg-[#4D8DBA]/30 hover:bg-[#97D7FF]/30 text-[#97D7FF] hover:text-white text-xs font-bold border border-[#97D7FF]/40 transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    title="Copy UID"
+                  >
+                    {copiedUid ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedUid ? "Copied" : "Copy UID"}</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Connected Email (if available) */}
+              {userEmail ? (
+                <div className="bg-[#053b53] p-3 rounded-2xl border border-[#4D8DBA]/40">
+                  <span className="text-slate-300 font-medium block mb-1 flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-[#97D7FF]" />
+                    <span>Gmail / Email</span>
+                  </span>
+                  <p className="text-slate-100 text-sm font-mono truncate">
+                    {userEmail}
+                  </p>
+                </div>
+              ) : currentUser.phone ? (
+                <div className="bg-[#053b53] p-3 rounded-2xl border border-[#4D8DBA]/40">
+                  <span className="text-slate-300 font-medium block mb-1 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-[#97D7FF]" />
+                    <span>Connected Device</span>
+                  </span>
+                  <p className="text-slate-100 text-sm font-mono">
+                    {currentUser.phone}
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             {/* Bottom Actions */}

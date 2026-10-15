@@ -74,9 +74,16 @@ export function Sidebar({
               currentUser?.avatar || currentUser?.name?.slice(0, 2).toUpperCase() || "ME"
             )}
           </button>
-          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            Chats
-          </h1>
+          <div className="flex flex-col">
+            <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-tight">
+              Chats
+            </h1>
+            {currentUser?.uid && (
+              <span className="text-[10px] font-mono font-semibold text-[#97D7FF] tracking-wider leading-tight">
+                UID: {currentUser.uid}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-1 text-slate-200">
