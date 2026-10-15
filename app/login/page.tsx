@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   Check,
   RefreshCw,
-  Fingerprint,
   Eye,
   EyeOff,
   AtSign,
@@ -51,12 +50,12 @@ function AuthContent() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [selectedLanguage, setSelectedLanguage] = useState<Language>(DEFAULT_LANGUAGE);
 
-  // Common Form State
+  // Feedback State
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Sign In State
+  // Sign In State (strictly isolated from signup and from each other)
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -67,6 +66,7 @@ function AuthContent() {
   const [signupPassword, setSignupPassword] = useState("");
   const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
   const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
 
   // Realtime Username Check State
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
@@ -132,6 +132,13 @@ function AuthContent() {
     performUsernameCheck(suggested);
   };
 
+  // Switch mode handler - cleanly resets feedback & isolated field states
+  const switchMode = (newMode: "login" | "signup") => {
+    setMode(newMode);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  };
+
   // Submit Handler
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,12 +146,14 @@ function AuthContent() {
     setSuccessMessage(null);
 
     if (mode === "login") {
-      // Handle Login
-      if (!loginIdentifier.trim()) {
+      const cleanId = loginIdentifier.trim();
+      const cleanPass = loginPassword.trim();
+
+      if (!cleanId) {
         setErrorMessage("Please enter your username or email address.");
         return;
       }
-      if (!loginPassword.trim()) {
+      if (!cleanPass) {
         setErrorMessage("Please enter your password.");
         return;
       }
@@ -152,23 +161,22 @@ function AuthContent() {
       setIsLoading(true);
       try {
         const result = await loginWithCredentials({
-          identifier: loginIdentifier,
-          password: loginPassword,
+          identifier: cleanId,
+          password: cleanPass,
         });
 
         const assignedUid = result.assignedUid || "S9-01";
-        setSuccessMessage(`Welcome back! UID: ${assignedUid}. Loading chat...`);
+        setSuccessMessage(`Welcome back! Loading chat...`);
 
         setTimeout(() => {
           router.push(redirectPath);
           router.refresh();
-        }, 350);
+        }, 300);
       } catch (err: unknown) {
         setErrorMessage(err instanceof Error ? err.message : "Sign in failed. Please check credentials.");
         setIsLoading(false);
       }
     } else {
-      // Handle Signup
       const cleanUser = signupUsername.trim().toLowerCase();
       const cleanMail = signupEmail.trim().toLowerCase();
 
@@ -201,13 +209,12 @@ function AuthContent() {
           password: signupPassword,
         });
 
-        const assignedUid = result.assignedUid || "S9-01";
-        setSuccessMessage(`Account created! Assigned UID: ${assignedUid}. Entering chat...`);
+        setSuccessMessage(`Account created successfully! Entering chat...`);
 
         setTimeout(() => {
           router.push(redirectPath);
           router.refresh();
-        }, 350);
+        }, 300);
       } catch (err: unknown) {
         setErrorMessage(err instanceof Error ? err.message : "Failed to create account.");
         setIsLoading(false);
@@ -248,49 +255,15 @@ function AuthContent() {
           transition={{ duration: 0.35 }}
           className="w-full max-w-md bg-[#032433]/90 border border-[#4D8DBA]/40 rounded-3xl p-6 sm:p-8 backdrop-blur-2xl shadow-[0_20px_60px_rgba(3,36,51,0.7)]"
         >
-          {/* Dual Flow Toggle Tabs */}
-          <div className="grid grid-cols-2 p-1 bg-[#053b53] rounded-2xl border border-[#4D8DBA]/35 mb-6">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("login");
-                setErrorMessage(null);
-                setSuccessMessage(null);
-              }}
-              className={`py-2.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                mode === "login"
-                  ? "bg-[#086288] text-white shadow-md border border-[#4D8DBA]/50"
-                  : "text-slate-300 hover:text-white"
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("signup");
-                setErrorMessage(null);
-                setSuccessMessage(null);
-              }}
-              className={`py-2.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                mode === "signup"
-                  ? "bg-[#086288] text-white shadow-md border border-[#4D8DBA]/50"
-                  : "text-slate-300 hover:text-white"
-              }`}
-            >
-              Create Account
-            </button>
-          </div>
-
           {/* Card Header Title */}
           <div className="text-center mb-6">
             <h1 className="text-2xl font-black text-white tracking-tight">
               {mode === "login" ? "Welcome to Six9Chat" : "Create Your Account"}
             </h1>
-            <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+            <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
               {mode === "login"
                 ? "Sign in with your username or email address"
-                : "Real-time username verification & sequential UID generation"}
+                : "Enter your details below to get started with Six9Chat"}
             </p>
           </div>
 
@@ -340,6 +313,7 @@ function AuthContent() {
                     <AtSign className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
                     <input
                       id="signup-username"
+                      name="username"
                       type="text"
                       autoComplete="username"
                       value={signupUsername}
@@ -410,6 +384,7 @@ function AuthContent() {
                     <Mail className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
                     <input
                       id="signup-email"
+                      name="email"
                       type="email"
                       autoComplete="email"
                       value={signupEmail}
@@ -421,7 +396,7 @@ function AuthContent() {
                   </div>
                 </div>
 
-                {/* 3. Password Field */}
+                {/* 3. Password Field with Eye Toggle */}
                 <div>
                   <label
                     htmlFor="signup-password"
@@ -433,7 +408,9 @@ function AuthContent() {
                     <Lock className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
                     <input
                       id="signup-password"
+                      name="new-password"
                       type={showSignupPassword ? "text" : "password"}
+                      autoComplete="new-password"
                       value={signupPassword}
                       onChange={(e) => setSignupPassword(e.target.value)}
                       placeholder="••••••••"
@@ -443,7 +420,8 @@ function AuthContent() {
                     <button
                       type="button"
                       onClick={() => setShowSignupPassword(!showSignupPassword)}
-                      className="absolute right-3 text-slate-400 hover:text-white transition cursor-pointer"
+                      className="absolute right-3 p-1 text-slate-400 hover:text-white transition cursor-pointer"
+                      title={showSignupPassword ? "Hide password" : "Show password"}
                     >
                       {showSignupPassword ? (
                         <EyeOff className="w-4 h-4" />
@@ -454,7 +432,7 @@ function AuthContent() {
                   </div>
                 </div>
 
-                {/* 4. Confirm Password Field */}
+                {/* 4. Confirm Password Field with Eye Toggle */}
                 <div>
                   <label
                     htmlFor="signup-confirm-password"
@@ -466,27 +444,33 @@ function AuthContent() {
                     <Lock className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
                     <input
                       id="signup-confirm-password"
-                      type={showSignupPassword ? "text" : "password"}
+                      name="confirm-password"
+                      type={showSignupConfirmPassword ? "text" : "password"}
+                      autoComplete="new-password"
                       value={signupConfirmPassword}
                       onChange={(e) => setSignupConfirmPassword(e.target.value)}
                       placeholder="••••••••"
                       disabled={isLoading}
-                      className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
+                      className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowSignupConfirmPassword(!showSignupConfirmPassword)}
+                      className="absolute right-3 p-1 text-slate-400 hover:text-white transition cursor-pointer"
+                      title={showSignupConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showSignupConfirmPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
-                </div>
-
-                {/* Sequential UID Notice Pill */}
-                <div className="p-3 rounded-2xl bg-[#053b53]/80 border border-[#4D8DBA]/35 text-xs text-slate-300 flex items-center gap-2.5">
-                  <Fingerprint className="w-4 h-4 text-[#97D7FF] shrink-0" />
-                  <span className="text-[11px] leading-relaxed">
-                    Sequential UID starting from <strong>S9-01</strong> automatically assigned on signup.
-                  </span>
                 </div>
               </>
             ) : (
               // =========================================================
-              // SIGN IN FORM (Username or Email, Password)
+              // SIGN IN FORM (Strictly isolated Username/Email & Password)
               // =========================================================
               <>
                 {/* 1. Username or Email */}
@@ -500,7 +484,9 @@ function AuthContent() {
                   <div className="relative flex items-center">
                     <User className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
                     <input
+                      key="login-identifier-input"
                       id="login-identifier"
+                      name="login-identifier"
                       type="text"
                       autoComplete="username"
                       value={loginIdentifier}
@@ -523,8 +509,11 @@ function AuthContent() {
                   <div className="relative flex items-center">
                     <Lock className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
                     <input
+                      key="login-password-input"
                       id="login-password"
+                      name="login-password"
                       type={showLoginPassword ? "text" : "password"}
+                      autoComplete="current-password"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       placeholder="••••••••"
@@ -534,7 +523,8 @@ function AuthContent() {
                     <button
                       type="button"
                       onClick={() => setShowLoginPassword(!showLoginPassword)}
-                      className="absolute right-3 text-slate-400 hover:text-white transition cursor-pointer"
+                      className="absolute right-3 p-1 text-slate-400 hover:text-white transition cursor-pointer"
+                      title={showLoginPassword ? "Hide password" : "Show password"}
                     >
                       {showLoginPassword ? (
                         <EyeOff className="w-4 h-4" />
@@ -577,17 +567,13 @@ function AuthContent() {
           <div className="mt-5 pt-4 text-center border-t border-[#4D8DBA]/25">
             {mode === "login" ? (
               <p className="text-xs text-slate-300">
-                Don&apos;t have an account?{" "}
+                Need an account?{" "}
                 <button
                   type="button"
-                  onClick={() => {
-                    setMode("signup");
-                    setErrorMessage(null);
-                    setSuccessMessage(null);
-                  }}
+                  onClick={() => switchMode("signup")}
                   className="font-bold text-[#97D7FF] hover:underline cursor-pointer ml-1"
                 >
-                  Create New Account
+                  Sign Up
                 </button>
               </p>
             ) : (
@@ -595,11 +581,7 @@ function AuthContent() {
                 Already have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => {
-                    setMode("login");
-                    setErrorMessage(null);
-                    setSuccessMessage(null);
-                  }}
+                  onClick={() => switchMode("login")}
                   className="font-bold text-[#97D7FF] hover:underline cursor-pointer ml-1"
                 >
                   Sign In
@@ -611,7 +593,7 @@ function AuthContent() {
       </main>
 
       <footer className="relative z-20 py-4 text-center text-xs text-slate-300">
-        Six9Chat • Realtime Username Check &amp; S9-01 UID System
+        Six9Chat • Encrypted Real-Time Messaging Network
       </footer>
     </div>
   );
