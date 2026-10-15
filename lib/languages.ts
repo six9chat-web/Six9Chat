@@ -3,7 +3,22 @@ export interface Language {
   name: string;
   nativeName: string;
   flag: string;
+  countryCode?: string;
   direction?: "ltr" | "rtl";
+}
+
+/**
+ * Extracts 2-letter ISO country code from regional indicator flag emoji pairs (e.g. 🇬🇧 -> gb, 🇵🇰 -> pk)
+ */
+export function getCountryCodeFromFlag(flagEmoji: string): string {
+  if (!flagEmoji) return "";
+  const codePoints = Array.from(flagEmoji).map((c) => c.codePointAt(0) || 0);
+  if (codePoints.length >= 2 && codePoints[0] >= 0x1F1E6 && codePoints[0] <= 0x1F1FF) {
+    const first = String.fromCharCode(codePoints[0] - 0x1F1E6 + 65);
+    const second = String.fromCharCode(codePoints[1] - 0x1F1E6 + 65);
+    return `${first}${second}`.toLowerCase();
+  }
+  return "";
 }
 
 export const LANGUAGES: Language[] = [

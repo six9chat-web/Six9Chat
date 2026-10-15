@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, Check, Search } from "lucide-react";
-import { LANGUAGES, Language } from "@/lib/languages";
+import { LANGUAGES, Language, getCountryCodeFromFlag } from "@/lib/languages";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface LanguageSelectorProps {
@@ -46,6 +46,8 @@ export function LanguageSelector({
       lang.code.toLowerCase().includes(search.toLowerCase())
   );
 
+  const selectedCountryCode = getCountryCodeFromFlag(selectedLanguage.flag);
+
   return (
     <div className="relative w-full" ref={dropdownRef}>
       {/* Trigger Button */}
@@ -56,7 +58,17 @@ export function LanguageSelector({
         className="w-full h-12 px-4 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 hover:border-[#97D7FF] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] flex items-center justify-between text-sm text-slate-100 transition outline-none disabled:opacity-50"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <span className="text-2xl leading-none shrink-0 filter drop-shadow-sm">{selectedLanguage.flag}</span>
+          <span className="inline-flex items-center justify-center w-7 h-4.5 overflow-hidden rounded-[3px] border border-white/20 shadow-xs bg-[#086288] shrink-0 select-none">
+            <img
+              src={`https://flagcdn.com/w40/${selectedCountryCode}.png`}
+              alt={selectedLanguage.name}
+              className="w-full h-full object-cover"
+              loading="lazy"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          </span>
           <span className="font-semibold text-white text-sm truncate">{selectedLanguage.name}</span>
           <span className="text-xs text-[#97D7FF]/90 font-medium shrink-0">({selectedLanguage.nativeName})</span>
         </div>
@@ -101,6 +113,7 @@ export function LanguageSelector({
               ) : (
                 filteredLanguages.map((lang) => {
                   const isSelected = lang.code === selectedLanguage.code;
+                  const langCountryCode = getCountryCodeFromFlag(lang.flag);
                   return (
                     <button
                       key={lang.code}
@@ -117,7 +130,17 @@ export function LanguageSelector({
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-xl leading-none shrink-0">{lang.flag}</span>
+                        <span className="inline-flex items-center justify-center w-6 h-4 overflow-hidden rounded-[3px] border border-white/20 shadow-xs bg-[#053b53] shrink-0 select-none">
+                          <img
+                            src={`https://flagcdn.com/w40/${langCountryCode}.png`}
+                            alt={lang.name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        </span>
                         <span className="font-medium text-white truncate">{lang.name}</span>
                         <span className="text-slate-300 text-[11px] shrink-0">({lang.nativeName})</span>
                       </div>
