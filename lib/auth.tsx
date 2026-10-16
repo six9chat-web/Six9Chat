@@ -595,8 +595,9 @@ export function setMockSession(data: MockSessionData) {
   if (typeof window === "undefined") return;
   try {
     const json = JSON.stringify(data);
-    document.cookie = `six9_mock_session=${encodeURIComponent(json)}; path=/; max-age=604800; SameSite=Lax`;
+    document.cookie = `six9_mock_session=${encodeURIComponent(json)}; path=/; max-age=31536000; SameSite=Lax`;
     localStorage.setItem("six9_mock_session", json);
+    localStorage.setItem("six9_active_user", json);
   } catch (e) {
     console.warn("Failed to set mock session:", e);
   }
@@ -607,6 +608,8 @@ export function clearMockSession() {
   try {
     document.cookie = "six9_mock_session=; path=/; max-age=0; SameSite=Lax";
     localStorage.removeItem("six9_mock_session");
+    localStorage.removeItem("six9_active_user");
+    localStorage.removeItem("six9_active_session");
   } catch (e) {
     console.warn("Failed to clear mock session:", e);
   }
@@ -980,8 +983,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession(initialSession);
           setUser(initialSession.user);
           await loadProfile(initialSession.user);
+          try {
+            localStorage.setItem("six9_active_user", JSON.stringify({
+              userId: initialSession.user.id,
+              email: initialSession.user.email,
+              user_metadata: initialSession.user.user_metadata,
+            }));
+          } catch {}
         } else {
-          // Check for active local mock session
+          // Check for active local mock session or cached user
           const mock = getMockSession();
           if (mock) {
             const mockUid = mock.uid || generateSystemUid(mock.userId || mock.email || mock.phone);
@@ -1007,7 +1017,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const mockSess = {
               access_token: "mock-token",
               refresh_token: "mock-refresh",
-              expires_in: 604800,
+              expires_in: 31536000,
               token_type: "bearer",
               user: mockUser,
             } as Session;
@@ -1039,6 +1049,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(newSession);
         setUser(newSession.user);
         await loadProfile(newSession.user);
+        try {
+          localStorage.setItem("six9_active_user", JSON.stringify({
+            userId: newSession.user.id,
+            email: newSession.user.email,
+            user_metadata: newSession.user.user_metadata,
+          }));
+        } catch {}
       } else {
         const mock = getMockSession();
         if (mock) {

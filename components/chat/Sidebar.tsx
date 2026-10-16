@@ -32,7 +32,7 @@ interface SidebarProps {
   onOpenNewChat: () => void;
   onOpenNewGroup?: () => void;
   onOpenCommunity?: () => void;
-  onAddNewContact?: (name: string, phoneOrUid: string) => void;
+  onAddNewContact?: (name: string, phoneOrUid: string, avatarUrl?: string, targetUserId?: string) => void;
   supabaseStatus: "checking" | "connected" | "pending" | "error";
   channelConnected: boolean;
   onSignOut?: () => void;
@@ -107,8 +107,11 @@ export function Sidebar({
 
     const timer = setTimeout(async () => {
       try {
-        // 1. Strict real-time search via server API querying Supabase profiles table
-        const res = await fetch(`/api/user/search?q=${encodeURIComponent(clean)}`).catch(() => null);
+        const currentId = currentUser?.id;
+        const excludeParam = currentId ? `&excludeId=${encodeURIComponent(currentId)}` : "";
+
+        // 1. Strict real-time search via server API querying Supabase profiles table (ilike matching, strictly excluding logged-in user)
+        const res = await fetch(`/api/user/search?q=${encodeURIComponent(clean)}${excludeParam}`).catch(() => null);
         let foundUsers: Array<{
           id: string;
           username: string;
@@ -119,37 +122,49 @@ export function Sidebar({
         if (res && res.ok) {
           const json = await res.json().catch(() => ({}));
           if (Array.isArray(json.users)) {
-            foundUsers = json.users;
+            foundUsers = json.users.filter((u: any) => !currentId || u.id !== currentId);
           }
         }
 
-        // 2. Direct Supabase browser client query backup (case-insensitive ilike)
+        // 2. Direct Supabase browser client query backup (case-insensitive ilike, strictly excluding logged-in user)
         if (foundUsers.length === 0) {
-          const { data } = await supabase
+          let sbQuery = supabase
             .from("profiles")
             .select("id, username, full_name, avatar_url, status")
             .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%`)
             .limit(10);
 
+          if (currentId) {
+            sbQuery = sbQuery.neq("id", currentId);
+          }
+
+          const { data } = await sbQuery;
+
           if (Array.isArray(data) && data.length > 0) {
-            foundUsers = data.map((d: any) => ({
-              id: d.id,
-              username: d.username,
-              fullName: d.full_name || d.username,
-              avatarUrl: d.avatar_url || "",
-            }));
+            foundUsers = data
+              .filter((d: any) => !currentId || d.id !== currentId)
+              .map((d: any) => ({
+                id: d.id,
+                username: d.username,
+                fullName: d.full_name || d.username,
+                avatarUrl: d.avatar_url || "",
+              }));
           }
         }
 
-        // 3. Fallback: Directory API (all registered Supabase accounts)
+        // 3. Fallback: Directory API (all registered Supabase accounts, excluding current user)
         if (foundUsers.length === 0) {
-          const dirRes = await fetch("/api/user/directory").catch(() => null);
+          const dirEndpoint = currentId
+            ? `/api/user/directory?excludeId=${encodeURIComponent(currentId)}`
+            : "/api/user/directory";
+          const dirRes = await fetch(dirEndpoint).catch(() => null);
           if (dirRes && dirRes.ok) {
             const dirJson = await dirRes.json().catch(() => ({}));
             if (Array.isArray(dirJson.users)) {
               const matched = dirJson.users.filter((u: any) =>
-                u.username?.toLowerCase().includes(clean) ||
-                u.fullName?.toLowerCase().includes(clean)
+                (!currentId || u.id !== currentId) &&
+                (u.username?.toLowerCase().includes(clean) ||
+                 u.fullName?.toLowerCase().includes(clean))
               );
               if (matched.length > 0) {
                 foundUsers = matched;
@@ -161,7 +176,7 @@ export function Sidebar({
         // Abort updating state if user typed new characters or cleared the input
         if (isCancelled) return;
 
-        // 4. Strict match evaluation: Only set found if user exists in database
+        // 4. Strict match evaluation: Only set found if user exists in database and is not self
         if (foundUsers.length > 0) {
           setMatchedProfile(foundUsers[0]);
           setSearchStatus("found");
@@ -182,11 +197,37 @@ export function Sidebar({
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [searchQuery]);
+  }, [searchQuery, currentUser?.id]);
 
-  const handleStartChatWithFoundUser = () => {
-    if (!matchedProfile || !onAddNewContact) return;
-    onAddNewContact(matchedProfile.fullName || matchedProfile.username, matchedProfile.username);
+  const handleStartChatWithFoundUser = async () => {
+    if (!matchedProfile) return;
+
+    if (onAddNewContact) {
+      onAddNewContact(
+        matchedProfile.fullName || matchedProfile.username,
+        matchedProfile.username,
+        matchedProfile.avatarUrl,
+        matchedProfile.id
+      );
+    }
+
+    // Automatically send chat request to persist pending connection in chat_requests table
+    if (currentUser?.id && matchedProfile.id) {
+      try {
+        await fetch("/api/user/send-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            senderId: currentUser.id,
+            receiverId: matchedProfile.id,
+            message: `${currentUser.name || "User"} wants to start a conversation with you`,
+          }),
+        });
+      } catch (err) {
+        console.warn("Could not dispatch chat request on start chat:", err);
+      }
+    }
+
     onSearchChange("");
     setSearchStatus("idle");
     setMatchedProfile(null);

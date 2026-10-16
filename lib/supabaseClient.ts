@@ -29,7 +29,20 @@ export function createClient() {
     );
   }
 
-  return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  return createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    cookieOptions: {
+      name: 'sb-auth-token',
+      path: '/',
+      sameSite: 'lax',
+      maxAge: 400 * 24 * 60 * 60, // 400 days persistent session across browser reloads & computer shutdowns
+    },
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: 'sb-auth-token',
+    },
+  });
 }
 
 /**

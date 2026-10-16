@@ -43,3 +43,45 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export async function PATCH(req: Request) {
+  try {
+    const { requestId, status } = await req.json();
+
+    if (!requestId || !status) {
+      return NextResponse.json(
+        { success: false, error: "requestId and status required" },
+        { status: 400 }
+      );
+    }
+
+    const { data, error } = await supabaseServer
+      .from("chat_requests")
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", requestId)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn("[SendRequest PATCH API] db notice:", error);
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      request: data,
+    });
+  } catch (error) {
+    console.error("SendRequest PATCH API error:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to update request" },
+      { status: 500 }
+    );
+  }
+}

@@ -289,6 +289,107 @@ export function useRealtimeChat() {
         }
       });
 
+      // Listen for incoming direct broadcast messages (0ms ultra-low latency)
+      channel.on("broadcast", { event: "new_message" }, (payload) => {
+        const msg = payload.payload as any;
+        if (msg && msg.receiverId === currentUser.id) {
+          const conversationKey = msg.senderId;
+          const formatted: ChatMessage = {
+            id: msg.id || `msg-${Date.now()}`,
+            conversationId: conversationKey,
+            senderId: msg.senderId,
+            senderName: msg.senderName || "Contact",
+            senderAvatar: msg.senderAvatar || "",
+            isSelf: false,
+            text: msg.text || "",
+            timestamp: msg.timestamp || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            date: "Today",
+            status: "delivered",
+            mediaType: msg.mediaType || "text",
+            mediaUrl: msg.mediaUrl,
+            mediaMeta: msg.mediaMeta,
+            reactions: msg.reactions || [],
+          };
+
+          setMessagesMap((prev) => ({
+            ...prev,
+            [conversationKey]: [
+              ...(prev[conversationKey] || []).filter((m) => m.id !== formatted.id),
+              formatted,
+            ],
+          }));
+
+          setContacts((prev) =>
+            prev.map((c) =>
+              c.id === conversationKey
+                ? {
+                    ...c,
+                    lastMessage: {
+                      text: formatted.text || `[${(formatted.mediaType || "media").toUpperCase()}]`,
+                      timestamp: formatted.timestamp,
+                      isSelf: false,
+                      status: "read",
+                    },
+                  }
+                : c
+            )
+          );
+        }
+      });
+
+      // Listen for real-time broadcast chat requests
+      channel.on("broadcast", { event: "chat_request" }, (payload) => {
+        const req = payload.payload as any;
+        if (req && req.receiverId === currentUser.id && req.status === "pending") {
+          const formattedReq: ChatRequest = {
+            id: req.id,
+            senderId: req.senderId,
+            senderName: req.senderName || "Six9 User",
+            senderUsername: req.senderUsername || "",
+            senderAvatar: req.senderAvatar || "",
+            receiverId: req.receiverId,
+            status: "pending",
+            message: req.message || "wants to start a conversation with you",
+            createdAt: req.createdAt || "Just now",
+          };
+          setChatRequests((prev) => [
+            formattedReq,
+            ...prev.filter((r) => r.id !== formattedReq.id),
+          ]);
+        }
+      });
+
+      // Listen for real-time broadcast chat request accept/reject response
+      channel.on("broadcast", { event: "chat_request_response" }, (payload) => {
+        const p = payload.payload as any;
+        if (p && p.status === "accepted" && p.senderId === currentUser.id) {
+          const displayName = p.receiverUsername
+            ? `@${p.receiverUsername.replace(/^@/, "")}`
+            : p.receiverName || "Contact";
+
+          const newContact: ChatContact = {
+            id: p.receiverId,
+            name: displayName,
+            avatar: p.receiverAvatar || "",
+            avatarColor: "from-[#086288] to-[#4D8DBA]",
+            status: "online",
+            lastSeen: "Online now",
+            about: "Connected via Six9Chat request",
+            phone: "",
+            unreadCount: 0,
+            lastMessage: {
+              text: "Chat request accepted. Say hi! 👋",
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              isSelf: false,
+              status: "read",
+            },
+          };
+
+          setContacts((prev) => [newContact, ...prev.filter((c) => c.id !== p.receiverId)]);
+          setActiveContactId(newContact.id);
+        }
+      });
+
       // Listen for postgres changes on messages
       channel.on(
         "postgres_changes",
@@ -414,10 +515,49 @@ export function useRealtimeChat() {
       channel.on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "chat_requests" },
-        (payload) => {
+        async (payload) => {
           const updated = payload.new as Record<string, unknown> | null;
           if (updated) {
             setChatRequests((prev) => prev.filter((r) => r.id !== String(updated.id)));
+
+            // If my sent request was accepted by the other user, add them to contacts immediately!
+            if (updated.status === "accepted" && String(updated.sender_id) === currentUser.id) {
+              const receiverId = String(updated.receiver_id);
+              try {
+                const { data: rp } = await supabase
+                  .from("profiles")
+                  .select("id, full_name, username, avatar_url, status")
+                  .eq("id", receiverId)
+                  .maybeSingle();
+
+                const displayName = rp?.username
+                  ? `@${rp.username.replace(/^@/, "")}`
+                  : rp?.full_name || "Contact";
+
+                const newContact: ChatContact = {
+                  id: receiverId,
+                  name: displayName,
+                  avatar: rp?.avatar_url || "",
+                  avatarColor: "from-[#086288] to-[#4D8DBA]",
+                  status: "online",
+                  lastSeen: "Online now",
+                  about: rp?.status || "Connected via Six9Chat request",
+                  phone: "",
+                  unreadCount: 0,
+                  lastMessage: {
+                    text: "Chat request accepted. Say hi! 👋",
+                    timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                    isSelf: false,
+                    status: "read",
+                  },
+                };
+
+                setContacts((prev) => [newContact, ...prev.filter((c) => c.id !== receiverId)]);
+                setActiveContactId(newContact.id);
+              } catch (err) {
+                console.warn("Could not load newly accepted contact profile:", err);
+              }
+            }
           }
         }
       );
@@ -888,7 +1028,21 @@ export function useRealtimeChat() {
 
   // Accept a pending chat request
   const acceptChatRequest = useCallback(async (req: ChatRequest) => {
-    // 1. Update status in Supabase if configured
+    // 1. Update status in Supabase via server API route (guaranteed to bypass client RLS issues)
+    try {
+      await fetch("/api/user/send-request", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestId: req.id,
+          status: "accepted",
+        }),
+      });
+    } catch (err) {
+      console.warn("Could not sync chat_request accept to API:", err);
+    }
+
+    // Direct Supabase client sync fallback
     try {
       await supabase
         .from("chat_requests")
@@ -952,11 +1106,25 @@ export function useRealtimeChat() {
       ...prev.filter((c) => c.id !== req.senderId),
     ]);
     setActiveContactId(newContact.id);
-  }, []);
+  }, [currentUser]);
 
   // Reject a pending chat request
   const rejectChatRequest = useCallback(async (requestId: string) => {
-    // 1. Update status in Supabase if configured
+    // 1. Update status in Supabase via server API route
+    try {
+      await fetch("/api/user/send-request", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestId,
+          status: "rejected",
+        }),
+      });
+    } catch (err) {
+      console.warn("Could not sync chat_request reject to API:", err);
+    }
+
+    // Direct Supabase client sync fallback
     try {
       await supabase
         .from("chat_requests")
@@ -979,9 +1147,16 @@ export function useRealtimeChat() {
     setChatRequests((prev) => prev.filter((r) => r.id !== requestId));
   }, []);
 
-  // Add a new direct contact or start chat via phone number
-  const addNewContact = useCallback((name: string, phone: string, avatar?: string) => {
-    const id = `contact-${Date.now()}`;
+  // Add a new direct contact or start chat using their genuine Supabase user ID
+  const addNewContact = useCallback((name: string, phone: string, avatar?: string, existingUserId?: string) => {
+    const id = existingUserId || `contact-${Date.now()}`;
+
+    // If contact already exists in active contacts list, activate them immediately
+    const existing = contacts.find((c) => c.id === id || (existingUserId && c.id === existingUserId));
+    if (existing) {
+      setActiveContactId(existing.id);
+      return existing.id;
+    }
 
     const newContact: ChatContact = {
       id,
@@ -1001,10 +1176,10 @@ export function useRealtimeChat() {
       },
     };
 
-    setContacts((prev) => [newContact, ...prev]);
+    setContacts((prev) => [newContact, ...prev.filter((c) => c.id !== id)]);
     setActiveContactId(id);
     return id;
-  }, []);
+  }, [contacts]);
 
   // Create a new group conversation with members and persist to Supabase
   const createGroup = useCallback(

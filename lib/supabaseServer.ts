@@ -13,6 +13,12 @@ export async function createClientServer() {
     supabaseUrl || "https://placeholder.supabase.co",
     supabaseAnonKey || "placeholder-key",
     {
+      cookieOptions: {
+        name: "sb-auth-token",
+        path: "/",
+        sameSite: "lax",
+        maxAge: 400 * 24 * 60 * 60,
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -20,7 +26,12 @@ export async function createClientServer() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, {
+                ...options,
+                path: "/",
+                sameSite: "lax",
+                maxAge: 400 * 24 * 60 * 60,
+              })
             );
           } catch {
             // Ignored when invoked from Server Component where cookies cannot be set

@@ -46,7 +46,7 @@ CREATE POLICY "Users can update their own profile"
   WITH CHECK (auth.uid() = id);
 
 -- 4. Trigger Function: Automatically create profile on new user signup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
+CREATE OR REPLACE FUNCTION public.on_auth_user_created()
 RETURNS TRIGGER 
 SECURITY DEFINER
 SET search_path = public
@@ -57,6 +57,8 @@ DECLARE
   v_full_name TEXT;
   v_phone TEXT;
   v_avatar_url TEXT;
+  v_uid TEXT;
+  v_seq INT;
 BEGIN
   -- Extract metadata or set defaults
   v_full_name := COALESCE(
@@ -68,8 +70,13 @@ BEGIN
 
   v_username := COALESCE(
     NEW.raw_user_meta_data->>'username',
-    LOWER(REPLACE(split_part(NEW.email, '@', 1), '.', '_')) || '_' || SUBSTRING(NEW.id::text, 1, 4)
+    LOWER(REGEXP_REPLACE(split_part(NEW.email, '@', 1), '[^a-zA-Z0-9_]', '_', 'g'))
   );
+
+  -- Check for collision on username
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE username = v_username AND id <> NEW.id) THEN
+    v_username := v_username || '_' || SUBSTRING(NEW.id::text, 1, 4);
+  END IF;
 
   v_phone := COALESCE(
     NEW.phone,
@@ -82,23 +89,50 @@ BEGIN
     ''
   );
 
-  INSERT INTO public.profiles (id, username, full_name, avatar_url, phone, status)
+  -- Derive sequential UID (S9-XX) if not provided
+  v_uid := NEW.raw_user_meta_data->>'uid';
+  IF v_uid IS NULL OR v_uid = '' THEN
+    SELECT COUNT(*) + 1 INTO v_seq FROM public.profiles;
+    IF v_seq < 10 THEN
+      v_uid := 'S9-0' || v_seq::text;
+    ELSE
+      v_uid := 'S9-' || v_seq::text;
+    END IF;
+  END IF;
+
+  INSERT INTO public.profiles (id, username, full_name, avatar_url, phone, email, uid, status)
   VALUES (
     NEW.id,
     v_username,
     v_full_name,
     v_avatar_url,
     v_phone,
-    'Hey there! I am using Six9Chat'
+    NEW.email,
+    v_uid,
+    'Hey there! I am using Six9Chat 🚀'
   )
   ON CONFLICT (id) DO UPDATE
   SET
-    full_name = EXCLUDED.full_name,
-    avatar_url = CASE WHEN profiles.avatar_url IS NULL OR profiles.avatar_url = '' THEN EXCLUDED.avatar_url ELSE profiles.avatar_url END,
-    phone = CASE WHEN profiles.phone IS NULL OR profiles.phone = '' THEN EXCLUDED.phone ELSE profiles.phone END,
+    full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name),
+    email = COALESCE(EXCLUDED.email, public.profiles.email),
+    avatar_url = CASE WHEN public.profiles.avatar_url IS NULL OR public.profiles.avatar_url = '' THEN EXCLUDED.avatar_url ELSE public.profiles.avatar_url END,
+    phone = CASE WHEN public.profiles.phone IS NULL OR public.profiles.phone = '' THEN EXCLUDED.phone ELSE public.profiles.phone END,
+    uid = COALESCE(public.profiles.uid, EXCLUDED.uid),
     updated_at = timezone('utc'::text, now());
 
   RETURN NEW;
+END;
+$$;
+
+-- Alias for backwards compatibility
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER 
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN public.on_auth_user_created();
 END;
 $$;
 
@@ -106,7 +140,7 @@ $$;
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION public.on_auth_user_created();
 
 -- 6. Storage Bucket for Avatars (Optional, creates if bucket does not exist)
 INSERT INTO storage.buckets (id, name, public)

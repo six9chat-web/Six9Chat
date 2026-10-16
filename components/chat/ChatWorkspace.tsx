@@ -90,8 +90,13 @@ export function ChatWorkspace() {
     setMobileView("sidebar");
   };
 
-  const handleAddNewContact = (name: string, phone: string) => {
-    const newId = addNewContact(name, phone);
+  const handleAddNewContact = (
+    name: string,
+    phone: string,
+    avatar?: string,
+    targetUserId?: string
+  ) => {
+    const newId = addNewContact(name, phone, avatar, targetUserId);
     selectContact(newId);
     setIsNewChatOpen(false);
     setMobileView("chat");
