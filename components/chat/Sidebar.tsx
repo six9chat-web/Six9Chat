@@ -130,7 +130,7 @@ export function Sidebar({
         if (foundUsers.length === 0) {
           let sbQuery = supabase
             .from("profiles")
-            .select("id, username, full_name, avatar_url, status")
+            .select("id, username, email, full_name, about, avatar_url, status")
             .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%`)
             .limit(10);
 

@@ -28,6 +28,8 @@ export interface DirectoryUser {
   fullName: string;
   avatarUrl: string;
   status: string;
+  email?: string;
+  about?: string;
   uid?: string;
 }
 
@@ -82,7 +84,7 @@ export function NewChatModal({
         try {
           let sbQuery = supabase
             .from("profiles")
-            .select("id, username, full_name, avatar_url, status, uid, phone");
+            .select("id, username, email, full_name, about, avatar_url, status, uid, phone");
 
           if (currentUserId) {
             sbQuery = sbQuery.neq("id", currentUserId);
@@ -95,9 +97,11 @@ export function NewChatModal({
                 fetchedMap.set(p.id, {
                   id: p.id,
                   username: p.username || `user_${p.id.slice(0, 4)}`,
+                  email: p.email || "",
                   fullName: p.full_name || p.username || "Six9 Member",
                   avatarUrl: p.avatar_url || "",
-                  status: p.status || "Hey there! I am using Six9Chat",
+                  about: p.about || p.status || "Hey there! I am using Six9Chat",
+                  status: p.status || p.about || "Hey there! I am using Six9Chat",
                   uid: p.uid || "S9-01",
                 });
               }

@@ -26,6 +26,7 @@ import {
   loginWithCredentials,
   getCurrentUser,
 } from "@/lib/auth";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   return (
@@ -203,6 +204,27 @@ function AuthContent() {
 
       setIsLoading(true);
       try {
+        const fullName = cleanUser.charAt(0).toUpperCase() + cleanUser.slice(1);
+
+        // 1. Direct Supabase Auth signUp sending username, full_name and user_metadata properly
+        try {
+          await supabase.auth.signUp({
+            email: cleanMail,
+            password: signupPassword,
+            options: {
+              data: {
+                username: cleanUser,
+                full_name: fullName,
+                name: fullName,
+                about: "Building with Six9Chat 🚀",
+              },
+            },
+          });
+        } catch (sbErr) {
+          console.warn("Direct Supabase Auth signUp note:", sbErr);
+        }
+
+        // 2. Register credentials & ensure profile and persistent session creation
         const result = await registerWithCredentials({
           username: cleanUser,
           email: cleanMail,

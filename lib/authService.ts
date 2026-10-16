@@ -239,6 +239,7 @@ export async function registerNewUser(params: {
         password_hash: passwordHash,
         uid: assignedUid,
         full_name: fullName,
+        about: "Building with Six9Chat 🚀",
         status: "Building with Six9Chat 🚀",
         updated_at: new Date().toISOString(),
       },
@@ -364,16 +365,20 @@ export async function loginExistingUser(params: {
 export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
   id: string;
   username: string;
+  email?: string;
   fullName: string;
   avatarUrl: string;
+  about?: string;
   status: string;
   uid: string;
 }>> {
   const usersMap = new Map<string, {
     id: string;
     username: string;
+    email?: string;
     fullName: string;
     avatarUrl: string;
+    about?: string;
     status: string;
     uid: string;
   }>();
@@ -382,7 +387,7 @@ export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
   try {
     let query = supabaseServer
       .from("profiles")
-      .select("id, username, full_name, avatar_url, status, uid")
+      .select("id, username, email, full_name, about, avatar_url, status, uid")
       .order("created_at", { ascending: false });
 
     if (excludeId) {
@@ -397,9 +402,11 @@ export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
           usersMap.set(p.id, {
             id: p.id,
             username: p.username || `user_${p.id.slice(0, 4)}`,
+            email: p.email || "",
             fullName: p.full_name || p.username || "Six9 Member",
             avatarUrl: p.avatar_url || "",
-            status: p.status || "Hey there! I am using Six9Chat",
+            about: p.about || p.status || "Hey there! I am using Six9Chat",
+            status: p.status || p.about || "Hey there! I am using Six9Chat",
             uid: p.uid || "S9-01",
           });
         }
@@ -421,8 +428,10 @@ export async function searchRegisteredUsers(
 ): Promise<Array<{
   id: string;
   username: string;
+  email?: string;
   fullName: string;
   avatarUrl: string;
+  about?: string;
   status: string;
   uid: string;
 }>> {
@@ -432,8 +441,10 @@ export async function searchRegisteredUsers(
   const matchedMap = new Map<string, {
     id: string;
     username: string;
+    email?: string;
     fullName: string;
     avatarUrl: string;
+    about?: string;
     status: string;
     uid: string;
   }>();
@@ -442,7 +453,7 @@ export async function searchRegisteredUsers(
   try {
     let sbQuery = supabaseServer
       .from("profiles")
-      .select("id, username, full_name, avatar_url, status, uid")
+      .select("id, username, email, full_name, about, avatar_url, status, uid")
       .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%`)
       .limit(15);
 
@@ -458,9 +469,11 @@ export async function searchRegisteredUsers(
           matchedMap.set(p.id, {
             id: p.id,
             username: p.username || `user_${p.id.slice(0, 4)}`,
+            email: p.email || "",
             fullName: p.full_name || p.username || "Six9 Member",
             avatarUrl: p.avatar_url || "",
-            status: p.status || "Hey there! I am using Six9Chat",
+            about: p.about || p.status || "Hey there! I am using Six9Chat",
+            status: p.status || p.about || "Hey there! I am using Six9Chat",
             uid: p.uid || "S9-01",
           });
         }
@@ -475,7 +488,7 @@ export async function searchRegisteredUsers(
     try {
       const { data: allProfiles } = await supabaseServer
         .from("profiles")
-        .select("id, username, full_name, avatar_url, status, uid")
+        .select("id, username, email, full_name, about, avatar_url, status, uid")
         .order("created_at", { ascending: false })
         .limit(50);
 
@@ -484,13 +497,16 @@ export async function searchRegisteredUsers(
           if (excludeId && p.id === excludeId) continue;
           const u = (p.username || "").toLowerCase();
           const f = (p.full_name || "").toLowerCase();
-          if (u.includes(clean) || f.includes(clean)) {
+          const e = (p.email || "").toLowerCase();
+          if (u.includes(clean) || f.includes(clean) || e.includes(clean)) {
             matchedMap.set(p.id, {
               id: p.id,
               username: p.username || `user_${p.id.slice(0, 4)}`,
+              email: p.email || "",
               fullName: p.full_name || p.username || "Six9 Member",
               avatarUrl: p.avatar_url || "",
-              status: p.status || "Hey there! I am using Six9Chat",
+              about: p.about || p.status || "Hey there! I am using Six9Chat",
+              status: p.status || p.about || "Hey there! I am using Six9Chat",
               uid: p.uid || "S9-01",
             });
           }

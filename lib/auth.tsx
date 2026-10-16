@@ -20,6 +20,7 @@ export interface Profile {
   phone: string;
   email?: string;
   uid?: string;
+  about?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -844,7 +845,9 @@ export async function ensureProfileExists(profile: Partial<Profile> & { id: stri
     full_name: profile.full_name || "Six9Chat Member",
     avatar_url: profile.avatar_url || "",
     phone: profile.phone || "",
-    status: profile.status || "Hey there! I am using Six9Chat",
+    email: profile.email || "",
+    about: profile.about || profile.status || "Hey there! I am using Six9Chat",
+    status: profile.status || profile.about || "Hey there! I am using Six9Chat",
     updated_at: new Date().toISOString(),
   };
 
