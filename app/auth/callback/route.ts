@@ -27,9 +27,11 @@ export async function GET(request: Request) {
 
   if (code || token_hash) {
     const cookieStore = await cookies();
-    const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://rjoxghjmtrsfdhbfkodr.supabase.co";
     const supabaseUrl = rawUrl.replace(/\/rest\/v1\/?$/, "").replace(/\/+$/, "");
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+    const supabaseAnonKey =
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      "sb_publishable_uFcHccTx94Y8Kx2Qy1AsHQ_V-qovUQw";
 
     if (supabaseUrl && supabaseAnonKey) {
       const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {

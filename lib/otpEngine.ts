@@ -3,12 +3,12 @@ import { Resend } from "resend";
 import nodemailer from "nodemailer";
 
 // Initialize Supabase Admin / Server Client
-const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://rjoxghjmtrsfdhbfkodr.supabase.co";
 const supabaseUrl = rawUrl.replace(/\/rest\/v1\/?$/, "").replace(/\/+$/, "");
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "";
+  "sb_publishable_uFcHccTx94Y8Kx2Qy1AsHQ_V-qovUQw";
 
 export const supabaseServer = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false },

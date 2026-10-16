@@ -1,9 +1,11 @@
 import { createBrowserClient } from '@supabase/ssr';
 
 // Environment variables with URL sanitization (handles base URL or /rest/v1 endpoints cleanly)
-const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rjoxghjmtrsfdhbfkodr.supabase.co';
 export const supabaseUrl = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-export const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+export const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  'sb_publishable_uFcHccTx94Y8Kx2Qy1AsHQ_V-qovUQw';
 
 /**
  * Check if current Supabase environment variables are properly configured
@@ -21,15 +23,10 @@ export function isSupabaseConfigured(): boolean {
  * Client-side Supabase client for use in Browser / React Client Components ('use client')
  */
 export function createClient() {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    // Return a dummy/fallback client if env vars are missing to prevent crash during initial setup
-    return createBrowserClient(
-      supabaseUrl || 'https://placeholder.supabase.co',
-      supabaseAnonKey || 'placeholder-key'
-    );
-  }
+  const url = supabaseUrl || 'https://rjoxghjmtrsfdhbfkodr.supabase.co';
+  const key = supabaseAnonKey || 'sb_publishable_uFcHccTx94Y8Kx2Qy1AsHQ_V-qovUQw';
 
-  return createBrowserClient(supabaseUrl, supabaseAnonKey, {
+  return createBrowserClient(url, key, {
     cookieOptions: {
       name: 'sb-auth-token',
       path: '/',
