@@ -15,6 +15,7 @@ import {
   Camera,
   Loader2,
   Sparkles,
+  AlertCircle,
 } from "lucide-react";
 import { ChatContact } from "@/types/chat";
 import { Avatar } from "@/components/ui/Avatar";
@@ -345,10 +346,13 @@ export function NewChatModal({
                   </div>
                 ) : filteredUsers.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-slate-300">
-                    <p className="text-xs font-bold text-white">No users found</p>
+                    <p className="text-xs font-bold text-red-200 flex items-center justify-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-red-400" />
+                      <span>{searchFilter ? "This user does not exist" : "No users found"}</span>
+                    </p>
                     <p className="text-[11px] text-slate-300 mt-1 max-w-[220px]">
                       {searchFilter
-                        ? `No users match "${searchFilter}". Try another username or name.`
+                        ? `No registered user matches "${searchFilter}". Try another username.`
                         : "No other registered users in the network yet."}
                     </p>
                   </div>

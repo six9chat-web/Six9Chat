@@ -86,10 +86,13 @@ export function ProfileModal({
 
   // Editable fields in state
   const [nameDisplay, setNameDisplay] = useState(currentUser.name || currentUsername);
+  const [usernameDisplay, setUsernameDisplay] = useState(
+    currentUsername.replace(/^@/, "")
+  );
   const [aboutDisplay, setAboutDisplay] = useState(initialAbout);
 
   // Edit Username Modal State
-  const [editUsernameInput, setEditUsernameInput] = useState(currentUsername);
+  const [editUsernameInput, setEditUsernameInput] = useState(currentUsername.replace(/^@/, ""));
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
@@ -108,8 +111,9 @@ export function ProfileModal({
   // Synchronize internal state when currentUser changes
   useEffect(() => {
     setNameDisplay(currentUser.name || currentUsername);
+    setUsernameDisplay(currentUsername.replace(/^@/, ""));
     setAboutDisplay(initialAbout);
-    setEditUsernameInput(currentUsername);
+    setEditUsernameInput(currentUsername.replace(/^@/, ""));
     setEditAboutInput(initialAbout);
   }, [currentUser, currentUsername, initialAbout]);
 
@@ -193,6 +197,7 @@ export function ProfileModal({
       }
 
       setNameDisplay(clean.charAt(0).toUpperCase() + clean.slice(1));
+      setUsernameDisplay(clean);
       if (onUpdateProfile) {
         await onUpdateProfile({
           name: clean.charAt(0).toUpperCase() + clean.slice(1),
@@ -491,22 +496,19 @@ export function ProfileModal({
 
           {/* User Details */}
           <div className="p-6 pt-4 space-y-4">
-            {/* Username / Name Row (Zero UID subtitle badges) */}
+            {/* Username / Name Row (Clean Single Appearance, Zero Duplication) */}
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-white tracking-tight">
-                  {nameDisplay}
+                <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-1.5 font-mono">
+                  @{usernameDisplay}
                 </h2>
-                <span className="text-xs text-[#97D7FF] font-mono">
-                  @{currentUsername}
-                </span>
               </div>
 
               {isOwnProfile && (
                 <button
                   type="button"
                   onClick={() => {
-                    setEditUsernameInput(currentUsername);
+                    setEditUsernameInput(usernameDisplay);
                     setUsernameAvailable(true);
                     setUsernameSuggestions([]);
                     setUsernameError(null);
