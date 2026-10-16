@@ -357,3 +357,66 @@ export async function loginExistingUser(params: {
     error: "Account not found. Please check your credentials or register a new account.",
   };
 }
+
+/**
+ * Fetch all registered users from Supabase profiles, supplemented with server memory cache
+ */
+export async function getAllRegisteredUsers(): Promise<Array<{
+  id: string;
+  username: string;
+  fullName: string;
+  avatarUrl: string;
+  status: string;
+  uid: string;
+}>> {
+  const usersMap = new Map<string, {
+    id: string;
+    username: string;
+    fullName: string;
+    avatarUrl: string;
+    status: string;
+    uid: string;
+  }>();
+
+  // 1. Fetch from Supabase profiles table
+  try {
+    const { data: profiles, error } = await supabaseServer
+      .from("profiles")
+      .select("id, username, full_name, avatar_url, status, uid")
+      .order("created_at", { ascending: false });
+
+    if (!error && Array.isArray(profiles)) {
+      for (const p of profiles) {
+        if (p.id) {
+          usersMap.set(p.id, {
+            id: p.id,
+            username: p.username || `user_${p.id.slice(0, 4)}`,
+            fullName: p.full_name || p.username || "Six9 Member",
+            avatarUrl: p.avatar_url || "",
+            status: p.status || "Hey there! I am using Six9Chat",
+            uid: p.uid || "S9-01",
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[AuthService] getAllRegisteredUsers db notice:", err);
+  }
+
+  // 2. Supplement from memoryUsers
+  for (const u of memoryUsers.values()) {
+    if (!usersMap.has(u.id)) {
+      usersMap.set(u.id, {
+        id: u.id,
+        username: u.username,
+        fullName: u.fullName || u.username,
+        avatarUrl: "",
+        status: "Hey there! I am using Six9Chat",
+        uid: u.uid || "S9-01",
+      });
+    }
+  }
+
+  return Array.from(usersMap.values());
+}
+

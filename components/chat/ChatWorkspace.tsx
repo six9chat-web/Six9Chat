@@ -56,6 +56,7 @@ export function ChatWorkspace() {
     chatRequests,
     acceptChatRequest,
     rejectChatRequest,
+    sendChatRequest,
   } = useRealtimeChat();
 
   // Mobile viewport navigation state: 'sidebar' | 'chat'
@@ -237,16 +238,14 @@ export function ChatWorkspace() {
       <NewChatModal
         isOpen={isNewChatOpen}
         contacts={allContacts}
+        currentUserId={activeUser?.id}
         onClose={() => setIsNewChatOpen(false)}
         onSelectContact={(id) => {
           selectContact(id);
           setMobileView("chat");
         }}
-        onAddNewContact={handleAddNewContact}
-        onOpenNewGroup={() => {
-          setIsNewChatOpen(false);
-          setIsNewGroupOpen(true);
-        }}
+        onCreateGroup={handleCreateNewGroup}
+        onSendRequest={sendChatRequest}
       />
 
       {/* New Group Modal */}

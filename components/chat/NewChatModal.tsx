@@ -1,67 +1,209 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
   Search,
-  UserPlus,
   Users,
   MessageSquare,
-  Phone,
   ArrowRight,
+  ArrowLeft,
+  Check,
+  UserPlus,
+  CheckCircle2,
+  Camera,
+  Loader2,
   Sparkles,
 } from "lucide-react";
 import { ChatContact } from "@/types/chat";
 import { Avatar } from "@/components/ui/Avatar";
-import { formatE164 } from "@/lib/phoneUtils";
+import { supabase } from "@/lib/supabaseClient";
+import { cn } from "@/lib/utils";
+
+export interface DirectoryUser {
+  id: string;
+  username: string;
+  fullName: string;
+  avatarUrl: string;
+  status: string;
+  uid?: string;
+}
 
 interface NewChatModalProps {
   isOpen: boolean;
   contacts: ChatContact[];
+  currentUserId?: string;
   onClose: () => void;
   onSelectContact: (id: string) => void;
-  onAddNewContact: (name: string, phone: string) => void;
-  onOpenNewGroup?: () => void;
+  onCreateGroup: (name: string, memberIds: string[], avatarUrl?: string) => void;
+  onSendRequest?: (userId: string, name?: string, username?: string, avatar?: string) => Promise<void> | void;
 }
 
 export function NewChatModal({
   isOpen,
   contacts,
+  currentUserId,
   onClose,
   onSelectContact,
-  onAddNewContact,
-  onOpenNewGroup,
+  onCreateGroup,
+  onSendRequest,
 }: NewChatModalProps) {
-  const [filter, setFilter] = useState("");
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newPhone, setNewPhone] = useState("");
+  // Modal Navigation Mode: 'directory' | 'group-select' | 'group-details'
+  const [mode, setMode] = useState<"directory" | "group-select" | "group-details">("directory");
+
+  // User Directory State
+  const [directoryUsers, setDirectoryUsers] = useState<DirectoryUser[]>([]);
+  const [isLoadingDirectory, setIsLoadingDirectory] = useState(false);
+  const [searchFilter, setSearchFilter] = useState("");
+  const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Group Creation State
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [groupName, setGroupName] = useState("");
+  const [groupAvatar, setCustomGroupAvatar] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Load Real-time Supabase User Directory
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isMounted = true;
+
+    async function loadDirectory() {
+      setIsLoadingDirectory(true);
+      try {
+        // 1. Direct API endpoint call for instant server-cached + Supabase profiles
+        const res = await fetch("/api/user/directory");
+        const data = await res.json();
+        if (isMounted && data.success && Array.isArray(data.users)) {
+          setDirectoryUsers(data.users);
+        }
+      } catch (err) {
+        console.warn("Could not load user directory via API:", err);
+      } finally {
+        if (isMounted) setIsLoadingDirectory(false);
+      }
+    }
+
+    loadDirectory();
+
+    // 2. Real-time Supabase Subscription on 'profiles' table
+    const channel = supabase
+      .channel("public:profiles_directory_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        () => {
+          loadDirectory();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // Direct contacts list
-  const filtered = contacts.filter((c) =>
-    c.name.toLowerCase().includes(filter.toLowerCase()) ||
-    (c.phone && c.phone.includes(filter))
-  );
+  // Filter out current user from directory
+  const availableUsers = directoryUsers.filter((u) => u.id !== currentUserId);
 
-  // Check if search query contains a potential phone number
-  const hasDigits = filter.replace(/\D/g, "").length >= 7;
-  const normalizedPhone = hasDigits ? formatE164("+92", filter).e164 : "";
+  // Search filtered directory
+  const filteredUsers = availableUsers.filter((u) => {
+    const q = searchFilter.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      u.fullName.toLowerCase().includes(q) ||
+      u.username.toLowerCase().includes(q) ||
+      (u.uid && u.uid.toLowerCase().includes(q))
+    );
+  });
 
-  const handleStartPhoneChat = (phoneNumber: string) => {
-    onAddNewContact(phoneNumber, phoneNumber);
+  // Filter accepted connected contacts for group creation (excluding groups)
+  const connectedContacts = contacts.filter((c) => !c.isGroup);
+  const filteredContacts = connectedContacts.filter((c) => {
+    const q = searchFilter.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.phone && c.phone.includes(q))
+    );
+  });
+
+  // Set of connected contact IDs
+  const connectedIds = new Set(connectedContacts.map((c) => c.id));
+
+  // Handle Send Chat Request
+  const handleSendRequest = async (user: DirectoryUser) => {
+    try {
+      setSendingId(user.id);
+      if (onSendRequest) {
+        await onSendRequest(user.id, user.fullName, user.username, user.avatarUrl);
+      } else {
+        await fetch("/api/user/send-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            senderId: currentUserId,
+            receiverId: user.id,
+            message: "wants to start a conversation with you",
+          }),
+        });
+      }
+
+      setSentRequestIds((prev) => new Set(prev).add(user.id));
+      setToastMessage(`Request sent to @${user.username}!`);
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err) {
+      console.error("Failed to send chat request:", err);
+    } finally {
+      setSendingId(null);
+    }
+  };
+
+  // Group Multi-Select Handlers
+  const toggleSelectContact = (id: string) => {
+    setSelectedContactIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const removeSelectedContact = (id: string) => {
+    setSelectedContactIds((prev) => prev.filter((item) => item !== id));
+  };
+
+  const handleGroupPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setCustomGroupAvatar(url);
+    }
+  };
+
+  const handleFinishGroup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!groupName.trim() || selectedContactIds.length === 0) return;
+
+    onCreateGroup(groupName.trim(), selectedContactIds, groupAvatar || undefined);
+    // Reset modal
+    setMode("directory");
+    setSelectedContactIds([]);
+    setGroupName("");
+    setCustomGroupAvatar(null);
     onClose();
   };
 
-  const handleCreateContact = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim()) return;
-    onAddNewContact(newName.trim(), newPhone.trim() || "+1 (555) 000-0000");
-    setNewName("");
-    setNewPhone("");
-    setShowAddForm(false);
+  const handleClose = () => {
+    setMode("directory");
+    setSelectedContactIds([]);
+    setGroupName("");
+    setCustomGroupAvatar(null);
+    setSearchFilter("");
     onClose();
   };
 
@@ -72,42 +214,89 @@ export function NewChatModal({
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-md bg-[#086288] border border-[#4D8DBA]/60 rounded-3xl p-5 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-slate-100"
+          className="relative w-full max-w-md bg-[#086288] border border-[#4D8DBA]/60 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-slate-100"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-[#4D8DBA]/35">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-[#97D7FF]" />
-              <span>New Chat</span>
-            </h3>
+          {/* ============================================================== */}
+          {/* HEADER BAR                                                     */}
+          {/* ============================================================== */}
+          <div className="flex items-center justify-between px-5 py-4 bg-[#086288] border-b border-[#4D8DBA]/35 shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              {mode !== "directory" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (mode === "group-details") setMode("group-select");
+                    else setMode("directory");
+                  }}
+                  className="p-1 -ml-1 rounded-full text-slate-200 hover:text-white hover:bg-[#4D8DBA]/30 transition"
+                  title="Back"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+              )}
+
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-[#4D8DBA]/30 text-[#97D7FF] flex items-center justify-center shrink-0">
+                  {mode === "directory" ? (
+                    <MessageSquare className="w-4 h-4" />
+                  ) : (
+                    <Users className="w-4 h-4" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                    {mode === "directory" && "New Chat"}
+                    {mode === "group-select" && "Add group members"}
+                    {mode === "group-details" && "New group details"}
+                  </h3>
+                  <p className="text-[11px] text-slate-200">
+                    {mode === "directory" && "Discover users & start conversations"}
+                    {mode === "group-select" && `${selectedContactIds.length} contacts selected`}
+                    {mode === "group-details" && "Name your group to start chatting"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <button
               type="button"
-              onClick={onClose}
-              className="p-1 rounded-full text-slate-200 hover:text-white transition"
+              onClick={handleClose}
+              className="p-1.5 rounded-full text-slate-200 hover:text-white hover:bg-[#4D8DBA]/30 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {!showAddForm ? (
-            <>
-              {/* Search input */}
-              <div className="my-3">
-                <div className="relative flex items-center bg-[#053b53] border border-[#4D8DBA]/40 rounded-xl px-3 py-2 text-xs focus-within:border-[#97D7FF] transition">
+          {/* Quick Toast Feedback */}
+          {toastMessage && (
+            <div className="mx-4 mt-2 px-3 py-1.5 rounded-xl bg-[#053b53] border border-[#97D7FF]/60 text-[#97D7FF] text-xs font-semibold flex items-center gap-1.5 shadow-md">
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{toastMessage}</span>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* 1. DIRECTORY VIEW                                              */}
+          {/* ============================================================== */}
+          {mode === "directory" && (
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden p-4 pt-3">
+              {/* Search Bar */}
+              <div className="relative mb-3 shrink-0">
+                <div className="relative flex items-center bg-[#053b53] border border-[#4D8DBA]/40 rounded-xl px-3 py-2 text-xs focus-within:border-[#97D7FF] focus-within:ring-1 focus-within:ring-[#97D7FF] transition">
                   <Search className="w-4 h-4 text-[#4D8DBA] mr-2 shrink-0" />
                   <input
                     type="text"
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
-                    placeholder="Search name or type phone number..."
-                    className="w-full bg-transparent text-white placeholder-slate-300 outline-none"
+                    value={searchFilter}
+                    onChange={(e) => setSearchFilter(e.target.value)}
+                    placeholder="Search users by username or name..."
+                    className="w-full bg-transparent text-white placeholder-slate-300 outline-none text-xs sm:text-sm"
                     autoFocus
                   />
-                  {filter && (
+                  {searchFilter && (
                     <button
                       type="button"
-                      onClick={() => setFilter("")}
-                      className="text-slate-300 hover:text-white ml-1"
+                      onClick={() => setSearchFilter("")}
+                      className="text-slate-300 hover:text-white ml-1 p-0.5"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -115,140 +304,344 @@ export function NewChatModal({
                 </div>
               </div>
 
-              {/* Direct Phone Number Chat Quick Prompt */}
-              {hasDigits && (
-                <div
-                  onClick={() => handleStartPhoneChat(normalizedPhone || filter)}
-                  className="mb-3 p-3 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 hover:bg-[#4D8DBA]/30 cursor-pointer transition flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#4D8DBA]/30 text-[#97D7FF] flex items-center justify-center shrink-0">
-                      <Phone className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-white">
-                        Message {normalizedPhone || filter}
-                      </p>
-                      <p className="text-[11px] text-[#FFEFC4]">
-                        Start direct WhatsApp-style conversation
-                      </p>
-                    </div>
+              {/* Action Row: New group button */}
+              <div
+                onClick={() => setMode("group-select")}
+                className="mb-3 p-3 rounded-2xl bg-[#053b53]/80 hover:bg-[#4D8DBA]/30 border border-[#4D8DBA]/40 flex items-center gap-3 cursor-pointer transition select-none group"
+              >
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#086288] to-[#97D7FF] text-[#053b53] flex items-center justify-center font-bold shadow-md shrink-0 group-hover:scale-105 transition-transform">
+                  <Users className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#97D7FF] transition-colors">
+                    New group
+                  </h4>
+                  <p className="text-[11px] text-slate-200 truncate">
+                    Create community with multiple contacts
+                  </p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-[#97D7FF] group-hover:translate-x-1 transition-transform shrink-0" />
+              </div>
+
+              {/* Section Header: Real-time Registered Users */}
+              <div className="flex items-center justify-between pb-1.5 px-1 shrink-0 border-b border-[#4D8DBA]/25">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FFEFC4] flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-[#97D7FF]" />
+                  <span>Registered Users ({filteredUsers.length})</span>
+                </span>
+                <span className="text-[10px] font-mono text-[#97D7FF]/80">
+                  Real-time Directory
+                </span>
+              </div>
+
+              {/* Real-time Users List */}
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 pt-2 divide-y divide-[#4D8DBA]/20">
+                {isLoadingDirectory && directoryUsers.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-300">
+                    <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin mb-2" />
+                    <p className="text-xs font-semibold text-slate-200">
+                      Loading registered users...
+                    </p>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-[#97D7FF] group-hover:translate-x-1 transition-transform" />
+                ) : filteredUsers.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-slate-300">
+                    <p className="text-xs font-bold text-white">No users found</p>
+                    <p className="text-[11px] text-slate-300 mt-1 max-w-[220px]">
+                      {searchFilter
+                        ? `No users match "${searchFilter}". Try another username or name.`
+                        : "No other registered users in the network yet."}
+                    </p>
+                  </div>
+                ) : (
+                  filteredUsers.map((user) => {
+                    const isConnected = connectedIds.has(user.id);
+                    const isRequested = sentRequestIds.has(user.id);
+                    const isBusy = sendingId === user.id;
+
+                    return (
+                      <div
+                        key={user.id}
+                        className="pt-2 first:pt-0 flex items-center justify-between gap-3 p-2 rounded-2xl hover:bg-[#4D8DBA]/20 transition"
+                      >
+                        {/* User DP + Details */}
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <Avatar
+                            src={user.avatarUrl}
+                            alt={user.fullName}
+                            className="w-10 h-10 shrink-0 shadow-md ring-1 ring-[#4D8DBA]/40"
+                          />
+
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-xs sm:text-sm font-bold text-white truncate">
+                              {user.fullName}
+                            </h4>
+                            <p className="text-[11px] font-mono text-[#97D7FF] truncate">
+                              @{user.username.replace(/^@/, "")}
+                            </p>
+                            <p className="text-[10px] text-slate-300 truncate">
+                              {user.status || "Hey there! I am using Six9Chat"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="shrink-0 pl-2">
+                          {isConnected ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onSelectContact(user.id);
+                                handleClose();
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-[#053b53] hover:bg-[#4D8DBA]/40 text-[#97D7FF] hover:text-white border border-[#4D8DBA]/60 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>Chat</span>
+                            </button>
+                          ) : isRequested ? (
+                            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#053b53] text-[#FFEFC4] border border-[#FFEFC4]/30 text-xs font-semibold select-none">
+                              <Check className="w-3.5 h-3.5 text-[#97D7FF]" />
+                              <span>Requested</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleSendRequest(user)}
+                              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] hover:brightness-105 active:scale-95 text-[#086288] font-black text-xs flex items-center gap-1.5 shadow-md shadow-[#086288]/40 transition disabled:opacity-50 cursor-pointer"
+                            >
+                              {isBusy ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <UserPlus className="w-3.5 h-3.5" />
+                              )}
+                              <span>Send Request</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* 2. GROUP CREATION: STEP 1 (MEMBER SELECTION)                   */}
+          {/* ============================================================== */}
+          {mode === "group-select" && (
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden p-4">
+              {/* Selected Contact Chips */}
+              {selectedContactIds.length > 0 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-2.5 mb-2 shrink-0 no-scrollbar">
+                  {selectedContactIds.map((id) => {
+                    const c = connectedContacts.find((item) => item.id === id);
+                    if (!c) return null;
+                    return (
+                      <span
+                        key={id}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#053b53] border border-[#4D8DBA]/50 text-xs text-slate-100 shrink-0 shadow-sm"
+                      >
+                        <Avatar
+                          src={c.avatar}
+                          alt={c.name}
+                          className="w-4 h-4 shrink-0 shadow-xs"
+                          iconClassName="w-3/5 h-3/5 text-slate-200"
+                        />
+                        <span className="max-w-[85px] truncate text-[11px] font-semibold">{c.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeSelectedContact(id)}
+                          className="text-slate-300 hover:text-white ml-0.5 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    );
+                  })}
                 </div>
               )}
 
-              {/* Quick Action Rows: New Group & New Contact */}
-              <div className="space-y-1.5 pb-2 border-b border-[#4D8DBA]/35">
-                {onOpenNewGroup && (
-                  <div
-                    onClick={() => {
-                      onClose();
-                      onOpenNewGroup();
-                    }}
-                    className="flex items-center gap-3 p-2.5 rounded-2xl hover:bg-[#4D8DBA]/25 cursor-pointer transition select-none"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-[#97D7FF] text-[#086288] flex items-center justify-center font-bold">
-                      <Users className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-white">New group</h4>
-                      <p className="text-[11px] text-slate-200">
-                        Create community with multiple contacts
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <div
-                  onClick={() => setShowAddForm(true)}
-                  className="flex items-center gap-3 p-2.5 rounded-2xl hover:bg-[#4D8DBA]/25 cursor-pointer transition select-none"
-                >
-                  <div className="w-10 h-10 rounded-full bg-[#053b53] text-[#97D7FF] flex items-center justify-center font-bold border border-[#4D8DBA]/50">
-                    <UserPlus className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">New contact</h4>
-                    <p className="text-[11px] text-slate-200">
-                      Add a new person to your address book
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Contacts List */}
-              <div className="flex-1 overflow-y-auto space-y-1 pr-1 pt-2 divide-y divide-[#4D8DBA]/20">
-                <span className="text-[10px] font-bold text-[#FFEFC4] uppercase tracking-wider block py-1">
-                  Contacts on Six9Chat ({filtered.length})
-                </span>
-                {filtered.map((c) => (
-                  <div
-                    key={c.id}
-                    onClick={() => {
-                      onSelectContact(c.id);
-                      onClose();
-                    }}
-                    className="flex items-center gap-3 p-2.5 rounded-2xl hover:bg-[#4D8DBA]/25 cursor-pointer transition"
-                  >
-                    <Avatar
-                      src={c.avatar}
-                      alt={c.name}
-                      className="w-10 h-10 shrink-0 shadow-md"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-white truncate">{c.name}</p>
-                      <p className="text-[11px] text-slate-200 truncate">
-                        {c.about || c.phone || "Hey there! I am using Six9Chat"}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            /* Create Contact Form */
-            <form onSubmit={handleCreateContact} className="space-y-4 py-3 text-xs">
-              <div>
-                <label className="block text-slate-200 font-semibold mb-1">
-                  Contact Full Name
-                </label>
+              {/* Search contacts input */}
+              <div className="relative mb-3 shrink-0">
+                <Search className="w-4 h-4 text-[#4D8DBA] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
-                  required
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="e.g. Jordan Blake"
-                  className="w-full bg-[#053b53] border border-[#4D8DBA]/40 rounded-xl px-4 py-2.5 text-white outline-none focus:border-[#97D7FF]"
+                  value={searchFilter}
+                  onChange={(e) => setSearchFilter(e.target.value)}
+                  placeholder="Search connected contacts..."
+                  className="w-full bg-[#053b53] border border-[#4D8DBA]/40 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-300 focus:outline-none focus:border-[#97D7FF]"
                   autoFocus
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-200 font-semibold mb-1">
-                  Phone Number
+              {/* Connected Contacts List with Checkboxes */}
+              <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                {connectedContacts.length === 0 ? (
+                  <div className="py-12 px-4 text-center text-slate-300 flex flex-col items-center justify-center">
+                    <Users className="w-10 h-10 text-[#4D8DBA] mb-2 stroke-[1.5]" />
+                    <p className="text-xs font-bold text-white">No connected contacts yet</p>
+                    <p className="text-[11px] text-slate-300 mt-1 max-w-[220px]">
+                      Send chat requests to users in the directory first to connect and add them to groups.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setMode("directory")}
+                      className="mt-3 px-3 py-1.5 rounded-xl bg-[#4D8DBA] hover:bg-[#97D7FF] text-white hover:text-[#086288] text-xs font-bold transition cursor-pointer"
+                    >
+                      Back to Directory
+                    </button>
+                  </div>
+                ) : (
+                  filteredContacts.map((contact) => {
+                    const isSelected = selectedContactIds.includes(contact.id);
+                    return (
+                      <div
+                        key={contact.id}
+                        onClick={() => toggleSelectContact(contact.id)}
+                        className={cn(
+                          "flex items-center justify-between p-2.5 rounded-2xl cursor-pointer transition select-none border",
+                          isSelected
+                            ? "bg-[#4D8DBA]/35 border-[#97D7FF]/60 shadow-md"
+                            : "bg-[#053b53]/60 hover:bg-[#4D8DBA]/20 border-transparent"
+                        )}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar
+                            src={contact.avatar}
+                            alt={contact.name}
+                            className="w-10 h-10 shadow-md shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-white truncate">
+                              {contact.name}
+                            </h4>
+                            <p className="text-[11px] text-slate-300 truncate">
+                              {contact.about || contact.phone || "Six9Chat Contact"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* WhatsApp-style Checkbox */}
+                        <div
+                          className={cn(
+                            "w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2",
+                            isSelected
+                              ? "bg-[#97D7FF] border-[#97D7FF] text-[#086288]"
+                              : "border-[#4D8DBA]/60 bg-[#053b53]"
+                          )}
+                        >
+                          {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Bottom Next Step Button */}
+              {connectedContacts.length > 0 && (
+                <div className="pt-3 border-t border-[#4D8DBA]/35 flex justify-end shrink-0">
+                  <button
+                    type="button"
+                    disabled={selectedContactIds.length === 0}
+                    onClick={() => setMode("group-details")}
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] hover:brightness-105 active:scale-98 text-[#086288] font-black text-xs flex items-center justify-center gap-2 shadow-lg disabled:opacity-40 transition cursor-pointer"
+                  >
+                    <span>Next ({selectedContactIds.length} members)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* 3. GROUP CREATION: STEP 2 (GROUP DETAILS & FINALIZE)           */}
+          {/* ============================================================== */}
+          {mode === "group-details" && (
+            <form onSubmit={handleFinishGroup} className="flex-1 flex flex-col p-5 overflow-y-auto">
+              {/* Group Avatar Upload */}
+              <div className="flex flex-col items-center mb-5">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleGroupPhoto}
+                  className="hidden"
+                />
+
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-[#086288] via-[#4D8DBA] to-[#97D7FF] p-0.5 shadow-xl cursor-pointer hover:scale-105 transition"
+                  title="Upload group icon"
+                >
+                  <div className="w-full h-full rounded-full bg-[#053b53] overflow-hidden flex items-center justify-center text-white">
+                    <Avatar
+                      src={groupAvatar}
+                      alt={groupName || "Group"}
+                      className="w-full h-full"
+                      iconClassName="w-10 h-10 text-slate-200"
+                    />
+                  </div>
+
+                  <div className="absolute bottom-0 right-0 p-1.5 rounded-full bg-[#97D7FF] text-[#086288] shadow-md hover:scale-110 transition">
+                    <Camera className="w-3.5 h-3.5 font-bold" />
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-300 mt-2">
+                  Click to add group icon (optional)
+                </p>
+              </div>
+
+              {/* Group Name Input */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-slate-200 mb-1">
+                  Group Subject / Name
                 </label>
                 <input
                   type="text"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="e.g. +92 341 4348189"
-                  className="w-full bg-[#053b53] border border-[#4D8DBA]/40 rounded-xl px-4 py-2.5 text-white outline-none focus:border-[#97D7FF]"
+                  required
+                  value={groupName}
+                  onChange={(e) => setGroupName(e.target.value)}
+                  placeholder="Provide a group name (e.g. Design Team)"
+                  className="w-full bg-[#053b53] border border-[#4D8DBA]/50 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
+                  autoFocus
                 />
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
+              {/* Selected Members Summary */}
+              <div className="mb-6 p-3 rounded-xl bg-[#053b53]/80 border border-[#4D8DBA]/35">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#FFEFC4] mb-1.5">
+                  Members in Group ({selectedContactIds.length + 1})
+                </p>
+                <p className="text-xs text-slate-200">
+                  You,{" "}
+                  {selectedContactIds
+                    .map((id) => connectedContacts.find((c) => c.id === id)?.name)
+                    .filter(Boolean)
+                    .join(", ")}
+                </p>
+              </div>
+
+              {/* Create Group Action Button */}
+              <div className="mt-auto flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddForm(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-[#053b53] text-slate-200 font-semibold hover:bg-[#4D8DBA]/30 transition cursor-pointer"
+                  onClick={() => setMode("group-select")}
+                  className="flex-1 py-2.5 rounded-xl bg-[#053b53] hover:bg-[#4D8DBA]/30 text-slate-200 font-semibold text-xs transition cursor-pointer"
                 >
-                  Cancel
+                  Back
                 </button>
+
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-[#97D7FF] text-[#086288] font-extrabold hover:bg-[#b4e3ff] transition cursor-pointer"
+                  disabled={!groupName.trim() || selectedContactIds.length === 0}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] hover:brightness-105 active:scale-95 text-[#086288] font-black text-xs flex items-center justify-center gap-1.5 shadow-lg disabled:opacity-40 transition cursor-pointer"
                 >
-                  Save & Message
+                  <Check className="w-4 h-4 stroke-[3]" />
+                  <span>Create Group</span>
                 </button>
               </div>
             </form>

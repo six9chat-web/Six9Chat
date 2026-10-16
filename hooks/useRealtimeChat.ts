@@ -203,6 +203,17 @@ export function useRealtimeChat() {
         }
       });
 
+      // Listen for newly created groups
+      channel.on("broadcast", { event: "new_group" }, (payload) => {
+        const incomingGroup = payload.payload as ChatContact;
+        if (incomingGroup && incomingGroup.id) {
+          setContacts((prev) => [
+            incomingGroup,
+            ...prev.filter((c) => c.id !== incomingGroup.id),
+          ]);
+        }
+      });
+
       // Listen for postgres changes on messages
       channel.on(
         "postgres_changes",
@@ -745,9 +756,9 @@ export function useRealtimeChat() {
     return id;
   }, []);
 
-  // Create a new group conversation with members
+  // Create a new group conversation with members and persist to Supabase
   const createGroup = useCallback(
-    (groupName: string, memberIds: string[], groupAvatar?: string) => {
+    (groupName: string, memberIds: string[], groupAvatar?: string): string => {
       const id = `group-${Date.now()}`;
 
       const memberNames = contacts
@@ -776,9 +787,68 @@ export function useRealtimeChat() {
 
       setContacts((prev) => [newGroup, ...prev]);
       setActiveContactId(id);
+
+      // Persist to Supabase groups table in background
+      fetch("/api/user/create-group", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          name: groupName,
+          memberIds: [...memberIds, currentUser.id],
+          avatarUrl: groupAvatar || "",
+          createdBy: currentUser.id,
+        }),
+      }).catch((e) => console.warn("Group persist note:", e));
+
+      // Broadcast to other clients
+      try {
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "new_group",
+          payload: newGroup,
+        });
+      } catch {}
+
       return id;
     },
-    [contacts, currentUser.name]
+    [contacts, currentUser.name, currentUser.id]
+  );
+
+  // Send a real-time pending chat request to another user
+  const sendChatRequest = useCallback(
+    async (targetUserId: string, targetName?: string, targetUsername?: string, targetAvatar?: string) => {
+      try {
+        await fetch("/api/user/send-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            senderId: currentUser.id,
+            receiverId: targetUserId,
+            message: `${currentUser.name} wants to start a conversation with you`,
+          }),
+        });
+
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "chat_request",
+          payload: {
+            id: `req-${Date.now()}`,
+            senderId: currentUser.id,
+            senderName: currentUser.name,
+            senderUsername: currentUser.username,
+            senderAvatar: currentUser.avatar,
+            receiverId: targetUserId,
+            status: "pending",
+            message: `${currentUser.name} wants to start a conversation with you`,
+            createdAt: "Just now",
+          },
+        });
+      } catch (e) {
+        console.warn("Send request error:", e);
+      }
+    },
+    [currentUser]
   );
 
   const handleSignOut = useCallback(async () => {
@@ -821,6 +891,7 @@ export function useRealtimeChat() {
     chatRequests,
     acceptChatRequest,
     rejectChatRequest,
+    sendChatRequest,
     signOut: handleSignOut,
   };
 }
