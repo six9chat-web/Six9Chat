@@ -25,30 +25,7 @@ import {
   getCurrentUserUid,
 } from "@/lib/auth";
 
-const INITIAL_CHAT_REQUESTS: ChatRequest[] = [
-  {
-    id: "req-demo-1",
-    senderId: "contact-sarah",
-    senderName: "Sarah Connor",
-    senderUsername: "sarahc",
-    senderAvatar: "", // Clean neutral WhatsApp silhouette
-    receiverId: "user-me",
-    status: "pending",
-    message: "Hey! Added you on Six9Chat. Let's connect!",
-    createdAt: "5m ago",
-  },
-  {
-    id: "req-demo-2",
-    senderId: "contact-liam",
-    senderName: "Liam Vance",
-    senderUsername: "liam_v",
-    senderAvatar: "", // Clean neutral WhatsApp silhouette
-    receiverId: "user-me",
-    status: "pending",
-    message: "Hey there! Looking forward to chatting with you.",
-    createdAt: "22m ago",
-  },
-];
+const INITIAL_CHAT_REQUESTS: ChatRequest[] = [];
 
 export interface CallModalState {
   isOpen: boolean;
@@ -251,18 +228,39 @@ export function useRealtimeChat() {
       channel.on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_requests" },
-        (payload) => {
+        async (payload) => {
           const newReq = payload.new as Record<string, unknown> | null;
           if (
             newReq &&
             newReq.receiver_id === currentUser.id &&
             newReq.status === "pending"
           ) {
+            let senderName = "Six9 User";
+            let senderUsername = "";
+            let senderAvatar = "";
+
+            try {
+              const { data: sp } = await supabase
+                .from("profiles")
+                .select("full_name, username, avatar_url")
+                .eq("id", String(newReq.sender_id))
+                .maybeSingle();
+
+              if (sp) {
+                senderName = sp.full_name || sp.username || "Six9 User";
+                senderUsername = sp.username || "";
+                senderAvatar = sp.avatar_url || "";
+              }
+            } catch (err) {
+              console.warn("Could not fetch sender profile for request:", err);
+            }
+
             const formattedReq: ChatRequest = {
               id: String(newReq.id),
               senderId: String(newReq.sender_id),
-              senderName: "New User",
-              senderAvatar: "",
+              senderName,
+              senderUsername,
+              senderAvatar,
               receiverId: String(newReq.receiver_id),
               status: "pending",
               message: String(newReq.message || "wants to start a conversation with you"),
@@ -612,20 +610,35 @@ export function useRealtimeChat() {
               .order("created_at", { ascending: false });
 
             if (dbRequests && dbRequests.length > 0) {
-              const mapped: ChatRequest[] = dbRequests.map((r) => ({
-                id: r.id,
-                senderId: r.sender_id,
-                senderName: "Six9 Contact",
-                senderAvatar: "",
-                receiverId: r.receiver_id,
-                status: r.status as "pending",
-                message: r.message || "wants to start a conversation with you",
-                createdAt: new Date(r.created_at).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }),
-              }));
+              const senderIds = Array.from(new Set(dbRequests.map((r) => r.sender_id)));
+              const { data: senderProfiles } = await supabase
+                .from("profiles")
+                .select("id, full_name, username, avatar_url")
+                .in("id", senderIds);
+
+              const profileMap = new Map<string, { full_name?: string; username?: string; avatar_url?: string }>();
+              senderProfiles?.forEach((p) => profileMap.set(p.id, p));
+
+              const mapped: ChatRequest[] = dbRequests.map((r) => {
+                const sp = profileMap.get(r.sender_id);
+                return {
+                  id: r.id,
+                  senderId: r.sender_id,
+                  senderName: sp?.full_name || sp?.username || "Six9 User",
+                  senderUsername: sp?.username || "",
+                  senderAvatar: sp?.avatar_url || "",
+                  receiverId: r.receiver_id,
+                  status: r.status as "pending",
+                  message: r.message || "wants to start a conversation with you",
+                  createdAt: new Date(r.created_at).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                };
+              });
               setChatRequests(mapped);
+            } else {
+              setChatRequests([]);
             }
           } catch (e) {
             console.warn("Could not load chat requests from database:", e);
@@ -676,9 +689,13 @@ export function useRealtimeChat() {
     setChatRequests((prev) => prev.filter((r) => r.id !== req.id));
 
     // 4. Automatically add requester to user's contacts and open chat
+    const displayName = req.senderUsername
+      ? `@${req.senderUsername.replace(/^@/, "")}`
+      : req.senderName || "Contact";
+
     const newContact: ChatContact = {
       id: req.senderId,
-      name: req.senderName,
+      name: displayName,
       avatar: req.senderAvatar || "",
       avatarColor: "from-[#086288] to-[#4D8DBA]",
       status: "online",
