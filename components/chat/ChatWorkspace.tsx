@@ -12,6 +12,7 @@ import { CommunityModal } from "@/components/chat/CommunityModal";
 import { ProfileModal } from "@/components/chat/ProfileModal";
 import { ProfileOnboardingModal } from "@/components/auth/ProfileOnboardingModal";
 import { AuthLogo } from "@/components/auth/AuthLogo";
+import { Six9BrandLogo } from "@/components/ui/Six9BrandLogo";
 import { useRealtimeChat } from "@/hooks/useRealtimeChat";
 import { useAuth } from "@/lib/auth";
 
@@ -197,14 +198,8 @@ export function ChatWorkspace() {
             />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center select-none bg-gradient-to-b from-[#053b53] to-[#032433]">
-              <div className="relative mb-6">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-[#086288] via-[#4D8DBA] to-[#97D7FF] p-1 shadow-[0_0_40px_rgba(151,215,255,0.3)] flex items-center justify-center">
-                  <div className="w-full h-full rounded-full bg-[#053b53] flex items-center justify-center">
-                    <span className="font-extrabold text-2xl text-white font-mono">
-                      S<span className="text-[#97D7FF]">9</span>
-                    </span>
-                  </div>
-                </div>
+              <div className="relative mb-6 flex flex-col items-center">
+                <Six9BrandLogo size={96} glow />
               </div>
 
               <h2 className="text-2xl font-bold text-white tracking-tight mb-2">

@@ -420,3 +420,74 @@ export async function getAllRegisteredUsers(): Promise<Array<{
   return Array.from(usersMap.values());
 }
 
+/**
+ * Strict database query for profiles matching username or full_name
+ */
+export async function searchRegisteredUsers(query: string): Promise<Array<{
+  id: string;
+  username: string;
+  fullName: string;
+  avatarUrl: string;
+  status: string;
+  uid: string;
+}>> {
+  const clean = query.trim().replace(/^@/, "").toLowerCase();
+  if (!clean) return [];
+
+  const matchedMap = new Map<string, {
+    id: string;
+    username: string;
+    fullName: string;
+    avatarUrl: string;
+    status: string;
+    uid: string;
+  }>();
+
+  try {
+    const { data: profiles, error } = await supabaseServer
+      .from("profiles")
+      .select("id, username, full_name, avatar_url, status, uid")
+      .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%`)
+      .limit(10);
+
+    if (!error && Array.isArray(profiles)) {
+      for (const p of profiles) {
+        if (p.id) {
+          matchedMap.set(p.id, {
+            id: p.id,
+            username: p.username || `user_${p.id.slice(0, 4)}`,
+            fullName: p.full_name || p.username || "Six9 Member",
+            avatarUrl: p.avatar_url || "",
+            status: p.status || "Hey there! I am using Six9Chat",
+            uid: p.uid || "S9-01",
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[AuthService] searchRegisteredUsers db warning:", err);
+  }
+
+  // Also check memoryUsers
+  for (const u of memoryUsers.values()) {
+    if (!matchedMap.has(u.id)) {
+      if (
+        u.username.toLowerCase().includes(clean) ||
+        (u.fullName && u.fullName.toLowerCase().includes(clean))
+      ) {
+        matchedMap.set(u.id, {
+          id: u.id,
+          username: u.username,
+          fullName: u.fullName || u.username,
+          avatarUrl: "",
+          status: "Hey there! I am using Six9Chat",
+          uid: u.uid || "S9-01",
+        });
+      }
+    }
+  }
+
+  return Array.from(matchedMap.values());
+}
+
+

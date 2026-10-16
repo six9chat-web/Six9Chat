@@ -7,6 +7,7 @@ import {
   X,
   AlertCircle,
   Loader2,
+  UserX,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChatList } from "@/components/chat/ChatList";
@@ -91,11 +92,11 @@ export function Sidebar({
     }, 4000);
   };
 
-  // Debounced search validation against Supabase profiles table
+  // Debounced search validation strictly against Supabase profiles table
   useEffect(() => {
     const clean = searchQuery.trim().replace(/^@/, "").toLowerCase();
 
-    if (!clean || clean.length < 2) {
+    if (!clean) {
       setSearchStatus("idle");
       setMatchedProfile(null);
       return;
@@ -105,76 +106,57 @@ export function Sidebar({
 
     const timer = setTimeout(async () => {
       try {
-        // 1. Check local contacts first
-        const localMatch = contacts.find(
-          (c) =>
-            c.name.toLowerCase().replace(/^@/, "") === clean ||
-            (c.phone && c.phone.toLowerCase().replace(/^@/, "") === clean)
-        );
+        // 1. Strict real-time search via server API querying Supabase profiles table
+        const res = await fetch(`/api/user/search?q=${encodeURIComponent(clean)}`).catch(() => null);
+        let foundUsers: Array<{
+          id: string;
+          username: string;
+          fullName: string;
+          avatarUrl?: string;
+        }> = [];
 
-        if (localMatch) {
-          setMatchedProfile({
-            id: localMatch.id,
-            username: localMatch.phone || localMatch.name.replace(/^@/, ""),
-            fullName: localMatch.name,
-            avatarUrl: localMatch.avatar,
-          });
-          setSearchStatus("found");
-          return;
-        }
-
-        // 2. Query Supabase profiles table
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, username, full_name, avatar_url, status")
-          .ilike("username", clean)
-          .maybeSingle();
-
-        if (data && data.username) {
-          setMatchedProfile({
-            id: data.id,
-            username: data.username,
-            fullName: data.full_name || data.username,
-            avatarUrl: data.avatar_url || "",
-          });
-          setSearchStatus("found");
-          return;
-        }
-
-        // 3. Fallback: Check directory API
-        const res = await fetch("/api/user/directory").catch(() => null);
         if (res && res.ok) {
           const json = await res.json().catch(() => ({}));
-          const dirMatch = (json.users || []).find(
-            (u: any) =>
-              u.username?.toLowerCase() === clean ||
-              u.fullName?.toLowerCase() === clean
-          );
-          if (dirMatch) {
-            setMatchedProfile({
-              id: dirMatch.id,
-              username: dirMatch.username,
-              fullName: dirMatch.fullName || dirMatch.username,
-              avatarUrl: dirMatch.avatarUrl || "",
-            });
-            setSearchStatus("found");
-            return;
+          if (Array.isArray(json.users)) {
+            foundUsers = json.users;
           }
         }
 
-        // 4. User does not exist in Supabase profiles
-        setMatchedProfile(null);
-        setSearchStatus("not_found");
-        triggerPopup("This user does not exist");
+        // 2. Direct Supabase browser client query backup
+        if (foundUsers.length === 0) {
+          const { data } = await supabase
+            .from("profiles")
+            .select("id, username, full_name, avatar_url, status")
+            .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%`)
+            .limit(5);
+
+          if (Array.isArray(data) && data.length > 0) {
+            foundUsers = data.map((d: any) => ({
+              id: d.id,
+              username: d.username,
+              fullName: d.full_name || d.username,
+              avatarUrl: d.avatar_url || "",
+            }));
+          }
+        }
+
+        // 3. Strict match evaluation: Only set found if user exists in database
+        if (foundUsers.length > 0) {
+          setMatchedProfile(foundUsers[0]);
+          setSearchStatus("found");
+        } else {
+          setMatchedProfile(null);
+          setSearchStatus("not_found");
+        }
       } catch (err) {
+        console.warn("[Sidebar search error]:", err);
         setMatchedProfile(null);
         setSearchStatus("not_found");
-        triggerPopup("This user does not exist");
       }
-    }, 280);
+    }, 150);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, contacts]);
+  }, [searchQuery]);
 
   const handleStartChatWithFoundUser = () => {
     if (!matchedProfile || !onAddNewContact) return;
@@ -192,8 +174,8 @@ export function Sidebar({
 
       if (searchStatus === "found" && matchedProfile) {
         handleStartChatWithFoundUser();
-      } else if (searchStatus === "not_found" || clean.length < 2) {
-        triggerPopup("This user does not exist");
+      } else if (searchStatus === "not_found") {
+        triggerPopup("User not found");
       }
     }
   };
@@ -338,16 +320,20 @@ export function Sidebar({
           </div>
         )}
 
-        {/* Invalid User Search Validation: Text Message stating "This user does not exist" */}
+        {/* Invalid User Search Validation: Clean "User not found" state */}
         {searchStatus === "not_found" && (
-          <div className="mt-2 p-2.5 rounded-xl bg-red-500/15 border border-red-500/40 flex items-center justify-between text-xs text-red-200 shadow-md animate-in fade-in duration-150">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-              <span className="font-semibold text-red-100">This user does not exist</span>
+          <div className="mt-2 p-2.5 rounded-xl bg-[#032433] border border-red-500/40 flex items-center justify-between text-xs text-red-200 shadow-md animate-in fade-in duration-150">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
+                <UserX className="w-4 h-4 text-red-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-red-100 text-xs tracking-tight">User not found</p>
+                <p className="text-[10px] text-slate-400 font-mono truncate">
+                  No registered user matches &quot;@{searchQuery.trim().replace(/^@/, "").toLowerCase()}&quot;
+                </p>
+              </div>
             </div>
-            <span className="text-[10px] text-red-300/80 font-mono">
-              @{searchQuery.trim().replace(/^@/, "").toLowerCase()}
-            </span>
           </div>
         )}
       </div>
