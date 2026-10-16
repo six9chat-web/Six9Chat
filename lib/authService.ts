@@ -431,7 +431,7 @@ export async function searchRegisteredUsers(query: string): Promise<Array<{
   status: string;
   uid: string;
 }>> {
-  const clean = query.trim().replace(/^@/, "").toLowerCase();
+  const clean = query.trim().replace(/^@+/, "").toLowerCase();
   if (!clean) return [];
 
   const matchedMap = new Map<string, {
@@ -443,12 +443,13 @@ export async function searchRegisteredUsers(query: string): Promise<Array<{
     uid: string;
   }>();
 
+  // 1. Direct Supabase query using case-insensitive ilike
   try {
     const { data: profiles, error } = await supabaseServer
       .from("profiles")
       .select("id, username, full_name, avatar_url, status, uid")
       .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%`)
-      .limit(10);
+      .limit(15);
 
     if (!error && Array.isArray(profiles)) {
       for (const p of profiles) {
@@ -465,10 +466,40 @@ export async function searchRegisteredUsers(query: string): Promise<Array<{
       }
     }
   } catch (err) {
-    console.warn("[AuthService] searchRegisteredUsers db warning:", err);
+    console.warn("[AuthService] searchRegisteredUsers ilike query notice:", err);
   }
 
-  // Also check memoryUsers
+  // 2. Full profiles scan fallback to guarantee freshly registered accounts appear instantly
+  if (matchedMap.size === 0) {
+    try {
+      const { data: allProfiles } = await supabaseServer
+        .from("profiles")
+        .select("id, username, full_name, avatar_url, status, uid")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (Array.isArray(allProfiles)) {
+        for (const p of allProfiles) {
+          const u = (p.username || "").toLowerCase();
+          const f = (p.full_name || "").toLowerCase();
+          if (u.includes(clean) || f.includes(clean)) {
+            matchedMap.set(p.id, {
+              id: p.id,
+              username: p.username || `user_${p.id.slice(0, 4)}`,
+              fullName: p.full_name || p.username || "Six9 Member",
+              avatarUrl: p.avatar_url || "",
+              status: p.status || "Hey there! I am using Six9Chat",
+              uid: p.uid || "S9-01",
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[AuthService] searchRegisteredUsers fallback notice:", err);
+    }
+  }
+
+  // 3. In-memory accounts cache check (instant 0ms response for new accounts)
   for (const u of memoryUsers.values()) {
     if (!matchedMap.has(u.id)) {
       if (

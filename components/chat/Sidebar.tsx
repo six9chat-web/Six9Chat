@@ -94,7 +94,8 @@ export function Sidebar({
 
   // Debounced search validation strictly against Supabase profiles table
   useEffect(() => {
-    const clean = searchQuery.trim().replace(/^@/, "").toLowerCase();
+    let isCancelled = false;
+    const clean = searchQuery.trim().replace(/^@+/, "").toLowerCase();
 
     if (!clean) {
       setSearchStatus("idle");
@@ -122,13 +123,13 @@ export function Sidebar({
           }
         }
 
-        // 2. Direct Supabase browser client query backup
+        // 2. Direct Supabase browser client query backup (case-insensitive ilike)
         if (foundUsers.length === 0) {
           const { data } = await supabase
             .from("profiles")
             .select("id, username, full_name, avatar_url, status")
             .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%`)
-            .limit(5);
+            .limit(10);
 
           if (Array.isArray(data) && data.length > 0) {
             foundUsers = data.map((d: any) => ({
@@ -140,7 +141,27 @@ export function Sidebar({
           }
         }
 
-        // 3. Strict match evaluation: Only set found if user exists in database
+        // 3. Fallback: Directory API (all registered Supabase accounts)
+        if (foundUsers.length === 0) {
+          const dirRes = await fetch("/api/user/directory").catch(() => null);
+          if (dirRes && dirRes.ok) {
+            const dirJson = await dirRes.json().catch(() => ({}));
+            if (Array.isArray(dirJson.users)) {
+              const matched = dirJson.users.filter((u: any) =>
+                u.username?.toLowerCase().includes(clean) ||
+                u.fullName?.toLowerCase().includes(clean)
+              );
+              if (matched.length > 0) {
+                foundUsers = matched;
+              }
+            }
+          }
+        }
+
+        // Abort updating state if user typed new characters or cleared the input
+        if (isCancelled) return;
+
+        // 4. Strict match evaluation: Only set found if user exists in database
         if (foundUsers.length > 0) {
           setMatchedProfile(foundUsers[0]);
           setSearchStatus("found");
@@ -149,13 +170,18 @@ export function Sidebar({
           setSearchStatus("not_found");
         }
       } catch (err) {
-        console.warn("[Sidebar search error]:", err);
-        setMatchedProfile(null);
-        setSearchStatus("not_found");
+        if (!isCancelled) {
+          console.warn("[Sidebar search error]:", err);
+          setMatchedProfile(null);
+          setSearchStatus("not_found");
+        }
       }
     }, 150);
 
-    return () => clearTimeout(timer);
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
   }, [searchQuery]);
 
   const handleStartChatWithFoundUser = () => {
@@ -285,7 +311,7 @@ export function Sidebar({
         </div>
 
         {/* Searching Validation Indicator */}
-        {searchStatus === "searching" && (
+        {searchStatus === "searching" && searchQuery.trim().replace(/^@+/, "").length > 0 && (
           <div className="mt-2 p-2 rounded-xl bg-[#086288]/50 border border-[#4D8DBA]/30 flex items-center gap-2 text-xs text-slate-300">
             <Loader2 className="w-3.5 h-3.5 text-[#97D7FF] animate-spin shrink-0" />
             <span className="text-[11px] text-slate-300 font-medium">Checking username in Supabase...</span>
@@ -293,7 +319,7 @@ export function Sidebar({
         )}
 
         {/* Valid User Found Card */}
-        {searchStatus === "found" && matchedProfile && (
+        {searchStatus === "found" && matchedProfile && searchQuery.trim().replace(/^@+/, "").length > 0 && (
           <div className="mt-2 p-2 rounded-xl bg-[#086288] border border-[#4D8DBA]/60 flex items-center justify-between text-xs text-white shadow-md animate-in fade-in duration-150">
             <div className="flex items-center gap-2 min-w-0 pr-2">
               <Avatar
@@ -306,7 +332,7 @@ export function Sidebar({
                   {matchedProfile.fullName}
                 </p>
                 <p className="truncate font-mono font-medium text-[#97D7FF] text-[10px] leading-tight">
-                  @{matchedProfile.username.replace(/^@/, "")}
+                  @{matchedProfile.username.replace(/^@+/, "")}
                 </p>
               </div>
             </div>
@@ -320,8 +346,8 @@ export function Sidebar({
           </div>
         )}
 
-        {/* Invalid User Search Validation: Clean "User not found" state */}
-        {searchStatus === "not_found" && (
+        {/* Invalid User Search Validation: Clean "User not found" state ONLY when query has active characters */}
+        {searchStatus === "not_found" && searchQuery.trim().replace(/^@+/, "").length > 0 && (
           <div className="mt-2 p-2.5 rounded-xl bg-[#032433] border border-red-500/40 flex items-center justify-between text-xs text-red-200 shadow-md animate-in fade-in duration-150">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-7 h-7 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
@@ -330,7 +356,7 @@ export function Sidebar({
               <div className="min-w-0">
                 <p className="font-bold text-red-100 text-xs tracking-tight">User not found</p>
                 <p className="text-[10px] text-slate-400 font-mono truncate">
-                  No registered user matches &quot;@{searchQuery.trim().replace(/^@/, "").toLowerCase()}&quot;
+                  No registered user matches &quot;@{searchQuery.trim().replace(/^@+/, "").toLowerCase()}&quot;
                 </p>
               </div>
             </div>
