@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell,
@@ -28,11 +28,12 @@ export function NotificationBell({
   const [isOpen, setIsOpen] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const pendingRequests = requests.filter((r) => r.status === "pending");
   const pendingCount = pendingRequests.length;
 
-  // Close modal on Escape key press
+  // Close modal on Escape key press or outside click
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -40,11 +41,19 @@ export function NotificationBell({
       }
     }
 
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
     if (isOpen) {
       document.addEventListener("keydown", handleKeyDown);
+      document.addEventListener("mousedown", handleClickOutside);
     }
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isOpen]);
 
@@ -78,7 +87,7 @@ export function NotificationBell({
   };
 
   return (
-    <div className="relative inline-block">
+    <div ref={containerRef} className="relative inline-block">
       {/* 1. Header Bar Notification Bell Trigger */}
       <button
         type="button"
@@ -102,37 +111,34 @@ export function NotificationBell({
         )}
       </button>
 
-      {/* 2. Notification Requests Dropdown Modal with Backdrop (Clean positioning, no search bar overlap) */}
+      {/* 2. Notification Requests Dropdown: Anchored directly below Bell Icon */}
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-50 flex items-start justify-center sm:justify-start pt-16 sm:pt-16 sm:pl-14 p-3 sm:p-4 bg-black/60 backdrop-blur-xs select-none">
-            {/* Backdrop Dimmer: click anywhere outside to close */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+          <>
+            {/* Backdrop overlay for outside click */}
+            <div
+              className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[0.5px]"
               onClick={() => setIsOpen(false)}
-              className="fixed inset-0 -z-10 bg-transparent"
               aria-hidden="true"
             />
 
-            {/* Dropdown Modal Container */}
+            {/* Anchored Dropdown Menu */}
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              initial={{ opacity: 0, scale: 0.95, y: -6 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -8 }}
-              transition={{ duration: 0.16, ease: "easeOut" }}
-              className="w-full max-w-sm sm:w-96 rounded-2xl bg-[#086288] border border-[#4D8DBA]/70 p-4 shadow-2xl backdrop-blur-2xl text-slate-100 overflow-hidden flex flex-col max-h-[80vh] ring-1 ring-[#97D7FF]/30"
+              exit={{ opacity: 0, scale: 0.95, y: -6 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="absolute right-0 top-full mt-2 w-80 rounded-2xl bg-[#086288] border border-[#4D8DBA]/70 p-3.5 shadow-2xl backdrop-blur-2xl text-slate-100 overflow-hidden flex flex-col max-h-[75vh] z-50 ring-1 ring-[#97D7FF]/35"
             >
-              {/* Header */}
+              {/* Header with crisp Close Cross button */}
               <div className="flex items-center justify-between pb-3 border-b border-[#4D8DBA]/35 shrink-0">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#4D8DBA]/30 text-[#97D7FF] flex items-center justify-center">
-                    <Bell className="w-4 h-4" />
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#4D8DBA]/30 text-[#97D7FF] flex items-center justify-center shrink-0">
+                    <Bell className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+                    <h3 className="text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
                       <span>Chat Requests</span>
                       {pendingCount > 0 && (
                         <span className="px-2 py-0.5 rounded-full bg-[#FFEFC4] text-[#086288] font-black text-[10px]">
@@ -143,14 +149,15 @@ export function NotificationBell({
                   </div>
                 </div>
 
+                {/* Crisp Close Cross Button */}
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="p-1.5 sm:p-2 rounded-xl bg-[#053b53] hover:bg-rose-500/25 text-slate-200 hover:text-white border border-[#4D8DBA]/50 hover:border-rose-400/50 transition cursor-pointer shadow-md flex items-center justify-center group active:scale-95"
+                  className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-rose-500/25 border border-transparent hover:border-rose-400/40 transition cursor-pointer flex items-center justify-center group active:scale-95"
                   title="Close Notifications"
                   aria-label="Close notifications"
                 >
-                  <X className="w-5 h-5 text-slate-300 group-hover:text-white group-hover:scale-110 transition-transform stroke-[2.5]" />
+                  <X className="w-4 h-4 text-slate-300 group-hover:text-white group-hover:scale-110 transition-transform stroke-[2.5]" />
                 </button>
               </div>
 
@@ -252,7 +259,7 @@ export function NotificationBell({
                 )}
               </div>
             </motion.div>
-          </div>
+          </>
         )}
       </AnimatePresence>
     </div>
