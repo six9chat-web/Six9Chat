@@ -14,6 +14,7 @@ import {
   Fingerprint,
 } from "lucide-react";
 import { useAuth, uploadAvatar } from "@/lib/auth";
+import { Avatar, DefaultAvatarSilhouette } from "@/components/ui/Avatar";
 
 interface ProfileOnboardingModalProps {
   isOpen: boolean;
@@ -178,14 +179,14 @@ export function ProfileOnboardingModal({
                   title="Upload Custom Photo"
                 >
                   <div className="w-full h-full rounded-full bg-[#053b53] overflow-hidden flex items-center justify-center text-2xl font-bold text-white">
-                    {customAvatarUrl || (selectedAvatar.startsWith("http") || selectedAvatar.startsWith("data:")) ? (
+                    {customAvatarUrl || (selectedAvatar && (selectedAvatar.startsWith("http") || selectedAvatar.startsWith("data:"))) ? (
                       <img
                         src={customAvatarUrl || selectedAvatar}
                         alt="Avatar preview"
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span>{selectedAvatar}</span>
+                      <DefaultAvatarSilhouette className="w-10 h-10 text-slate-200" />
                     )}
                   </div>
                 </div>

@@ -7,8 +7,10 @@ import {
   X,
 } from "lucide-react";
 import { ChatList } from "@/components/chat/ChatList";
-import { ChatContact, StoryItem, UserProfile } from "@/types/chat";
+import { ChatContact, StoryItem, UserProfile, ChatRequest } from "@/types/chat";
 import { ChatFilterType } from "@/hooks/useRealtimeChat";
+import { Avatar } from "@/components/ui/Avatar";
+import { NotificationBell } from "@/components/chat/NotificationBell";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
@@ -31,6 +33,9 @@ interface SidebarProps {
   onSignOut?: () => void;
   onOpenProfile?: () => void;
   onOpenSettings?: () => void;
+  chatRequests?: ChatRequest[];
+  onAcceptChatRequest?: (req: ChatRequest) => Promise<void> | void;
+  onRejectChatRequest?: (id: string) => Promise<void> | void;
 }
 
 export function Sidebar({
@@ -45,6 +50,9 @@ export function Sidebar({
   onOpenNewChat,
   onAddNewContact,
   onOpenProfile,
+  chatRequests = [],
+  onAcceptChatRequest,
+  onRejectChatRequest,
 }: SidebarProps) {
   const userRecord = currentUser as unknown as Record<string, unknown>;
   const currentUsername =
@@ -62,25 +70,21 @@ export function Sidebar({
 
   return (
     <aside className="w-full h-full min-h-0 flex flex-col bg-[#053b53] border-r border-[#4D8DBA]/30 z-20 shrink-0 select-none overflow-hidden">
-      {/* 1. Header Bar: Profile Avatar + Username + New Chat Button */}
+      {/* 1. Header Bar: Profile Avatar + Username + Notification Bell + New Chat Button */}
       <div className="h-16 px-4 bg-[#086288] border-b border-[#4D8DBA]/35 backdrop-blur-xl flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           {/* User Profile Avatar / Settings trigger */}
           <button
             type="button"
             onClick={onOpenProfile}
-            className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#4D8DBA] to-[#97D7FF] text-[#086288] font-bold text-xs flex items-center justify-center shadow-md hover:scale-105 transition cursor-pointer shrink-0 ring-2 ring-[#97D7FF]/40 overflow-hidden"
+            className="w-10 h-10 rounded-full hover:scale-105 transition cursor-pointer shrink-0 ring-2 ring-[#97D7FF]/40 overflow-hidden shadow-md flex items-center justify-center bg-gradient-to-tr from-[#086288] to-[#4D8DBA]"
             title={currentUser?.name ? `${currentUser.name} (Settings)` : "Profile & Settings"}
           >
-            {currentUser?.avatar && (currentUser.avatar.startsWith("http") || currentUser.avatar.startsWith("data:")) ? (
-              <img
-                src={currentUser.avatar}
-                alt={currentUser?.name || "Profile"}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              currentUser?.avatar || currentUser?.name?.slice(0, 2).toUpperCase() || "ME"
-            )}
+            <Avatar
+              src={currentUser?.avatar}
+              alt={currentUser?.name || "Profile"}
+              className="w-full h-full"
+            />
           </button>
           <div
             onClick={onOpenProfile}
@@ -96,7 +100,14 @@ export function Sidebar({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 text-slate-200">
+        <div className="flex items-center gap-2 text-slate-200">
+          {/* Notification Bell (🔔) with Realtime Pending Chat Requests */}
+          <NotificationBell
+            requests={chatRequests}
+            onAccept={onAcceptChatRequest || (() => {})}
+            onReject={onRejectChatRequest || (() => {})}
+          />
+
           {/* New Chat Pill Button */}
           <button
             type="button"

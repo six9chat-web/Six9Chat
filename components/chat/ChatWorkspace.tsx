@@ -53,6 +53,9 @@ export function ChatWorkspace() {
     createGroup,
     supabaseStatus,
     channelConnected,
+    chatRequests,
+    acceptChatRequest,
+    rejectChatRequest,
   } = useRealtimeChat();
 
   // Mobile viewport navigation state: 'sidebar' | 'chat'
@@ -162,6 +165,9 @@ export function ChatWorkspace() {
               setProfileModalTarget("self");
               setIsProfileModalOpen(true);
             }}
+            chatRequests={chatRequests}
+            onAcceptChatRequest={acceptChatRequest}
+            onRejectChatRequest={rejectChatRequest}
           />
         </div>
 

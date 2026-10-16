@@ -94,3 +94,16 @@ export interface StoryItem {
   timestamp: string;
   viewed: boolean;
 }
+
+export interface ChatRequest {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderUsername?: string;
+  senderAvatar?: string;
+  receiverId: string;
+  status: "pending" | "accepted" | "rejected";
+  message?: string;
+  createdAt: string;
+}
+

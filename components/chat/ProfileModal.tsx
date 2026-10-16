@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { UserProfile, ChatContact } from "@/types/chat";
 import { uploadAvatar, checkUsername } from "@/lib/auth";
+import { Avatar, DefaultAvatarSilhouette } from "@/components/ui/Avatar";
 import { cn } from "@/lib/utils";
 
 interface ProfileModalProps {
@@ -321,7 +322,7 @@ export function ProfileModal({
       if (onUpdateProfile) {
         await onUpdateProfile({
           name: nameDisplay,
-          avatar: defaultInitials,
+          avatar: "",
           statusText: aboutDisplay,
         });
       }
@@ -395,15 +396,12 @@ export function ProfileModal({
                 tabIndex={0}
                 title={isOwnProfile ? "Profile picture options" : currentUser.name}
               >
-                {isCustomImage ? (
-                  <img
-                    src={currentAvatar}
-                    alt={currentUser.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span>{currentAvatar || nameDisplay?.slice(0, 2).toUpperCase()}</span>
-                )}
+                <Avatar
+                  src={isCustomImage ? currentAvatar : null}
+                  alt={currentUser.name}
+                  className="w-full h-full"
+                  iconClassName="w-14 h-14 text-slate-200"
+                />
 
                 {/* Loading state indicator */}
                 {isUploading && (
@@ -847,9 +845,7 @@ export function ProfileModal({
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <span className="text-6xl font-black text-white">
-                      {nameDisplay?.slice(0, 2).toUpperCase()}
-                    </span>
+                    <DefaultAvatarSilhouette className="w-36 h-36 text-slate-300" />
                   )}
                 </div>
               </motion.div>

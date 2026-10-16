@@ -136,12 +136,14 @@ body {
 .text-gradient-brand {
   background: linear-gradient(135deg, #97D7FF 0%, #4D8DBA 50%, #FFEFC4 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .text-gradient-glow {
   background: linear-gradient(90deg, #97D7FF 0%, #FFEFC4 50%, #97D7FF 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 

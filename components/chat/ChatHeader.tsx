@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { ChatContact } from "@/types/chat";
+import { Avatar } from "@/components/ui/Avatar";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -60,22 +61,14 @@ export function ChatHeader({
 
         {/* Circular DP */}
         <div className="relative shrink-0">
-          <div
+          <Avatar
+            src={contact.avatar}
+            alt={contact.name}
             className={cn(
-              "w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md bg-gradient-to-tr transition-transform group-hover:scale-105 overflow-hidden",
+              "w-9 h-9 sm:w-10 sm:h-10 shadow-md transition-transform group-hover:scale-105",
               contact.avatarColor || "from-[#086288] to-[#4D8DBA]"
             )}
-          >
-            {contact.avatar && (contact.avatar.startsWith("http") || contact.avatar.startsWith("data:")) ? (
-              <img
-                src={contact.avatar}
-                alt={contact.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              contact.avatar
-            )}
-          </div>
+          />
           {contact.status === "online" && (
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#97D7FF] ring-2 ring-[#086288]" />
           )}

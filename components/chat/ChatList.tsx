@@ -15,6 +15,7 @@ import {
   Video,
 } from "lucide-react";
 import { ChatContact, MessageStatus } from "@/types/chat";
+import { Avatar } from "@/components/ui/Avatar";
 import { cn } from "@/lib/utils";
 
 interface ChatListProps {
@@ -87,23 +88,15 @@ export function ChatList({
           >
             {/* 1. Circular DP on Left */}
             <div className="relative shrink-0">
-              <div
+              <Avatar
+                src={contact.avatar}
+                alt={contact.name}
                 className={cn(
-                  "w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-md bg-gradient-to-tr transition-transform overflow-hidden",
+                  "w-12 h-12 shadow-md transition-transform",
                   contact.avatarColor || "from-[#086288] to-[#4D8DBA]",
                   isActive && "ring-2 ring-[#97D7FF] scale-102"
                 )}
-              >
-                {contact.avatar && (contact.avatar.startsWith("http") || contact.avatar.startsWith("data:")) ? (
-                  <img
-                    src={contact.avatar}
-                    alt={contact.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  contact.avatar
-                )}
-              </div>
+              />
 
               {/* Online / Activity Indicator */}
               {contact.status === "online" && (

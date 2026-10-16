@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ChatContact } from "@/types/chat";
+import { Avatar } from "@/components/ui/Avatar";
 import { cn } from "@/lib/utils";
 
 interface NewGroupModalProps {
@@ -155,13 +156,12 @@ export function NewGroupModal({
                         key={id}
                         className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#053b53] border border-[#4D8DBA]/50 text-xs text-slate-100 shrink-0"
                       >
-                        <span className="w-4 h-4 rounded-full bg-gradient-to-tr from-[#086288] to-[#97D7FF] text-[9px] font-bold flex items-center justify-center text-white overflow-hidden shrink-0">
-                          {contact.avatar && (contact.avatar.startsWith("http") || contact.avatar.startsWith("data:")) ? (
-                            <img src={contact.avatar} alt={contact.name} className="w-full h-full object-cover" />
-                          ) : (
-                            contact.avatar
-                          )}
-                        </span>
+                        <Avatar
+                          src={contact.avatar}
+                          alt={contact.name}
+                          className="w-4 h-4 shrink-0 shadow-sm"
+                          iconClassName="w-3/5 h-3/5 text-slate-200"
+                        />
                         <span className="max-w-[90px] truncate">{contact.name}</span>
                         <button
                           type="button"
@@ -205,18 +205,14 @@ export function NewGroupModal({
                       )}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div
+                        <Avatar
+                          src={contact.avatar}
+                          alt={contact.name}
                           className={cn(
-                            "w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md bg-gradient-to-tr shrink-0 overflow-hidden",
+                            "w-10 h-10 shadow-md shrink-0",
                             contact.avatarColor || "from-[#086288] to-[#4D8DBA]"
                           )}
-                        >
-                          {contact.avatar && (contact.avatar.startsWith("http") || contact.avatar.startsWith("data:")) ? (
-                            <img src={contact.avatar} alt={contact.name} className="w-full h-full object-cover" />
-                          ) : (
-                            contact.avatar
-                          )}
-                        </div>
+                        />
                         <div className="min-w-0">
                           <h4 className="text-xs font-bold text-white truncate">
                             {contact.name}
