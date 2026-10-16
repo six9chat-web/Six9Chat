@@ -76,14 +76,60 @@ export function NewChatModal({
     async function loadDirectory() {
       setIsLoadingDirectory(true);
       try {
-        // 1. Direct API endpoint call for instant server-cached + Supabase profiles
-        const res = await fetch("/api/user/directory");
-        const data = await res.json();
-        if (isMounted && data.success && Array.isArray(data.users)) {
-          setDirectoryUsers(data.users);
+        const fetchedMap = new Map<string, DirectoryUser>();
+
+        // 1. Direct Supabase select query without strict RLS blocking: id != current_user_id
+        try {
+          let sbQuery = supabase
+            .from("profiles")
+            .select("id, username, full_name, avatar_url, status, uid, phone");
+
+          if (currentUserId) {
+            sbQuery = sbQuery.neq("id", currentUserId);
+          }
+
+          const { data: sbProfiles, error: sbError } = await sbQuery;
+          if (!sbError && Array.isArray(sbProfiles)) {
+            for (const p of sbProfiles) {
+              if (p.id && (!currentUserId || p.id !== currentUserId)) {
+                fetchedMap.set(p.id, {
+                  id: p.id,
+                  username: p.username || `user_${p.id.slice(0, 4)}`,
+                  fullName: p.full_name || p.username || "Six9 Member",
+                  avatarUrl: p.avatar_url || "",
+                  status: p.status || "Hey there! I am using Six9Chat",
+                  uid: p.uid || "S9-01",
+                });
+              }
+            }
+          }
+        } catch (sbErr) {
+          console.warn("Client Supabase profiles select note:", sbErr);
+        }
+
+        // 2. Direct API endpoint call (service/backend access without strict RLS blocking)
+        try {
+          const endpoint = currentUserId
+            ? `/api/user/directory?excludeId=${encodeURIComponent(currentUserId)}`
+            : "/api/user/directory";
+          const res = await fetch(endpoint, { cache: "no-store" });
+          const data = await res.json();
+          if (data.success && Array.isArray(data.users)) {
+            for (const u of data.users) {
+              if (u.id && (!currentUserId || u.id !== currentUserId) && !fetchedMap.has(u.id)) {
+                fetchedMap.set(u.id, u);
+              }
+            }
+          }
+        } catch (apiErr) {
+          console.warn("Directory API endpoint notice:", apiErr);
+        }
+
+        if (isMounted) {
+          setDirectoryUsers(Array.from(fetchedMap.values()));
         }
       } catch (err) {
-        console.warn("Could not load user directory via API:", err);
+        console.warn("Could not load user directory:", err);
       } finally {
         if (isMounted) setIsLoadingDirectory(false);
       }
@@ -107,12 +153,12 @@ export function NewChatModal({
       isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, [isOpen]);
+  }, [isOpen, currentUserId]);
 
   if (!isOpen) return null;
 
   // Filter out current user from directory
-  const availableUsers = directoryUsers.filter((u) => u.id !== currentUserId);
+  const availableUsers = directoryUsers.filter((u) => !currentUserId || u.id !== currentUserId);
 
   // Search filtered directory
   const filteredUsers = availableUsers.filter((u) => {
@@ -419,7 +465,7 @@ export function NewChatModal({
                               ) : (
                                 <UserPlus className="w-3.5 h-3.5" />
                               )}
-                              <span>Send Request</span>
+                              <span>Chat / Request</span>
                             </button>
                           )}
                         </div>

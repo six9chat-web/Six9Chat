@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, users: [] });
     }
 
-    const users = await searchRegisteredUsers(query);
+    const excludeId = request.nextUrl.searchParams.get("excludeId") || undefined;
+    const users = await searchRegisteredUsers(query, excludeId);
     return NextResponse.json({
       success: true,
       users,

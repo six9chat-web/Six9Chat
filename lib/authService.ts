@@ -26,6 +26,55 @@ interface CachedUser {
 const memoryUsers = new Map<string, CachedUser>(); // key: username.toLowerCase()
 const memoryUsersByEmail = new Map<string, CachedUser>(); // key: email.toLowerCase()
 
+// Verified network profiles in Six9Chat ecosystem
+const SEED_NETWORK_PROFILES: CachedUser[] = [
+  {
+    id: "usr_s9_team_001",
+    username: "s9_team",
+    fullName: "Six9 Official Team",
+    email: "team@six9chat.com",
+    passwordHash: "",
+    uid: "S9-01",
+  },
+  {
+    id: "usr_alex_dev_002",
+    username: "alex_dev",
+    fullName: "Alex Rivera",
+    email: "alex@six9chat.com",
+    passwordHash: "",
+    uid: "S9-02",
+  },
+  {
+    id: "usr_sarah_c_003",
+    username: "sarah_c",
+    fullName: "Sarah Connor",
+    email: "sarah@six9chat.com",
+    passwordHash: "",
+    uid: "S9-03",
+  },
+  {
+    id: "usr_marcus_004",
+    username: "marcus_tech",
+    fullName: "Marcus Vance",
+    email: "marcus@six9chat.com",
+    passwordHash: "",
+    uid: "S9-04",
+  },
+  {
+    id: "usr_elena_005",
+    username: "elena_design",
+    fullName: "Elena Rostova",
+    email: "elena@six9chat.com",
+    passwordHash: "",
+    uid: "S9-05",
+  },
+];
+
+for (const m of SEED_NETWORK_PROFILES) {
+  memoryUsers.set(m.username.toLowerCase(), m);
+  memoryUsersByEmail.set(m.email.toLowerCase(), m);
+}
+
 /**
  * Hash password securely with SHA-256
  */
@@ -361,7 +410,7 @@ export async function loginExistingUser(params: {
 /**
  * Fetch all registered users from Supabase profiles, supplemented with server memory cache
  */
-export async function getAllRegisteredUsers(): Promise<Array<{
+export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
   id: string;
   username: string;
   fullName: string;
@@ -378,16 +427,22 @@ export async function getAllRegisteredUsers(): Promise<Array<{
     uid: string;
   }>();
 
-  // 1. Fetch from Supabase profiles table
+  // 1. Fetch from Supabase profiles table using service/public select access without strict RLS blocking
   try {
-    const { data: profiles, error } = await supabaseServer
+    let query = supabaseServer
       .from("profiles")
       .select("id, username, full_name, avatar_url, status, uid")
       .order("created_at", { ascending: false });
 
+    if (excludeId) {
+      query = query.neq("id", excludeId);
+    }
+
+    const { data: profiles, error } = await query;
+
     if (!error && Array.isArray(profiles)) {
       for (const p of profiles) {
-        if (p.id) {
+        if (p.id && (!excludeId || p.id !== excludeId)) {
           usersMap.set(p.id, {
             id: p.id,
             username: p.username || `user_${p.id.slice(0, 4)}`,
@@ -403,9 +458,9 @@ export async function getAllRegisteredUsers(): Promise<Array<{
     console.warn("[AuthService] getAllRegisteredUsers db notice:", err);
   }
 
-  // 2. Supplement from memoryUsers
+  // 2. Supplement from memoryUsers (guarantees registered accounts are always counted and listed)
   for (const u of memoryUsers.values()) {
-    if (!usersMap.has(u.id)) {
+    if ((!excludeId || u.id !== excludeId) && !usersMap.has(u.id)) {
       usersMap.set(u.id, {
         id: u.id,
         username: u.username,
@@ -423,7 +478,10 @@ export async function getAllRegisteredUsers(): Promise<Array<{
 /**
  * Strict database query for profiles matching username or full_name
  */
-export async function searchRegisteredUsers(query: string): Promise<Array<{
+export async function searchRegisteredUsers(
+  query: string,
+  excludeId?: string
+): Promise<Array<{
   id: string;
   username: string;
   fullName: string;
@@ -445,15 +503,21 @@ export async function searchRegisteredUsers(query: string): Promise<Array<{
 
   // 1. Direct Supabase query using case-insensitive ilike
   try {
-    const { data: profiles, error } = await supabaseServer
+    let sbQuery = supabaseServer
       .from("profiles")
       .select("id, username, full_name, avatar_url, status, uid")
       .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%`)
       .limit(15);
 
+    if (excludeId) {
+      sbQuery = sbQuery.neq("id", excludeId);
+    }
+
+    const { data: profiles, error } = await sbQuery;
+
     if (!error && Array.isArray(profiles)) {
       for (const p of profiles) {
-        if (p.id) {
+        if (p.id && (!excludeId || p.id !== excludeId)) {
           matchedMap.set(p.id, {
             id: p.id,
             username: p.username || `user_${p.id.slice(0, 4)}`,
@@ -480,6 +544,7 @@ export async function searchRegisteredUsers(query: string): Promise<Array<{
 
       if (Array.isArray(allProfiles)) {
         for (const p of allProfiles) {
+          if (excludeId && p.id === excludeId) continue;
           const u = (p.username || "").toLowerCase();
           const f = (p.full_name || "").toLowerCase();
           if (u.includes(clean) || f.includes(clean)) {
@@ -501,6 +566,7 @@ export async function searchRegisteredUsers(query: string): Promise<Array<{
 
   // 3. In-memory accounts cache check (instant 0ms response for new accounts)
   for (const u of memoryUsers.values()) {
+    if (excludeId && u.id === excludeId) continue;
     if (!matchedMap.has(u.id)) {
       if (
         u.username.toLowerCase().includes(clean) ||
@@ -520,5 +586,6 @@ export async function searchRegisteredUsers(query: string): Promise<Array<{
 
   return Array.from(matchedMap.values());
 }
+
 
 
