@@ -250,15 +250,12 @@ export function Sidebar({
           </button>
           <div
             onClick={onOpenProfile}
-            className="flex flex-col min-w-0 cursor-pointer group"
+            className="flex flex-col min-w-0 cursor-pointer group justify-center"
             title="View Profile & Settings"
           >
             <h1 className="text-base sm:text-lg font-bold text-white tracking-tight leading-tight group-hover:text-[#97D7FF] transition truncate">
               {currentUser?.name || currentUsername}
             </h1>
-            <span className="text-[11px] font-mono font-medium text-[#97D7FF] leading-tight truncate">
-              @{currentUsername.toLowerCase().replace(/^@/, "")}
-            </span>
           </div>
         </div>
 
