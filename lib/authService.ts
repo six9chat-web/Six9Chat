@@ -26,55 +26,6 @@ interface CachedUser {
 const memoryUsers = new Map<string, CachedUser>(); // key: username.toLowerCase()
 const memoryUsersByEmail = new Map<string, CachedUser>(); // key: email.toLowerCase()
 
-// Verified network profiles in Six9Chat ecosystem
-const SEED_NETWORK_PROFILES: CachedUser[] = [
-  {
-    id: "usr_s9_team_001",
-    username: "s9_team",
-    fullName: "Six9 Official Team",
-    email: "team@six9chat.com",
-    passwordHash: "",
-    uid: "S9-01",
-  },
-  {
-    id: "usr_alex_dev_002",
-    username: "alex_dev",
-    fullName: "Alex Rivera",
-    email: "alex@six9chat.com",
-    passwordHash: "",
-    uid: "S9-02",
-  },
-  {
-    id: "usr_sarah_c_003",
-    username: "sarah_c",
-    fullName: "Sarah Connor",
-    email: "sarah@six9chat.com",
-    passwordHash: "",
-    uid: "S9-03",
-  },
-  {
-    id: "usr_marcus_004",
-    username: "marcus_tech",
-    fullName: "Marcus Vance",
-    email: "marcus@six9chat.com",
-    passwordHash: "",
-    uid: "S9-04",
-  },
-  {
-    id: "usr_elena_005",
-    username: "elena_design",
-    fullName: "Elena Rostova",
-    email: "elena@six9chat.com",
-    passwordHash: "",
-    uid: "S9-05",
-  },
-];
-
-for (const m of SEED_NETWORK_PROFILES) {
-  memoryUsers.set(m.username.toLowerCase(), m);
-  memoryUsersByEmail.set(m.email.toLowerCase(), m);
-}
-
 /**
  * Hash password securely with SHA-256
  */
@@ -458,20 +409,6 @@ export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
     console.warn("[AuthService] getAllRegisteredUsers db notice:", err);
   }
 
-  // 2. Supplement from memoryUsers (guarantees registered accounts are always counted and listed)
-  for (const u of memoryUsers.values()) {
-    if ((!excludeId || u.id !== excludeId) && !usersMap.has(u.id)) {
-      usersMap.set(u.id, {
-        id: u.id,
-        username: u.username,
-        fullName: u.fullName || u.username,
-        avatarUrl: "",
-        status: "Hey there! I am using Six9Chat",
-        uid: u.uid || "S9-01",
-      });
-    }
-  }
-
   return Array.from(usersMap.values());
 }
 
@@ -561,26 +498,6 @@ export async function searchRegisteredUsers(
       }
     } catch (err) {
       console.warn("[AuthService] searchRegisteredUsers fallback notice:", err);
-    }
-  }
-
-  // 3. In-memory accounts cache check (instant 0ms response for new accounts)
-  for (const u of memoryUsers.values()) {
-    if (excludeId && u.id === excludeId) continue;
-    if (!matchedMap.has(u.id)) {
-      if (
-        u.username.toLowerCase().includes(clean) ||
-        (u.fullName && u.fullName.toLowerCase().includes(clean))
-      ) {
-        matchedMap.set(u.id, {
-          id: u.id,
-          username: u.username,
-          fullName: u.fullName || u.username,
-          avatarUrl: "",
-          status: "Hey there! I am using Six9Chat",
-          uid: u.uid || "S9-01",
-        });
-      }
     }
   }
 

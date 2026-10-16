@@ -476,6 +476,14 @@ export async function registerWithCredentials(params: {
     localStorage.setItem(`six9_uid_${params.username.toLowerCase()}`, assignedUid);
     localStorage.setItem(`six9_uid_${result.user.id}`, assignedUid);
     localStorage.setItem("six9_current_uid", assignedUid);
+    setMockSession({
+      userId: result.user.id,
+      email: result.user.email,
+      username: result.user.username,
+      fullName: result.user.fullName,
+      uid: assignedUid,
+      statusText: "Building with Six9Chat 🚀",
+    });
   }
 
   return result;
@@ -504,6 +512,14 @@ export async function loginWithCredentials(params: {
     localStorage.setItem(`six9_uid_${params.identifier.toLowerCase()}`, assignedUid);
     localStorage.setItem(`six9_uid_${result.user.id}`, assignedUid);
     localStorage.setItem("six9_current_uid", assignedUid);
+    setMockSession({
+      userId: result.user.id,
+      email: result.user.email,
+      username: result.user.username,
+      fullName: result.user.fullName,
+      uid: assignedUid,
+      statusText: "Building with Six9Chat 🚀",
+    });
   }
 
   return result;
@@ -581,9 +597,21 @@ export function getMockSession(): MockSessionData | null {
       const val = decodeURIComponent(rawCookie.split("=")[1]);
       return JSON.parse(val);
     }
-    const rawLocal = localStorage.getItem("six9_mock_session");
+    const rawLocal = localStorage.getItem("six9_mock_session") || localStorage.getItem("six9_active_user");
     if (rawLocal) {
-      return JSON.parse(rawLocal);
+      const parsed = JSON.parse(rawLocal);
+      if (parsed.userId || parsed.id) {
+        return {
+          userId: parsed.userId || parsed.id,
+          email: parsed.email,
+          phone: parsed.phone,
+          fullName: parsed.fullName || parsed.full_name || parsed.name,
+          username: parsed.username,
+          avatarUrl: parsed.avatarUrl || parsed.avatar_url,
+          statusText: parsed.statusText || parsed.status,
+          uid: parsed.uid,
+        };
+      }
     }
   } catch (e) {
     console.warn("Failed to parse mock session:", e);
