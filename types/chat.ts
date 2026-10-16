@@ -1,6 +1,6 @@
 export type MessageStatus = "sending" | "sent" | "delivered" | "read";
 
-export type MediaType = "text" | "image" | "audio" | "document" | "location" | "call";
+export type MediaType = "text" | "image" | "video" | "audio" | "document" | "file" | "location" | "call";
 
 export interface CallLogMeta {
   type: "voice" | "video";

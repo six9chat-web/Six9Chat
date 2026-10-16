@@ -12,6 +12,9 @@ import {
   MapPin,
   X,
   Check,
+  Video,
+  Paperclip,
+  Loader2,
 } from "lucide-react";
 import { MediaType, MediaMeta } from "@/types/chat";
 import { EmojiPicker } from "./EmojiPicker";
@@ -33,10 +36,15 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
 
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -105,30 +113,58 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
     setRecordingSeconds(0);
   };
 
-  const handleImagePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileUpload = async (file: File) => {
+    try {
+      setIsUploading(true);
+      setShowAttachMenu(false);
+      setUploadStatus(`Uploading ${file.name}...`);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      onSendMessage("Media attachment", "image", {
-        fileName: file.name,
-        fileSize: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-      }, reader.result as string);
-    };
-    reader.readAsDataURL(file);
-    setShowAttachMenu(false);
-  };
+      const formData = new FormData();
+      formData.append("file", file);
 
-  const handleDocPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+      const res = await fetch("/api/chat/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-    onSendMessage(file.name, "document", {
-      fileName: file.name,
-      fileSize: `${(file.size / 1024).toFixed(0)} KB`,
-    });
-    setShowAttachMenu(false);
+      const data = await res.json();
+      if (data.success && data.url) {
+        onSendMessage(
+          "",
+          data.mediaType || "document",
+          {
+            fileName: data.fileName || file.name,
+            fileSize: data.fileSize,
+          },
+          data.url
+        );
+      } else {
+        // Fallback to FileReader DataURL
+        const reader = new FileReader();
+        reader.onload = () => {
+          let mediaType: MediaType = "document";
+          if (file.type.startsWith("image/")) mediaType = "image";
+          else if (file.type.startsWith("video/")) mediaType = "video";
+          else if (file.type.startsWith("audio/")) mediaType = "audio";
+
+          onSendMessage(
+            "",
+            mediaType,
+            {
+              fileName: file.name,
+              fileSize: `${(file.size / 1024).toFixed(0)} KB`,
+            },
+            reader.result as string
+          );
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (err) {
+      console.warn("Media upload error:", err);
+    } finally {
+      setIsUploading(false);
+      setUploadStatus(null);
+    }
   };
 
   return (
@@ -137,15 +173,41 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
       <input
         ref={imageInputRef}
         type="file"
-        accept="image/*,video/*"
-        onChange={handleImagePicked}
+        accept="image/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFileUpload(file);
+        }}
+        className="hidden"
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFileUpload(file);
+        }}
         className="hidden"
       />
       <input
         ref={docInputRef}
         type="file"
         accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.zip"
-        onChange={handleDocPicked}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFileUpload(file);
+        }}
+        className="hidden"
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="*/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFileUpload(file);
+        }}
         className="hidden"
       />
 
@@ -162,7 +224,7 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.95 }}
               transition={{ duration: 0.15 }}
-              className="absolute bottom-16 left-4 z-40 bg-[#032433] border border-[#4D8DBA]/70 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 w-48 backdrop-blur-xl"
+              className="absolute bottom-16 left-4 z-40 bg-[#032433] border border-[#4D8DBA]/70 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 w-52 backdrop-blur-xl"
             >
               <button
                 type="button"
@@ -172,7 +234,18 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
                 <div className="w-7 h-7 rounded-full bg-[#086288] flex items-center justify-center text-[#97D7FF]">
                   <ImageIcon className="w-4 h-4" />
                 </div>
-                <span>Photos & videos</span>
+                <span>Photos & Images</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => videoInputRef.current?.click()}
+                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#4D8DBA]/30 text-white text-xs font-medium transition cursor-pointer"
+              >
+                <div className="w-7 h-7 rounded-full bg-[#086288] flex items-center justify-center text-[#97D7FF]">
+                  <Video className="w-4 h-4" />
+                </div>
+                <span>Videos</span>
               </button>
 
               <button
@@ -184,6 +257,17 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
                   <FileText className="w-4 h-4" />
                 </div>
                 <span>Document</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#4D8DBA]/30 text-white text-xs font-medium transition cursor-pointer"
+              >
+                <div className="w-7 h-7 rounded-full bg-[#086288] flex items-center justify-center text-teal-300">
+                  <Paperclip className="w-4 h-4" />
+                </div>
+                <span>Any File / Audio</span>
               </button>
 
               <button
@@ -275,19 +359,26 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
             <Smile className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
           </button>
 
-          {/* 3. "Type a message" Rounded Container */}
-          <div className="flex-1 bg-[#053b53] border border-[#4D8DBA]/40 rounded-2xl focus-within:border-[#97D7FF] focus-within:ring-1 focus-within:ring-[#97D7FF]/50 transition-all px-3.5 py-1.5 flex items-center">
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={disabled}
-              placeholder="Type a message"
-              className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-400 outline-none resize-none max-h-32 leading-relaxed my-0.5"
-            />
-          </div>
+          {/* 3. "Type a message" Rounded Container OR Uploading State */}
+          {isUploading ? (
+            <div className="flex-1 bg-[#053b53] border border-[#97D7FF]/50 rounded-2xl px-4 py-2 flex items-center gap-2.5 text-xs text-[#97D7FF] shadow-inner">
+              <Loader2 className="w-4 h-4 animate-spin shrink-0 text-[#97D7FF]" />
+              <span className="truncate font-medium">{uploadStatus || "Uploading to Supabase Storage..."}</span>
+            </div>
+          ) : (
+            <div className="flex-1 bg-[#053b53] border border-[#4D8DBA]/40 rounded-2xl focus-within:border-[#97D7FF] focus-within:ring-1 focus-within:ring-[#97D7FF]/50 transition-all px-3.5 py-1.5 flex items-center">
+              <textarea
+                ref={textareaRef}
+                rows={1}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={disabled}
+                placeholder="Type a message"
+                className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-400 outline-none resize-none max-h-32 leading-relaxed my-0.5"
+              />
+            </div>
+          )}
 
           {/* 4. Mic / Voice Note on Far Right (Send if text is non-empty) */}
           {text.trim().length > 0 ? (

@@ -123,33 +123,99 @@ export function useRealtimeChat() {
 
       // Listen for broadcast messages
       channel.on("broadcast", { event: "new_message" }, (payload) => {
-        const incoming = payload.payload as ChatMessage;
-        if (incoming && incoming.conversationId) {
-          setMessagesMap((prev) => ({
-            ...prev,
-            [incoming.conversationId]: [
-              ...(prev[incoming.conversationId] || []),
-              incoming,
-            ],
-          }));
+        const incoming = payload.payload as ChatMessage & { receiverId?: string };
+        if (incoming && incoming.senderId !== currentUser.id) {
+          const isGroup = incoming.conversationId?.startsWith("group-");
+          const conversationKey = isGroup ? incoming.conversationId : incoming.senderId;
 
-          // Update last message in contact list
-          setContacts((prev) =>
-            prev.map((c) =>
-              c.id === incoming.conversationId
-                ? {
-                    ...c,
-                    lastMessage: {
-                      text: incoming.text,
-                      timestamp: incoming.timestamp,
-                      isSelf: false,
-                      status: "read",
-                    },
-                    unreadCount: c.id === activeContactId ? 0 : c.unreadCount + 1,
-                  }
-                : c
-            )
-          );
+          // Only accept if it's for this group, or sent to currentUser
+          if (isGroup || incoming.receiverId === currentUser.id || !incoming.receiverId) {
+            const formatted: ChatMessage = {
+              ...incoming,
+              conversationId: conversationKey,
+              isSelf: false,
+              status: "delivered",
+            };
+
+            setMessagesMap((prev) => ({
+              ...prev,
+              [conversationKey]: [
+                ...(prev[conversationKey] || []).filter((m) => m.id !== formatted.id),
+                formatted,
+              ],
+            }));
+
+            // Update contact list preview and unread count
+            setContacts((prev) => {
+              const exists = prev.some((c) => c.id === conversationKey);
+              if (exists) {
+                return prev.map((c) =>
+                  c.id === conversationKey
+                    ? {
+                        ...c,
+                        unreadCount: c.id === activeContactId ? 0 : c.unreadCount + 1,
+                        lastMessage: {
+                          text: formatted.text || `[${(formatted.mediaType || "media").toUpperCase()}]`,
+                          timestamp: formatted.timestamp,
+                          isSelf: false,
+                          status: "delivered",
+                          mediaType: formatted.mediaType,
+                        },
+                      }
+                    : c
+                );
+              } else {
+                const newC: ChatContact = {
+                  id: conversationKey,
+                  name: formatted.senderName || "New Contact",
+                  avatar: formatted.senderAvatar || "",
+                  status: "online",
+                  lastSeen: "Online now",
+                  unreadCount: 1,
+                  lastMessage: {
+                    text: formatted.text || "[Media]",
+                    timestamp: formatted.timestamp,
+                    isSelf: false,
+                    status: "delivered",
+                    mediaType: formatted.mediaType,
+                  },
+                };
+                return [newC, ...prev];
+              }
+            });
+          }
+        }
+      });
+
+      // Listen for message reactions broadcast
+      channel.on("broadcast", { event: "message_reaction" }, (payload) => {
+        const { messageId, emoji, userId, conversationId } = payload.payload as any;
+        if (messageId && conversationId) {
+          setMessagesMap((prev) => {
+            const list = prev[conversationId] || [];
+            const updated = list.map((m) => {
+              if (m.id !== messageId) return m;
+
+              const reactions = m.reactions ? [...m.reactions] : [];
+              const idx = reactions.findIndex((r) => r.emoji === emoji);
+              const isSelf = userId === currentUser.id;
+
+              if (idx >= 0) {
+                const item = reactions[idx];
+                reactions[idx] = {
+                  ...item,
+                  count: item.count + 1,
+                  userReacted: isSelf ? true : item.userReacted,
+                };
+              } else {
+                reactions.push({ emoji, count: 1, userReacted: isSelf });
+              }
+
+              return { ...m, reactions };
+            });
+
+            return { ...prev, [conversationId]: updated };
+          });
         }
       });
 
@@ -174,9 +240,41 @@ export function useRealtimeChat() {
 
       // Listen for accepted/rejected status responses
       channel.on("broadcast", { event: "chat_request_response" }, (payload) => {
-        const { requestId } = payload.payload as { requestId: string };
-        if (requestId) {
-          setChatRequests((prev) => prev.filter((r) => r.id !== requestId));
+        const data = payload.payload as any;
+        if (data?.requestId) {
+          setChatRequests((prev) => prev.filter((r) => r.id !== data.requestId));
+        }
+
+        if (data?.status === "accepted" && data?.senderId === currentUser.id) {
+          // The other user (receiverId) accepted our chat request!
+          const otherName = data.receiverUsername
+            ? `@${data.receiverUsername.replace(/^@/, "")}`
+            : data.receiverName || "Contact";
+
+          const newContact: ChatContact = {
+            id: data.receiverId,
+            name: otherName,
+            avatar: data.receiverAvatar || "",
+            avatarColor: "from-[#086288] to-[#4D8DBA]",
+            status: "online",
+            lastSeen: "Online now",
+            about: "Connected via Six9Chat request",
+            unreadCount: 0,
+            lastMessage: {
+              text: "Chat request accepted. Say hi! 👋",
+              timestamp: new Date().toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              isSelf: false,
+              status: "read",
+            },
+          };
+
+          setContacts((prev) => [
+            newContact,
+            ...prev.filter((c) => c.id !== data.receiverId),
+          ]);
         }
       });
 
@@ -198,28 +296,67 @@ export function useRealtimeChat() {
         (payload) => {
           const newRecord = payload.new as Record<string, unknown> | null;
           if (newRecord) {
+            const isSelf = newRecord.sender_id === currentUser.id;
+            const conversationKey = (newRecord.conversation_id as string)?.startsWith("group-")
+              ? (newRecord.conversation_id as string)
+              : isSelf
+              ? (newRecord.receiver_id as string || newRecord.conversation_id as string)
+              : (newRecord.sender_id as string);
+
             const formatted: ChatMessage = {
               id: String(newRecord.id || Date.now()),
-              conversationId: String(newRecord.conversation_id || activeContactId),
+              conversationId: conversationKey,
               senderId: String(newRecord.sender_id || "other"),
               senderName: String(newRecord.sender_name || "Contact"),
-              isSelf: newRecord.sender_id === CURRENT_USER.id,
+              senderAvatar: String(newRecord.sender_avatar || ""),
+              isSelf,
               text: String(newRecord.text || ""),
               timestamp: new Date().toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
               }),
               date: "Today",
-              status: "delivered",
+              status: (newRecord.status as any) || "delivered",
+              mediaType: (newRecord.media_type as any) || "text",
+              mediaUrl: (newRecord.media_url as string) || undefined,
+              mediaMeta: (newRecord.media_meta as any) || undefined,
+              reactions: (newRecord.reactions as any) || [],
             };
 
             setMessagesMap((prev) => ({
               ...prev,
-              [formatted.conversationId]: [
-                ...(prev[formatted.conversationId] || []),
+              [conversationKey]: [
+                ...(prev[conversationKey] || []).filter((m) => m.id !== formatted.id),
                 formatted,
               ],
             }));
+          }
+        }
+      );
+
+      channel.on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages" },
+        (payload) => {
+          const updated = payload.new as Record<string, unknown> | null;
+          if (updated && updated.id) {
+            setMessagesMap((prev) => {
+              const res = { ...prev };
+              for (const key of Object.keys(res)) {
+                if (res[key].some((m) => m.id === updated.id)) {
+                  res[key] = res[key].map((m) =>
+                    m.id === updated.id
+                      ? {
+                          ...m,
+                          reactions: (updated.reactions as any) || m.reactions,
+                          status: (updated.status as any) || m.status,
+                        }
+                      : m
+                  );
+                }
+              }
+              return res;
+            });
           }
         }
       );
@@ -384,17 +521,18 @@ export function useRealtimeChat() {
       mediaMeta?: MediaMeta,
       mediaUrl?: string
     ) => {
-      if (!text.trim() && mediaType === "text") return;
+      if (!text.trim() && !mediaUrl && mediaType === "text") return;
 
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const msgId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
       const newMsg: ChatMessage = {
-        id: `msg-${Date.now()}`,
+        id: msgId,
         conversationId: activeContactId,
-        senderId: CURRENT_USER.id,
-        senderName: CURRENT_USER.name,
-        senderAvatar: CURRENT_USER.avatar,
+        senderId: currentUser.id,
+        senderName: currentUser.name || "You",
+        senderAvatar: currentUser.avatar || "",
         senderColor: "from-[#086288] to-[#97D7FF]",
         isSelf: true,
         text: text.trim(),
@@ -404,15 +542,16 @@ export function useRealtimeChat() {
         mediaType,
         mediaUrl,
         mediaMeta,
+        reactions: [],
       };
 
-      // Optimistic update
+      // 1. Optimistic update
       setMessagesMap((prev) => ({
         ...prev,
         [activeContactId]: [...(prev[activeContactId] || []), newMsg],
       }));
 
-      // Update contact list preview
+      // 2. Update contact list preview
       setContacts((prev) =>
         prev.map((c) =>
           c.id === activeContactId
@@ -430,95 +569,136 @@ export function useRealtimeChat() {
         )
       );
 
-      // Attempt Supabase broadcast if available
-      if (channelRef.current && isSupabaseConfigured()) {
+      // 3. Supabase Realtime broadcast to other connected users
+      if (channelRef.current) {
         try {
           await channelRef.current.send({
             type: "broadcast",
             event: "new_message",
-            payload: newMsg,
+            payload: {
+              ...newMsg,
+              receiverId: activeContactId,
+            },
           });
         } catch (err) {
-          console.warn("Realtime broadcast fallback to local simulation:", err);
+          console.warn("Realtime broadcast notice:", err);
         }
       }
 
-      // Transition message status from sending -> sent -> delivered -> read
-      setTimeout(() => {
+      // 4. Persist to Supabase messages table via backend API
+      try {
+        await fetch("/api/chat/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: newMsg.id,
+            conversationId: activeContactId,
+            senderId: currentUser.id,
+            receiverId: activeContactId,
+            senderName: currentUser.name,
+            senderAvatar: currentUser.avatar,
+            text: newMsg.text,
+            mediaType: newMsg.mediaType,
+            mediaUrl: newMsg.mediaUrl,
+            mediaMeta: newMsg.mediaMeta,
+            reactions: [],
+            status: "delivered",
+            createdAt: now.toISOString(),
+          }),
+        });
+
         setMessagesMap((prev) => ({
           ...prev,
           [activeContactId]: (prev[activeContactId] || []).map((m) =>
-            m.id === newMsg.id ? { ...m, status: "sent" } : m
+            m.id === msgId ? { ...m, status: "delivered" } : m
           ),
         }));
-      }, 400);
+      } catch (e) {
+        console.warn("Persist message error:", e);
+      }
 
-      setTimeout(() => {
-        setMessagesMap((prev) => ({
-          ...prev,
-          [activeContactId]: (prev[activeContactId] || []).map((m) =>
-            m.id === newMsg.id ? { ...m, status: "delivered" } : m
-          ),
-        }));
-      }, 1000);
-
-      setTimeout(() => {
-        setMessagesMap((prev) => ({
-          ...prev,
-          [activeContactId]: (prev[activeContactId] || []).map((m) =>
-            m.id === newMsg.id ? { ...m, status: "read" } : m
-          ),
-        }));
-      }, 2000);
-
-      // Trigger realistic smart bot reply simulation if chat isn't group or when offline
-      simulateReply(activeContactId, text);
+      // Only simulate bot replies on demo contacts
+      if (activeContactId.startsWith("contact-")) {
+        simulateReply(activeContactId, text);
+      }
     },
-    [activeContactId, simulateReply]
+    [activeContactId, currentUser, simulateReply]
   );
 
-  // Reaction toggling
-  const addReaction = useCallback((messageId: string, emoji: string) => {
-    setMessagesMap((prev) => {
-      const currentList = prev[activeContactId] || [];
-      const updated = currentList.map((m) => {
-        if (m.id !== messageId) return m;
+  // Reaction toggling with Realtime sync and database persistence
+  const addReaction = useCallback(
+    async (messageId: string, emoji: string) => {
+      setMessagesMap((prev) => {
+        const currentList = prev[activeContactId] || [];
+        const updated = currentList.map((m) => {
+          if (m.id !== messageId) return m;
 
-        const reactions = m.reactions ? [...m.reactions] : [];
-        const existingIndex = reactions.findIndex((r) => r.emoji === emoji);
+          const reactions = m.reactions ? [...m.reactions] : [];
+          const existingIndex = reactions.findIndex((r) => r.emoji === emoji);
 
-        if (existingIndex >= 0) {
-          const item = reactions[existingIndex];
-          if (item.userReacted) {
-            if (item.count <= 1) {
-              reactions.splice(existingIndex, 1);
+          if (existingIndex >= 0) {
+            const item = reactions[existingIndex];
+            if (item.userReacted) {
+              if (item.count <= 1) {
+                reactions.splice(existingIndex, 1);
+              } else {
+                reactions[existingIndex] = {
+                  ...item,
+                  count: item.count - 1,
+                  userReacted: false,
+                };
+              }
             } else {
               reactions[existingIndex] = {
                 ...item,
-                count: item.count - 1,
-                userReacted: false,
+                count: item.count + 1,
+                userReacted: true,
               };
             }
           } else {
-            reactions[existingIndex] = {
-              ...item,
-              count: item.count + 1,
-              userReacted: true,
-            };
+            reactions.push({ emoji, count: 1, userReacted: true });
           }
-        } else {
-          reactions.push({ emoji, count: 1, userReacted: true });
-        }
 
-        return { ...m, reactions };
+          return { ...m, reactions };
+        });
+
+        return {
+          ...prev,
+          [activeContactId]: updated,
+        };
       });
 
-      return {
-        ...prev,
-        [activeContactId]: updated,
-      };
-    });
-  }, [activeContactId]);
+      // Broadcast reaction via Realtime
+      try {
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "message_reaction",
+          payload: {
+            messageId,
+            emoji,
+            userId: currentUser.id,
+            conversationId: activeContactId,
+          },
+        });
+      } catch {}
+
+      // Persist reaction to Supabase
+      try {
+        await fetch("/api/chat/reactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messageId,
+            emoji,
+            userId: currentUser.id,
+          }),
+        });
+      } catch (err) {
+        console.warn("Persist reaction error:", err);
+      }
+    },
+    [activeContactId, currentUser.id]
+  );
 
   // Call actions
   const startCall = useCallback((type: "audio" | "video") => {
@@ -600,7 +780,21 @@ export function useRealtimeChat() {
             uid: assignedUid,
           });
 
-          // Fetch pending chat requests from Supabase
+          // 1. Fetch connected contacts & groups from Supabase
+          try {
+            const convRes = await fetch(`/api/chat/conversations?userId=${user.id}`);
+            const convData = await convRes.json();
+            if (convData.success && Array.isArray(convData.contacts) && convData.contacts.length > 0) {
+              setContacts(convData.contacts);
+              if (!activeContactId) {
+                setActiveContactId(convData.contacts[0].id);
+              }
+            }
+          } catch (e) {
+            console.warn("Could not load conversations from API:", e);
+          }
+
+          // 2. Fetch pending chat requests from Supabase
           try {
             const { data: dbRequests } = await supabase
               .from("chat_requests")
@@ -664,6 +858,34 @@ export function useRealtimeChat() {
     };
   }, []);
 
+  // 3. Load conversation message history whenever active chat contact changes
+  useEffect(() => {
+    if (!activeContactId || !currentUser?.id) return;
+
+    let isMounted = true;
+    async function fetchMessages() {
+      try {
+        const res = await fetch(
+          `/api/chat/messages?conversationId=${activeContactId}&userA=${currentUser.id}&userB=${activeContactId}`
+        );
+        const data = await res.json();
+        if (isMounted && data.success && Array.isArray(data.messages) && data.messages.length > 0) {
+          setMessagesMap((prev) => ({
+            ...prev,
+            [activeContactId]: data.messages,
+          }));
+        }
+      } catch (err) {
+        console.warn("Could not load messages history:", err);
+      }
+    }
+
+    fetchMessages();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeContactId, currentUser?.id]);
+
   // Accept a pending chat request
   const acceptChatRequest = useCallback(async (req: ChatRequest) => {
     // 1. Update status in Supabase if configured
@@ -681,7 +903,18 @@ export function useRealtimeChat() {
       channelRef.current?.send({
         type: "broadcast",
         event: "chat_request_response",
-        payload: { requestId: req.id, status: "accepted" },
+        payload: {
+          requestId: req.id,
+          status: "accepted",
+          senderId: req.senderId,
+          receiverId: currentUser.id,
+          senderName: req.senderName,
+          senderUsername: req.senderUsername,
+          senderAvatar: req.senderAvatar,
+          receiverName: currentUser.name,
+          receiverUsername: currentUser.username,
+          receiverAvatar: currentUser.avatar,
+        },
       });
     } catch {}
 

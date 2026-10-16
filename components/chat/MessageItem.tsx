@@ -148,10 +148,53 @@ export function MessageItem({
             <div className="relative rounded-xl overflow-hidden bg-[#032433] border border-black/10">
               <img
                 src={message.mediaUrl || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80"}
-                alt="Shared media"
+                alt="Shared image"
                 className="w-full max-h-72 object-cover"
+                loading="lazy"
               />
             </div>
+          </div>
+        )}
+
+        {/* Media: Video Card */}
+        {message.mediaType === "video" && (
+          <div className="p-1.5 pb-0">
+            <div className="relative rounded-xl overflow-hidden bg-black max-w-sm">
+              <video
+                src={message.mediaUrl}
+                controls
+                className="w-full max-h-72 rounded-xl object-contain"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Media: Document / File Card */}
+        {(message.mediaType === "document" || (message.mediaType as string) === "file") && (
+          <div className="p-2.5 flex items-center gap-3 bg-[#032433]/70 rounded-xl m-1.5 border border-[#4D8DBA]/35">
+            <div className="w-10 h-10 rounded-lg bg-[#086288] flex items-center justify-center text-[#FFEFC4] shrink-0">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0 pr-1">
+              <p className="text-xs font-semibold text-white truncate">
+                {message.mediaMeta?.fileName || message.text || "Attached Document"}
+              </p>
+              <p className="text-[10px] text-slate-300">
+                {message.mediaMeta?.fileSize || "File"}
+              </p>
+            </div>
+            {message.mediaUrl && (
+              <a
+                href={message.mediaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                download={message.mediaMeta?.fileName || "attachment"}
+                className="p-1.5 rounded-lg bg-[#4D8DBA]/40 hover:bg-[#97D7FF] hover:text-[#086288] text-white transition shrink-0 cursor-pointer"
+                title="Download file"
+              >
+                <Download className="w-4 h-4" />
+              </a>
+            )}
           </div>
         )}
 
@@ -204,19 +247,25 @@ export function MessageItem({
           {message.isSelf && renderStatusTicks(message.status)}
         </div>
 
-        {/* Message Reaction Badges (e.g. 🌹, 😂) */}
+        {/* Message Reaction Badges (e.g. 🌹, 😂, ❤️) */}
         {message.reactions && message.reactions.length > 0 && (
-          <div className="absolute -bottom-2.5 right-2 flex items-center gap-1 z-10">
+          <div className="absolute -bottom-2.5 right-2 flex items-center gap-1 z-10 flex-wrap">
             {message.reactions.map((r, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => handleEmojiClick(r.emoji)}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs bg-[#032433] border border-[#4D8DBA]/60 shadow-md text-white transition-transform hover:scale-110 cursor-pointer"
+                className={cn(
+                  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs shadow-md transition-all hover:scale-110 cursor-pointer",
+                  r.userReacted
+                    ? "bg-[#97D7FF] text-[#086288] font-bold border border-white/40 ring-1 ring-[#97D7FF]"
+                    : "bg-[#032433] text-white border border-[#4D8DBA]/60"
+                )}
+                title={`Reaction: ${r.emoji}`}
               >
                 <span>{r.emoji}</span>
                 {r.count > 1 && (
-                  <span className="text-[10px] font-bold text-[#FFEFC4]">
+                  <span className={cn("text-[10px] font-bold", r.userReacted ? "text-[#086288]" : "text-[#FFEFC4]")}>
                     {r.count}
                   </span>
                 )}
