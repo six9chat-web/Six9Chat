@@ -920,13 +920,48 @@ export function useRealtimeChat() {
             uid: assignedUid,
           });
 
-          // 1. Fetch connected contacts & groups from Supabase
+          // 1. Fetch connected contacts & groups from Supabase + localStorage cache
           try {
+            if (typeof window !== "undefined") {
+              const localSaved = localStorage.getItem(`six9_saved_contacts_${user.id}`);
+              if (localSaved) {
+                try {
+                  const parsed = JSON.parse(localSaved);
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    setContacts(parsed);
+                    if (!activeContactId) {
+                      setActiveContactId(parsed[0].id);
+                    }
+                  }
+                } catch {}
+              }
+            }
+
             const convRes = await fetch(`/api/chat/conversations?userId=${user.id}`);
             const convData = await convRes.json();
-            if (convData.success && Array.isArray(convData.contacts) && convData.contacts.length > 0) {
-              setContacts(convData.contacts);
-              if (!activeContactId) {
+            if (convData.success && Array.isArray(convData.contacts)) {
+              setContacts((prev) => {
+                const map = new Map<string, ChatContact>();
+                // Add server contacts
+                for (const c of convData.contacts) {
+                  map.set(c.id, c);
+                }
+                // Preserve contacts added locally
+                for (const c of prev) {
+                  if (!map.has(c.id)) {
+                    map.set(c.id, c);
+                  }
+                }
+                const merged = Array.from(map.values());
+                if (typeof window !== "undefined") {
+                  try {
+                    localStorage.setItem(`six9_saved_contacts_${user.id}`, JSON.stringify(merged));
+                  } catch {}
+                }
+                return merged;
+              });
+
+              if (!activeContactId && convData.contacts.length > 0) {
                 setActiveContactId(convData.contacts[0].id);
               }
             }
@@ -1176,10 +1211,33 @@ export function useRealtimeChat() {
       },
     };
 
-    setContacts((prev) => [newContact, ...prev.filter((c) => c.id !== id)]);
+    setContacts((prev) => {
+      const updated = [newContact, ...prev.filter((c) => c.id !== id)];
+      if (typeof window !== "undefined" && currentUser?.id) {
+        try {
+          localStorage.setItem(`six9_saved_contacts_${currentUser.id}`, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
+
     setActiveContactId(id);
+
+    // Save initial connection in chat_requests table in background
+    if (existingUserId && currentUser?.id && existingUserId !== currentUser.id) {
+      fetch("/api/user/send-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          senderId: currentUser.id,
+          receiverId: existingUserId,
+          message: `${currentUser.name || "User"} connected with you`,
+        }),
+      }).catch((e) => console.warn("Background contact persist notice:", e));
+    }
+
     return id;
-  }, [contacts]);
+  }, [contacts, currentUser]);
 
   // Create a new group conversation with members and persist to Supabase
   const createGroup = useCallback(

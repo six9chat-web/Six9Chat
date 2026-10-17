@@ -449,13 +449,13 @@ export async function searchRegisteredUsers(
     uid: string;
   }>();
 
-  // 1. Direct Supabase query using case-insensitive ilike
+  // 1. Direct Supabase query using case-insensitive ilike on username or email
   try {
     let sbQuery = supabaseServer
       .from("profiles")
-      .select("id, username, email, full_name, about, avatar_url, status, uid")
-      .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%`)
-      .limit(15);
+      .select("id, username, email, about, avatar_url, full_name, status, uid")
+      .or(`username.ilike.%${clean}%,email.ilike.%${clean}%`)
+      .limit(20);
 
     if (excludeId) {
       sbQuery = sbQuery.neq("id", excludeId);
@@ -488,7 +488,7 @@ export async function searchRegisteredUsers(
     try {
       const { data: allProfiles } = await supabaseServer
         .from("profiles")
-        .select("id, username, email, full_name, about, avatar_url, status, uid")
+        .select("id, username, email, about, avatar_url, full_name, status, uid")
         .order("created_at", { ascending: false })
         .limit(50);
 
@@ -496,9 +496,9 @@ export async function searchRegisteredUsers(
         for (const p of allProfiles) {
           if (excludeId && p.id === excludeId) continue;
           const u = (p.username || "").toLowerCase();
-          const f = (p.full_name || "").toLowerCase();
           const e = (p.email || "").toLowerCase();
-          if (u.includes(clean) || f.includes(clean) || e.includes(clean)) {
+          const f = (p.full_name || "").toLowerCase();
+          if (u.includes(clean) || e.includes(clean) || f.includes(clean)) {
             matchedMap.set(p.id, {
               id: p.id,
               username: p.username || `user_${p.id.slice(0, 4)}`,

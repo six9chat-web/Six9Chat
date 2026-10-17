@@ -246,6 +246,7 @@ export function ChatWorkspace() {
         }}
         onCreateGroup={handleCreateNewGroup}
         onSendRequest={sendChatRequest}
+        onAddNewContact={handleAddNewContact}
       />
 
       {/* New Group Modal */}

@@ -41,6 +41,7 @@ interface NewChatModalProps {
   onSelectContact: (id: string) => void;
   onCreateGroup: (name: string, memberIds: string[], avatarUrl?: string) => void;
   onSendRequest?: (userId: string, name?: string, username?: string, avatar?: string) => Promise<void> | void;
+  onAddNewContact?: (name: string, phoneOrUid: string, avatarUrl?: string, targetUserId?: string) => void;
 }
 
 export function NewChatModal({
@@ -51,6 +52,7 @@ export function NewChatModal({
   onSelectContact,
   onCreateGroup,
   onSendRequest,
+  onAddNewContact,
 }: NewChatModalProps) {
   // Modal Navigation Mode: 'directory' | 'group-select' | 'group-details'
   const [mode, setMode] = useState<"directory" | "group-select" | "group-details">("directory");
@@ -164,13 +166,15 @@ export function NewChatModal({
   // Filter out current user from directory
   const availableUsers = directoryUsers.filter((u) => !currentUserId || u.id !== currentUserId);
 
-  // Search filtered directory
+  // Search filtered directory (case-insensitive search by username, email, name, about)
   const filteredUsers = availableUsers.filter((u) => {
     const q = searchFilter.toLowerCase().trim();
     if (!q) return true;
     return (
       u.fullName.toLowerCase().includes(q) ||
       u.username.toLowerCase().includes(q) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.about && u.about.toLowerCase().includes(q)) ||
       (u.uid && u.uid.toLowerCase().includes(q))
     );
   });
@@ -188,6 +192,42 @@ export function NewChatModal({
 
   // Set of connected contact IDs
   const connectedIds = new Set(connectedContacts.map((c) => c.id));
+
+  // Initialize 1-on-1 direct conversation with selected user and add to active contacts sidebar
+  const handleStartDirectChat = async (user: DirectoryUser) => {
+    if (onAddNewContact) {
+      onAddNewContact(
+        user.fullName || user.username,
+        user.username || user.email || "user",
+        user.avatarUrl,
+        user.id
+      );
+    } else {
+      onSelectContact(user.id);
+    }
+
+    if (currentUserId && user.id && !connectedIds.has(user.id)) {
+      try {
+        if (onSendRequest) {
+          await onSendRequest(user.id, user.fullName, user.username, user.avatarUrl);
+        } else {
+          await fetch("/api/user/send-request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              senderId: currentUserId,
+              receiverId: user.id,
+              message: "wants to start a conversation with you",
+            }),
+          });
+        }
+      } catch (err) {
+        console.warn("Background chat request notice:", err);
+      }
+    }
+
+    handleClose();
+  };
 
   // Handle Send Chat Request
   const handleSendRequest = async (user: DirectoryUser) => {
@@ -415,63 +455,55 @@ export function NewChatModal({
                     return (
                       <div
                         key={user.id}
-                        className="pt-2 first:pt-0 flex items-center justify-between gap-3 p-2 rounded-2xl hover:bg-[#4D8DBA]/20 transition"
+                        onClick={() => handleStartDirectChat(user)}
+                        className="pt-2 first:pt-0 flex items-center justify-between gap-3 p-2 rounded-2xl hover:bg-[#4D8DBA]/25 transition cursor-pointer select-none group"
                       >
                         {/* User DP + Details */}
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <Avatar
                             src={user.avatarUrl}
                             alt={user.fullName}
-                            className="w-10 h-10 shrink-0 shadow-md ring-1 ring-[#4D8DBA]/40"
+                            className="w-10 h-10 shrink-0 shadow-md ring-1 ring-[#4D8DBA]/40 group-hover:ring-[#97D7FF]"
                           />
 
                           <div className="flex-1 min-w-0">
-                            <h4 className="text-xs sm:text-sm font-bold text-white truncate">
+                            <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-[#97D7FF] transition-colors">
                               {user.fullName}
                             </h4>
                             <p className="text-[11px] font-mono text-[#97D7FF] truncate">
                               @{user.username.replace(/^@/, "")}
                             </p>
-                            <p className="text-[10px] text-slate-300 truncate">
-                              {user.status || "Hey there! I am using Six9Chat"}
-                            </p>
+                            {user.email && (
+                              <p className="text-[10px] text-slate-300 truncate opacity-80">
+                                {user.email}
+                              </p>
+                            )}
+                            {user.status && (
+                              <p className="text-[10px] text-slate-400 truncate">
+                                {user.status}
+                              </p>
+                            )}
                           </div>
                         </div>
 
                         {/* Action Buttons */}
                         <div className="shrink-0 pl-2">
-                          {isConnected ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onSelectContact(user.id);
-                                handleClose();
-                              }}
-                              className="px-3 py-1.5 rounded-xl bg-[#053b53] hover:bg-[#4D8DBA]/40 text-[#97D7FF] hover:text-white border border-[#4D8DBA]/60 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5" />
-                              <span>Chat</span>
-                            </button>
-                          ) : isRequested ? (
-                            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#053b53] text-[#FFEFC4] border border-[#FFEFC4]/30 text-xs font-semibold select-none">
-                              <Check className="w-3.5 h-3.5 text-[#97D7FF]" />
-                              <span>Requested</span>
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() => handleSendRequest(user)}
-                              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] hover:brightness-105 active:scale-95 text-[#086288] font-black text-xs flex items-center gap-1.5 shadow-md shadow-[#086288]/40 transition disabled:opacity-50 cursor-pointer"
-                            >
-                              {isBusy ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <UserPlus className="w-3.5 h-3.5" />
-                              )}
-                              <span>Chat / Request</span>
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStartDirectChat(user);
+                            }}
+                            className={cn(
+                              "px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer",
+                              isConnected
+                                ? "bg-[#053b53] hover:bg-[#4D8DBA]/40 text-[#97D7FF] hover:text-white border border-[#4D8DBA]/60"
+                                : "bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] hover:brightness-105 text-[#086288]"
+                            )}
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>{isConnected ? "Chat" : "+ Chat"}</span>
+                          </button>
                         </div>
                       </div>
                     );

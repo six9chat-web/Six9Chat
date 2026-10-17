@@ -290,51 +290,104 @@ export async function toggleMessageReaction(
  */
 export async function getUserConnectedContacts(userId: string): Promise<ChatContact[]> {
   const contactsMap = new Map<string, ChatContact>();
+  const contactIds = new Set<string>();
+  const lastMessageMap = new Map<string, { text: string; timestamp: string; isSelf: boolean; status: "sent" | "delivered" | "read" }>();
 
-  // 1. Fetch accepted chat requests from Supabase
+  // 1. Fetch contacts from messages history (any 1-on-1 messages sent or received)
+  try {
+    const { data: recentMsgs } = await supabaseServer
+      .from("messages")
+      .select("id, conversation_id, sender_id, receiver_id, text, created_at, status, media_type")
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .order("created_at", { ascending: false })
+      .limit(150);
+
+    if (Array.isArray(recentMsgs)) {
+      for (const m of recentMsgs) {
+        if (m.conversation_id && m.conversation_id.startsWith("group-")) continue;
+        const partnerId = m.sender_id === userId ? m.receiver_id : m.sender_id;
+        if (partnerId && partnerId !== userId) {
+          contactIds.add(partnerId);
+          if (!lastMessageMap.has(partnerId)) {
+            const timeStr = m.created_at
+              ? new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "Recently";
+            lastMessageMap.set(partnerId, {
+              text: m.text || (m.media_type ? `[${m.media_type.toUpperCase()}]` : "Message"),
+              timestamp: timeStr,
+              isSelf: m.sender_id === userId,
+              status: (m.status as any) || "delivered",
+            });
+          }
+        }
+      }
+    }
+  } catch (msgErr) {
+    console.warn("[ChatService] getUserConnectedContacts messages notice:", msgErr);
+  }
+
+  // 2. Fetch contacts from chat_requests (both accepted and pending)
   try {
     const { data: requests, error } = await supabaseServer
       .from("chat_requests")
-      .select("id, sender_id, receiver_id, status, updated_at")
-      .eq("status", "accepted")
-      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
+      .select("id, sender_id, receiver_id, status, updated_at, created_at")
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .in("status", ["accepted", "pending"]);
 
-    if (!error && Array.isArray(requests) && requests.length > 0) {
-      const contactIds = Array.from(
-        new Set(
-          requests.map((r) => (r.sender_id === userId ? r.receiver_id : r.sender_id))
-        )
-      );
-
-      // Fetch profiles for these contact IDs
-      const { data: profiles } = await supabaseServer
-        .from("profiles")
-        .select("id, username, full_name, avatar_url, status, uid")
-        .in("id", contactIds);
-
-      if (profiles) {
-        for (const p of profiles) {
-          contactsMap.set(p.id, {
-            id: p.id,
-            name: p.username ? `@${p.username.replace(/^@/, '')}` : (p.full_name || "Contact"),
-            avatar: p.avatar_url || "",
-            avatarColor: "from-[#086288] to-[#4D8DBA]",
-            status: "online",
-            lastSeen: "Online now",
-            about: p.status || "Connected on Six9Chat",
-            unreadCount: 0,
-            lastMessage: {
-              text: "Connected! Start chatting",
-              timestamp: "Just now",
-              isSelf: false,
+    if (!error && Array.isArray(requests)) {
+      for (const r of requests) {
+        const partnerId = r.sender_id === userId ? r.receiver_id : r.sender_id;
+        if (partnerId && partnerId !== userId) {
+          contactIds.add(partnerId);
+          if (!lastMessageMap.has(partnerId)) {
+            lastMessageMap.set(partnerId, {
+              text: r.status === "accepted" ? "Connected! Start chatting" : "Chat request sent",
+              timestamp: "Recently",
+              isSelf: r.sender_id === userId,
               status: "read",
-            },
-          });
+            });
+          }
         }
       }
     }
   } catch (err) {
     console.warn("[ChatService] getUserConnectedContacts chat_requests notice:", err);
+  }
+
+  // 3. Fetch profiles for all discovered contact IDs
+  if (contactIds.size > 0) {
+    try {
+      const { data: profiles } = await supabaseServer
+        .from("profiles")
+        .select("id, username, email, full_name, about, avatar_url, status, uid")
+        .in("id", Array.from(contactIds));
+
+      if (Array.isArray(profiles)) {
+        for (const p of profiles) {
+          const lastMsg = lastMessageMap.get(p.id) || {
+            text: "Started a conversation",
+            timestamp: "Just now",
+            isSelf: false,
+            status: "read",
+          };
+
+          contactsMap.set(p.id, {
+            id: p.id,
+            name: p.username ? `@${p.username.replace(/^@/, "")}` : (p.full_name || "Contact"),
+            avatar: p.avatar_url || "",
+            avatarColor: "from-[#086288] to-[#4D8DBA]",
+            status: "online",
+            lastSeen: "Online now",
+            about: p.about || p.status || "Hey there! I am using Six9Chat",
+            phone: p.username || p.email || "",
+            unreadCount: 0,
+            lastMessage: lastMsg,
+          });
+        }
+      }
+    } catch (profErr) {
+      console.warn("[ChatService] getUserConnectedContacts profiles notice:", profErr);
+    }
   }
 
   // 2. Fetch groups where user is creator or member
