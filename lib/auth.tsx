@@ -121,17 +121,20 @@ export async function signUpWithEmail(
     throw new Error("Password is required for email signup");
   }
 
+  const defaultAbout = status || "Hey there! I am using Six9Chat 🚀";
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
+        username: username || email.split("@")[0].toLowerCase(),
         full_name: fullName || email.split("@")[0],
         name: fullName || email.split("@")[0],
-        username: username || email.split("@")[0].toLowerCase(),
+        about: defaultAbout,
+        status: defaultAbout,
         phone: phone || "",
         avatar_url: avatarUrl || "",
-        status: status,
       },
     },
   });
@@ -144,9 +147,11 @@ export async function signUpWithEmail(
         id: data.user.id,
         username: username || email.split("@")[0].toLowerCase(),
         full_name: fullName || email.split("@")[0],
+        email: email,
         avatar_url: avatarUrl || "",
         phone: phone || "",
-        status: status,
+        about: defaultAbout,
+        status: defaultAbout,
       });
     } catch (e) {
       console.warn("Profile trigger fallback notice:", e);
@@ -890,17 +895,35 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
       contentType: file.type,
     });
 
+  let publicUrl = "";
   if (uploadError) {
     console.warn("Storage upload failed, using Data URL fallback:", uploadError.message);
-    return new Promise((resolve) => {
+    publicUrl = await new Promise<string>((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.readAsDataURL(file);
     });
+  } else {
+    const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
+    publicUrl = data.publicUrl;
   }
 
-  const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
-  return data.publicUrl;
+  // Directly update profiles.avatar_url in Supabase database
+  if (userId && publicUrl) {
+    try {
+      await supabase
+        .from("profiles")
+        .update({
+          avatar_url: publicUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userId);
+    } catch (dbErr) {
+      console.warn("Direct profiles.avatar_url update note:", dbErr);
+    }
+  }
+
+  return publicUrl;
 }
 
 /**

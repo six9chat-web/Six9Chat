@@ -216,7 +216,8 @@ function AuthContent() {
                 username: cleanUser,
                 full_name: fullName,
                 name: fullName,
-                about: "Building with Six9Chat 🚀",
+                about: "Hey there! I am using Six9Chat 🚀",
+                status: "Hey there! I am using Six9Chat 🚀",
               },
             },
           });

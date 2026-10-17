@@ -25,6 +25,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_hash TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS uid TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Hey there! I am using Six9Chat';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS about TEXT DEFAULT 'Hey there! I am using Six9Chat 🚀';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username TEXT;
 
@@ -132,6 +133,7 @@ BEGIN
     email,
     uid,
     status,
+    about,
     created_at,
     updated_at
   )
@@ -144,6 +146,7 @@ BEGIN
     NEW.email,
     v_uid,
     'Hey there! I am using Six9Chat 🚀',
+    COALESCE(NEW.raw_user_meta_data->>'about', NEW.raw_user_meta_data->>'status', 'Hey there! I am using Six9Chat 🚀'),
     COALESCE(NEW.created_at, timezone('utc'::text, now())),
     timezone('utc'::text, now())
   )
@@ -151,6 +154,7 @@ BEGIN
   SET
     full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name),
     email = COALESCE(EXCLUDED.email, public.profiles.email),
+    about = COALESCE(EXCLUDED.about, public.profiles.about),
     avatar_url = CASE WHEN public.profiles.avatar_url IS NULL OR public.profiles.avatar_url = '' THEN EXCLUDED.avatar_url ELSE public.profiles.avatar_url END,
     phone = CASE WHEN public.profiles.phone IS NULL OR public.profiles.phone = '' THEN EXCLUDED.phone ELSE public.profiles.phone END,
     uid = COALESCE(public.profiles.uid, EXCLUDED.uid),
