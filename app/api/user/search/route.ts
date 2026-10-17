@@ -3,14 +3,18 @@ import { searchRegisteredUsers } from "@/lib/authService";
 
 export async function GET(request: NextRequest) {
   try {
-    const query = request.nextUrl.searchParams.get("q") || "";
+    const searchTerm =
+      request.nextUrl.searchParams.get("searchTerm") ||
+      request.nextUrl.searchParams.get("username") ||
+      request.nextUrl.searchParams.get("q") ||
+      "";
 
-    if (!query.trim()) {
+    if (!searchTerm.trim()) {
       return NextResponse.json({ success: true, users: [] });
     }
 
     const excludeId = request.nextUrl.searchParams.get("excludeId") || undefined;
-    const users = await searchRegisteredUsers(query, excludeId);
+    const users = await searchRegisteredUsers(searchTerm, excludeId);
     return NextResponse.json({
       success: true,
       users,

@@ -139,12 +139,12 @@ export function Sidebar({
           }
         }
 
-        // 2. Direct Supabase browser client query backup (case-insensitive ilike on username or email, strictly excluding logged-in user)
+        // 2. Direct Supabase browser client query on public.profiles table using .ilike('username', `%${searchTerm}%`)
         if (foundUsers.length === 0) {
           let sbQuery = supabase
             .from("profiles")
             .select("id, username, email, about, avatar_url, full_name, status")
-            .or(`username.ilike.%${clean}%,email.ilike.%${clean}%`)
+            .ilike("username", `%${clean}%`)
             .limit(10);
 
           if (currentId) {
@@ -155,6 +155,34 @@ export function Sidebar({
 
           if (Array.isArray(data) && data.length > 0) {
             foundUsers = data
+              .filter((d: any) => !currentId || d.id !== currentId)
+              .map((d: any) => ({
+                id: d.id,
+                username: d.username,
+                email: d.email || "",
+                about: d.about || d.status || "",
+                fullName: d.full_name || d.username,
+                avatarUrl: d.avatar_url || "",
+              }));
+          }
+        }
+
+        // Check email ilike if username search did not match
+        if (foundUsers.length === 0) {
+          let sbEmailQuery = supabase
+            .from("profiles")
+            .select("id, username, email, about, avatar_url, full_name, status")
+            .ilike("email", `%${clean}%`)
+            .limit(10);
+
+          if (currentId) {
+            sbEmailQuery = sbEmailQuery.neq("id", currentId);
+          }
+
+          const { data: emailData } = await sbEmailQuery;
+
+          if (Array.isArray(emailData) && emailData.length > 0) {
+            foundUsers = emailData
               .filter((d: any) => !currentId || d.id !== currentId)
               .map((d: any) => ({
                 id: d.id,

@@ -435,8 +435,8 @@ export async function searchRegisteredUsers(
   status: string;
   uid: string;
 }>> {
-  const clean = query.trim().replace(/^@+/, "").toLowerCase();
-  if (!clean) return [];
+  const searchTerm = query.trim().replace(/^@+/, "").toLowerCase();
+  if (!searchTerm) return [];
 
   const matchedMap = new Map<string, {
     id: string;
@@ -449,12 +449,12 @@ export async function searchRegisteredUsers(
     uid: string;
   }>();
 
-  // 1. Direct Supabase query using case-insensitive ilike on username or email
+  // 1. Direct Supabase query on public.profiles table using .ilike('username', `%${searchTerm}%`)
   try {
     let sbQuery = supabaseServer
       .from("profiles")
       .select("id, username, email, about, avatar_url, full_name, status, uid")
-      .or(`username.ilike.%${clean}%,email.ilike.%${clean}%`)
+      .ilike("username", `%${searchTerm}%`)
       .limit(20);
 
     if (excludeId) {
@@ -480,10 +480,44 @@ export async function searchRegisteredUsers(
       }
     }
   } catch (err) {
-    console.warn("[AuthService] searchRegisteredUsers ilike query notice:", err);
+    console.warn("[AuthService] searchRegisteredUsers ilike username query notice:", err);
   }
 
-  // 2. Full profiles scan fallback to guarantee freshly registered accounts appear instantly
+  // 2. Also check if search matches email via .ilike('email', `%${searchTerm}%`)
+  try {
+    let emailQuery = supabaseServer
+      .from("profiles")
+      .select("id, username, email, about, avatar_url, full_name, status, uid")
+      .ilike("email", `%${searchTerm}%`)
+      .limit(20);
+
+    if (excludeId) {
+      emailQuery = emailQuery.neq("id", excludeId);
+    }
+
+    const { data: emailProfiles } = await emailQuery;
+
+    if (Array.isArray(emailProfiles)) {
+      for (const p of emailProfiles) {
+        if (p.id && (!excludeId || p.id !== excludeId) && !matchedMap.has(p.id)) {
+          matchedMap.set(p.id, {
+            id: p.id,
+            username: p.username || `user_${p.id.slice(0, 4)}`,
+            email: p.email || "",
+            fullName: p.full_name || p.username || "Six9 Member",
+            avatarUrl: p.avatar_url || "",
+            about: p.about || p.status || "Hey there! I am using Six9Chat",
+            status: p.status || p.about || "Hey there! I am using Six9Chat",
+            uid: p.uid || "S9-01",
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[AuthService] searchRegisteredUsers ilike email query notice:", err);
+  }
+
+  // 3. Full profiles scan fallback to guarantee freshly registered accounts appear instantly
   if (matchedMap.size === 0) {
     try {
       const { data: allProfiles } = await supabaseServer
@@ -498,7 +532,7 @@ export async function searchRegisteredUsers(
           const u = (p.username || "").toLowerCase();
           const e = (p.email || "").toLowerCase();
           const f = (p.full_name || "").toLowerCase();
-          if (u.includes(clean) || e.includes(clean) || f.includes(clean)) {
+          if (u.includes(searchTerm) || e.includes(searchTerm) || f.includes(searchTerm)) {
             matchedMap.set(p.id, {
               id: p.id,
               username: p.username || `user_${p.id.slice(0, 4)}`,
