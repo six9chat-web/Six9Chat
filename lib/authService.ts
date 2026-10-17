@@ -453,7 +453,7 @@ export async function searchRegisteredUsers(
   try {
     let sbQuery = supabaseServer
       .from("profiles")
-      .select("id, username, email, about, avatar_url, full_name, status, uid")
+      .select("*")
       .ilike("username", `%${searchTerm}%`)
       .limit(20);
 

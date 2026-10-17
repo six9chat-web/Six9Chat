@@ -61,6 +61,8 @@ export function NewChatModal({
   const [directoryUsers, setDirectoryUsers] = useState<DirectoryUser[]>([]);
   const [isLoadingDirectory, setIsLoadingDirectory] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
+  const [searchResults, setSearchResults] = useState<DirectoryUser[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
   const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -71,7 +73,7 @@ export function NewChatModal({
   const [groupAvatar, setCustomGroupAvatar] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Load Real-time Supabase User Directory
+  // Load Real-time Supabase User Directory on open
   useEffect(() => {
     if (!isOpen) return;
 
@@ -82,11 +84,12 @@ export function NewChatModal({
       try {
         const fetchedMap = new Map<string, DirectoryUser>();
 
-        // 1. Direct Supabase select query without strict RLS blocking: id != current_user_id
+        // 1. Direct Supabase select query using select('*')
         try {
           let sbQuery = supabase
             .from("profiles")
-            .select("id, username, email, full_name, about, avatar_url, status, uid, phone");
+            .select("*")
+            .limit(50);
 
           if (currentUserId) {
             sbQuery = sbQuery.neq("id", currentUserId);
@@ -95,7 +98,7 @@ export function NewChatModal({
           const { data: sbProfiles, error: sbError } = await sbQuery;
           if (!sbError && Array.isArray(sbProfiles)) {
             for (const p of sbProfiles) {
-              if (p.id && (!currentUserId || p.id !== currentUserId)) {
+              if (p.id) {
                 fetchedMap.set(p.id, {
                   id: p.id,
                   username: p.username || `user_${p.id.slice(0, 4)}`,
@@ -113,7 +116,7 @@ export function NewChatModal({
           console.warn("Client Supabase profiles select note:", sbErr);
         }
 
-        // 2. Direct API endpoint call (service/backend access without strict RLS blocking)
+        // 2. Direct API endpoint call fallback
         try {
           const endpoint = currentUserId
             ? `/api/user/directory?excludeId=${encodeURIComponent(currentUserId)}`
@@ -122,7 +125,7 @@ export function NewChatModal({
           const data = await res.json();
           if (data.success && Array.isArray(data.users)) {
             for (const u of data.users) {
-              if (u.id && (!currentUserId || u.id !== currentUserId) && !fetchedMap.has(u.id)) {
+              if (u.id && !fetchedMap.has(u.id)) {
                 fetchedMap.set(u.id, u);
               }
             }
@@ -161,23 +164,66 @@ export function NewChatModal({
     };
   }, [isOpen, currentUserId]);
 
+  // Direct live search on profiles table: supabase.from('profiles').select('*').ilike('username', `%${searchTerm.trim()}%`)
+  useEffect(() => {
+    const searchTerm = searchFilter.trim().replace(/^@+/, "");
+    if (!searchTerm) {
+      setSearchResults(null);
+      setIsSearching(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsSearching(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .ilike("username", `%${searchTerm.trim()}%`);
+
+        if (isMounted) {
+          if (!error && Array.isArray(data)) {
+            const mapped: DirectoryUser[] = data.map((p: any) => ({
+              id: p.id,
+              username: p.username || `user_${p.id?.slice(0, 4)}`,
+              email: p.email || "",
+              fullName: p.full_name || p.username || "Six9 Member",
+              avatarUrl: p.avatar_url || "",
+              about: p.about || p.status || "Hey there! I am using Six9Chat",
+              status: p.status || p.about || "Hey there! I am using Six9Chat",
+              uid: p.uid || "S9-01",
+            }));
+            setSearchResults(mapped);
+          } else {
+            setSearchResults([]);
+          }
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.warn("[NewChatModal live search error]:", err);
+          setSearchResults([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsSearching(false);
+        }
+      }
+    }, 100);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [searchFilter]);
+
   if (!isOpen) return null;
 
-  // Filter out current user from directory
-  const availableUsers = directoryUsers.filter((u) => !currentUserId || u.id !== currentUserId);
-
-  // Search filtered directory (case-insensitive search by username, email, name, about)
-  const filteredUsers = availableUsers.filter((u) => {
-    const q = searchFilter.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      u.fullName.toLowerCase().includes(q) ||
-      u.username.toLowerCase().includes(q) ||
-      (u.email && u.email.toLowerCase().includes(q)) ||
-      (u.about && u.about.toLowerCase().includes(q)) ||
-      (u.uid && u.uid.toLowerCase().includes(q))
-    );
-  });
+  // When search is active, use searchResults directly without filtering out matching users like 'test2'
+  const filteredUsers = searchResults !== null
+    ? searchResults
+    : directoryUsers.filter((u) => !currentUserId || u.id !== currentUserId);
 
   // Filter accepted connected contacts for group creation (excluding groups)
   const connectedContacts = contacts.filter((c) => !c.isGroup);
@@ -434,15 +480,22 @@ export function NewChatModal({
                       Loading registered users...
                     </p>
                   </div>
+                ) : isSearching ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-slate-300">
+                    <Loader2 className="w-6 h-6 text-[#97D7FF] animate-spin mb-2" />
+                    <p className="text-xs font-semibold text-slate-200">
+                      Searching for &quot;{searchFilter.trim()}&quot;...
+                    </p>
+                  </div>
                 ) : filteredUsers.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-slate-300">
                     <p className="text-xs font-bold text-red-200 flex items-center justify-center gap-1.5">
                       <AlertCircle className="w-4 h-4 text-red-400" />
-                      <span>{searchFilter ? "This user does not exist" : "No users found"}</span>
+                      <span>{searchFilter ? "User not found" : "No users found"}</span>
                     </p>
                     <p className="text-[11px] text-slate-300 mt-1 max-w-[220px]">
                       {searchFilter
-                        ? `No registered user matches "${searchFilter}". Try another username.`
+                        ? `No registered user matches "${searchFilter.trim()}". Try another username.`
                         : "No other registered users in the network yet."}
                     </p>
                   </div>

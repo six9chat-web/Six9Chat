@@ -112,8 +112,6 @@ export function Sidebar({
         const currentId = currentUser?.id;
         const excludeParam = currentId ? `&excludeId=${encodeURIComponent(currentId)}` : "";
 
-        // 1. Strict real-time search via server API querying Supabase profiles table (ilike matching on username or email, strictly excluding logged-in user)
-        const res = await fetch(`/api/user/search?q=${encodeURIComponent(clean)}${excludeParam}`).catch(() => null);
         let foundUsers: Array<{
           id: string;
           username: string;
@@ -123,76 +121,45 @@ export function Sidebar({
           avatarUrl?: string;
         }> = [];
 
-        if (res && res.ok) {
-          const json = await res.json().catch(() => ({}));
-          if (Array.isArray(json.users)) {
-            foundUsers = json.users
-              .filter((u: any) => !currentId || u.id !== currentId)
-              .map((u: any) => ({
-                id: u.id,
-                username: u.username,
-                email: u.email || "",
-                about: u.about || u.status || "",
-                fullName: u.fullName || u.username,
-                avatarUrl: u.avatarUrl || "",
-              }));
+        // 1. Direct Supabase query on profiles table: supabase.from('profiles').select('*').ilike('username', `%${clean}%`)
+        try {
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .ilike("username", `%${clean}%`);
+
+          if (!error && Array.isArray(data) && data.length > 0) {
+            foundUsers = data.map((d: any) => ({
+              id: d.id,
+              username: d.username || `user_${d.id?.slice(0, 4)}`,
+              email: d.email || "",
+              about: d.about || d.status || "",
+              fullName: d.full_name || d.username || "Six9 Member",
+              avatarUrl: d.avatar_url || "",
+            }));
           }
+        } catch (sbErr) {
+          console.warn("Direct profiles select error:", sbErr);
         }
 
-        // 2. Direct Supabase browser client query on public.profiles table using .ilike('username', `%${searchTerm}%`)
+        // 2. Server API fallback if direct query found nothing
         if (foundUsers.length === 0) {
-          let sbQuery = supabase
-            .from("profiles")
-            .select("id, username, email, about, avatar_url, full_name, status")
-            .ilike("username", `%${clean}%`)
-            .limit(10);
-
-          if (currentId) {
-            sbQuery = sbQuery.neq("id", currentId);
-          }
-
-          const { data } = await sbQuery;
-
-          if (Array.isArray(data) && data.length > 0) {
-            foundUsers = data
-              .filter((d: any) => !currentId || d.id !== currentId)
-              .map((d: any) => ({
-                id: d.id,
-                username: d.username,
-                email: d.email || "",
-                about: d.about || d.status || "",
-                fullName: d.full_name || d.username,
-                avatarUrl: d.avatar_url || "",
-              }));
-          }
-        }
-
-        // Check email ilike if username search did not match
-        if (foundUsers.length === 0) {
-          let sbEmailQuery = supabase
-            .from("profiles")
-            .select("id, username, email, about, avatar_url, full_name, status")
-            .ilike("email", `%${clean}%`)
-            .limit(10);
-
-          if (currentId) {
-            sbEmailQuery = sbEmailQuery.neq("id", currentId);
-          }
-
-          const { data: emailData } = await sbEmailQuery;
-
-          if (Array.isArray(emailData) && emailData.length > 0) {
-            foundUsers = emailData
-              .filter((d: any) => !currentId || d.id !== currentId)
-              .map((d: any) => ({
-                id: d.id,
-                username: d.username,
-                email: d.email || "",
-                about: d.about || d.status || "",
-                fullName: d.full_name || d.username,
-                avatarUrl: d.avatar_url || "",
-              }));
-          }
+          try {
+            const res = await fetch(`/api/user/search?searchTerm=${encodeURIComponent(clean)}${excludeParam}`).catch(() => null);
+            if (res && res.ok) {
+              const json = await res.json().catch(() => ({}));
+              if (Array.isArray(json.users) && json.users.length > 0) {
+                foundUsers = json.users.map((u: any) => ({
+                  id: u.id,
+                  username: u.username,
+                  email: u.email || "",
+                  about: u.about || u.status || "",
+                  fullName: u.fullName || u.username,
+                  avatarUrl: u.avatarUrl || "",
+                }));
+              }
+            }
+          } catch {}
         }
 
         // 3. Fallback: Directory API (all registered Supabase accounts, excluding current user)
