@@ -383,22 +383,18 @@ export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
     uid: string;
   }>();
 
-  // 1. Fetch from Supabase profiles table using service/public select access without strict RLS blocking
+  // 1. Fetch all profiles from Supabase profiles table without any exclusion
   try {
-    let query = supabaseServer
+    const query = supabaseServer
       .from("profiles")
       .select("id, username, email, full_name, about, avatar_url, status, uid")
       .order("created_at", { ascending: false });
-
-    if (excludeId) {
-      query = query.neq("id", excludeId);
-    }
 
     const { data: profiles, error } = await query;
 
     if (!error && Array.isArray(profiles)) {
       for (const p of profiles) {
-        if (p.id && (!excludeId || p.id !== excludeId)) {
+        if (p.id) {
           usersMap.set(p.id, {
             id: p.id,
             username: p.username || `user_${p.id.slice(0, 4)}`,

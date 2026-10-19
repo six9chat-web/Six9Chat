@@ -136,11 +136,8 @@ export function NewChatModal({
 
   if (!isOpen) return null;
 
-  // Active pool: filter out exact matching auth user id if non-null, but keep all during test if only user
-  const availableProfiles =
-    currentUserId && rawProfiles.some((p: any) => p?.id !== currentUserId)
-      ? rawProfiles.filter((p: any) => p?.id !== currentUserId)
-      : rawProfiles;
+  // Display ALL rows returned from database without hiding or filtering out any user
+  const availableProfiles = rawProfiles;
 
   // Local array filtering for search input
   const term = searchFilter.trim().toLowerCase().replace(/^@+/, "");
@@ -153,7 +150,7 @@ export function NewChatModal({
           p.full_name?.toLowerCase().includes(term) ||
           p.fullName?.toLowerCase().includes(term)
       )
-    : availableProfiles;
+    : rawProfiles;
 
   // Render raw profiles directly under REGISTERED USERS
   const displayedUsers: DirectoryUser[] = filteredProfiles.map((p: any) => ({
