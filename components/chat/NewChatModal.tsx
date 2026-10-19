@@ -97,26 +97,21 @@ export function NewChatModal({
           setCurrentLoggedInUser({ id: myId, email: myEmail });
         }
 
-        // a) Run direct Supabase query:
-        const { data, error } = await supabase.from("profiles").select("*");
+        // Run direct Supabase query with debug diagnostics:
+        const { data: allProfiles, error } = await supabase.from("profiles").select("*");
+        console.log("SEARCH PROFILES DEBUG:", allProfiles, error);
 
-        if (error) {
-          console.error("[NewChatModal] Direct profiles query error:", error);
-        } else {
-          console.log("[NewChatModal] Direct profiles query count:", data?.length || 0);
-        }
-
-        // b) Save all returned profiles into state
+        // Save all returned profiles into state
         if (isMounted) {
-          if (Array.isArray(data) && data.length > 0) {
-            setProfiles(data);
+          if (Array.isArray(allProfiles) && allProfiles.length > 0) {
+            setProfiles(allProfiles);
           } else {
             // Secondary fallback if direct anon query is blocked
             try {
               const res = await fetch("/api/user/directory", { cache: "no-store" });
               const json = await res.json();
+              console.log("SEARCH PROFILES API FALLBACK DEBUG:", json);
               if (json.success && Array.isArray(json.users) && json.users.length > 0) {
-                console.log("[NewChatModal] Fallback directory count:", json.users.length);
                 setProfiles(json.users);
               }
             } catch (apiErr) {
@@ -163,16 +158,16 @@ export function NewChatModal({
     return true;
   });
 
-  // e) When typing in the search box, filter this profiles array locally
-  const term = searchFilter.trim().toLowerCase().replace(/^@+/, "");
+  // When typing in the search box, filter allProfiles locally by username, full_name, or email (case-insensitive)
+  const searchTerm = searchFilter.trim().toLowerCase().replace(/^@+/, "");
 
-  const searchedProfiles = term
+  const searchedProfiles = searchTerm
     ? otherProfiles.filter(
         (p) =>
-          p.username?.toLowerCase().includes(term) ||
-          p.full_name?.toLowerCase().includes(term) ||
-          p.fullName?.toLowerCase().includes(term) ||
-          p.email?.toLowerCase().includes(term)
+          p.username?.toLowerCase().includes(searchTerm) ||
+          p.full_name?.toLowerCase().includes(searchTerm) ||
+          p.fullName?.toLowerCase().includes(searchTerm) ||
+          p.email?.toLowerCase().includes(searchTerm)
       )
     : otherProfiles;
 
@@ -447,11 +442,11 @@ export function NewChatModal({
                   <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-slate-300">
                     <p className="text-xs font-bold text-red-200 flex items-center justify-center gap-1.5">
                       <AlertCircle className="w-4 h-4 text-red-400" />
-                      <span>{term ? "User not found" : "No users found"}</span>
+                      <span>{searchTerm ? "User not found" : "No users found"}</span>
                     </p>
                     <p className="text-[11px] text-slate-300 mt-1 max-w-[220px]">
-                      {term
-                        ? `No registered user matches "${term}". Try another username.`
+                      {searchTerm
+                        ? `No registered user matches "${searchTerm}". Try another username.`
                         : "No other registered users in the network yet."}
                     </p>
                   </div>
