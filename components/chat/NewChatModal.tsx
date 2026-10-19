@@ -58,10 +58,9 @@ export function NewChatModal({
   const [mode, setMode] = useState<"directory" | "group-select" | "group-details">("directory");
 
   // User Directory State
-  const [profiles, setProfiles] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
-  const [currentLoggedInUser, setCurrentLoggedInUser] = useState<{ id?: string; email?: string } | null>(null);
   const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -72,61 +71,38 @@ export function NewChatModal({
   const [groupAvatar, setCustomGroupAvatar] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // a) On component load (useEffect), run direct Supabase query: supabase.from('profiles').select('*')
+  // Direct Supabase query on component load
   useEffect(() => {
     let isMounted = true;
 
-    async function loadAllProfiles() {
+    async function loadUsers() {
       setIsLoading(true);
       try {
-        // Resolve current logged in user id and email to filter out ONLY the current user
-        let myId = currentUserId;
-        let myEmail: string | undefined;
-
-        try {
-          const { data: authData } = await supabase.auth.getUser();
-          if (authData?.user) {
-            if (!myId) myId = authData.user.id;
-            myEmail = authData.user.email?.toLowerCase();
-          }
-        } catch (e) {
-          console.warn("[NewChatModal] Current user identification note:", e);
-        }
+        const { data } = await supabase.from("profiles").select("*");
+        console.log("PROFILES DIRECT FETCH:", data);
 
         if (isMounted) {
-          setCurrentLoggedInUser({ id: myId, email: myEmail });
-        }
-
-        // Run direct Supabase query with debug diagnostics:
-        const { data: allProfiles, error } = await supabase.from("profiles").select("*");
-        console.log("SEARCH PROFILES DEBUG:", allProfiles, error);
-
-        // Save all returned profiles into state
-        if (isMounted) {
-          if (Array.isArray(allProfiles) && allProfiles.length > 0) {
-            setProfiles(allProfiles);
+          if (Array.isArray(data) && data.length > 0) {
+            setUsers(data);
           } else {
-            // Secondary fallback if direct anon query is blocked
+            // Fallback to directory endpoint if direct query returns empty or blocked
             try {
               const res = await fetch("/api/user/directory", { cache: "no-store" });
               const json = await res.json();
-              console.log("SEARCH PROFILES API FALLBACK DEBUG:", json);
               if (json.success && Array.isArray(json.users) && json.users.length > 0) {
-                setProfiles(json.users);
+                setUsers(json.users);
               }
-            } catch (apiErr) {
-              console.warn("[NewChatModal] Directory API error:", apiErr);
-            }
+            } catch {}
           }
         }
       } catch (err) {
-        console.error("[NewChatModal] Failed to load profiles:", err);
+        console.error("Direct profiles fetch error:", err);
       } finally {
         if (isMounted) setIsLoading(false);
       }
     }
 
-    loadAllProfiles();
+    loadUsers();
 
     // Real-time Supabase Subscription on 'profiles' table
     const channel = supabase
@@ -135,7 +111,7 @@ export function NewChatModal({
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
         () => {
-          loadAllProfiles();
+          loadUsers();
         }
       )
       .subscribe();
@@ -144,35 +120,25 @@ export function NewChatModal({
       isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, [isOpen, currentUserId]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // c) Filter out ONLY the current logged-in user (by matching user.id or user.email)
-  const myId = currentLoggedInUser?.id || currentUserId;
-  const myEmail = currentLoggedInUser?.email?.toLowerCase();
-
-  const otherProfiles = profiles.filter((p) => {
-    if (myId && p.id === myId) return false;
-    if (myEmail && p.email?.toLowerCase() === myEmail) return false;
-    return true;
-  });
-
-  // When typing in the search box, filter allProfiles locally by username, full_name, or email (case-insensitive)
+  // Search filtering locally without any extra filtering conditions
   const searchTerm = searchFilter.trim().toLowerCase().replace(/^@+/, "");
 
-  const searchedProfiles = searchTerm
-    ? otherProfiles.filter(
+  const searchedUsers = searchTerm
+    ? users.filter(
         (p) =>
           p.username?.toLowerCase().includes(searchTerm) ||
           p.full_name?.toLowerCase().includes(searchTerm) ||
           p.fullName?.toLowerCase().includes(searchTerm) ||
           p.email?.toLowerCase().includes(searchTerm)
       )
-    : otherProfiles;
+    : users;
 
-  // d) Map to DirectoryUser list for direct rendering under "REGISTERED USERS"
-  const displayedUsers: DirectoryUser[] = searchedProfiles.map((p: any) => ({
+  // Render profiles directly under REGISTERED USERS
+  const displayedUsers: DirectoryUser[] = searchedUsers.map((p: any) => ({
     id: p.id,
     username: p.username || `user_${p.id?.slice(0, 4)}`,
     fullName: p.full_name || p.fullName || p.username || "Six9 Member",
@@ -431,7 +397,7 @@ export function NewChatModal({
 
               {/* Real-time Users List */}
               <div className="flex-1 overflow-y-auto space-y-2 pr-1 pt-2 divide-y divide-[#4D8DBA]/20">
-                {isLoading && profiles.length === 0 ? (
+                {isLoading && users.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-slate-300">
                     <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin mb-2" />
                     <p className="text-xs font-semibold text-slate-200">
