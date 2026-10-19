@@ -162,9 +162,36 @@ export async function signUpWithEmail(
 }
 
 /**
- * Standalone: Sign in an existing user with Email and Password
+ * Standalone: Sign in an existing user with Email or Username and Password
  */
-export async function signInWithEmail(email: string, password: string) {
+export async function signInWithEmail(identifier: string, password: string) {
+  const cleanId = identifier.trim();
+  let email = cleanId;
+
+  if (cleanId.includes("@")) {
+    email = cleanId;
+  } else {
+    // If it does not contain '@', first query the public.profiles table to look up the associated email using the entered username
+    const { data: profile, error: profileErr } = await supabase
+      .from("profiles")
+      .select("email")
+      .ilike("username", cleanId)
+      .limit(1)
+      .maybeSingle();
+
+    if (profileErr) {
+      console.warn("Profile username lookup note in signInWithEmail:", profileErr);
+    }
+
+    if (profile?.email) {
+      email = profile.email;
+    } else {
+      throw new Error(
+        `No account found with username "${cleanId}". Please check your username or enter your email address.`
+      );
+    }
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,

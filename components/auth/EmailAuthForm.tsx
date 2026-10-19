@@ -67,7 +67,12 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
     setAuthError(null);
     setSuccessNotice(null);
 
-    if (!isEmailValid) {
+    if (mode === "signin") {
+      if (!email.trim()) {
+        setAuthError("Please enter your username or email address.");
+        return;
+      }
+    } else if (!isEmailValid) {
       setAuthError("Please provide a valid email address.");
       return;
     }
@@ -197,28 +202,28 @@ export function EmailAuthForm({ onSuccess }: EmailAuthFormProps) {
           </motion.div>
         )}
 
-        {/* Email Address */}
+        {/* Email Address or Username */}
         <div>
           <label className="block text-xs font-semibold text-[#FFEFC4] mb-1">
-            Email Address
+            {mode === "signin" ? "Email Address or Username" : "Email Address"}
           </label>
           <div className="relative">
             <input
-              type="email"
+              type={mode === "signin" ? "text" : "email"}
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
                 setAuthError(null);
               }}
-              placeholder="alex@six9chat.com"
+              placeholder={mode === "signin" ? "Username or alex@six9chat.com" : "alex@six9chat.com"}
               className={`w-full h-10 px-3.5 pl-9 pr-8 rounded-xl bg-[#053b53] border text-xs text-white placeholder-slate-400 outline-none transition ${
-                email && isEmailValid
+                email && (mode === "signin" ? email.length >= 2 : isEmailValid)
                   ? "border-emerald-500/80 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   : "border-[#4D8DBA]/50 hover:border-[#4D8DBA] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF]"
               }`}
             />
             <Mail className="w-4 h-4 text-[#4D8DBA] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            {email && isEmailValid && (
+            {email && (mode === "signin" ? email.length >= 2 : isEmailValid) && (
               <CheckCircle2 className="w-4 h-4 text-emerald-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
             )}
           </div>

@@ -161,12 +161,63 @@ function AuthContent() {
 
       setIsLoading(true);
       try {
-        const result = await loginWithCredentials({
-          identifier: cleanId,
+        let emailToUse = cleanId;
+
+        // If the input contains an '@' symbol, treat it as an email for supabase.auth.signInWithPassword
+        if (cleanId.includes("@")) {
+          emailToUse = cleanId;
+        } else {
+          // If it does not contain '@', first query the public.profiles table to look up the associated email using the entered username
+          const { data: profileData, error: profileErr } = await supabase
+            .from("profiles")
+            .select("email, id, username, full_name, uid")
+            .ilike("username", cleanId)
+            .limit(1)
+            .maybeSingle();
+
+          if (profileErr) {
+            console.error("Profile lookup error:", profileErr);
+          }
+
+          if (profileData?.email) {
+            emailToUse = profileData.email;
+          } else {
+            throw new Error(
+              `No account found with username "${cleanId}". Please check your username or use your email address.`
+            );
+          }
+        }
+
+        // Pass that email to supabase.auth.signInWithPassword
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: emailToUse,
           password: cleanPass,
         });
 
-        const assignedUid = result.assignedUid || "S9-01";
+        if (authError) {
+          throw authError;
+        }
+
+        // Synchronize local storage UID and session
+        const authUser = authData?.user;
+        const assignedUid = (authUser?.user_metadata?.uid as string) || "S9-01";
+        if (typeof window !== "undefined" && authUser) {
+          const uName = (authUser.user_metadata?.username as string) || cleanId.replace(/@.+/, "");
+          localStorage.setItem(`six9_uid_${uName.toLowerCase()}`, assignedUid);
+          localStorage.setItem(`six9_uid_${authUser.id}`, assignedUid);
+          localStorage.setItem("six9_current_uid", assignedUid);
+        }
+
+        // Also sync backend session cookie/memory cache
+        try {
+          await loginWithCredentials({
+            identifier: emailToUse,
+            password: cleanPass,
+          });
+        } catch {
+          // Client Supabase session is established
+        }
+
         setSuccessMessage(`Welcome back! Loading chat...`);
 
         setTimeout(() => {
