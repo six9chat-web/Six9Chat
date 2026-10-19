@@ -109,9 +109,6 @@ export function Sidebar({
 
     const timer = setTimeout(async () => {
       try {
-        const currentId = currentUser?.id;
-        const excludeParam = currentId ? `&excludeId=${encodeURIComponent(currentId)}` : "";
-
         let foundUsers: Array<{
           id: string;
           username: string;
@@ -121,12 +118,12 @@ export function Sidebar({
           avatarUrl?: string;
         }> = [];
 
-        // 1. Direct Supabase query on profiles table: supabase.from('profiles').select('*').ilike('username', `%${clean}%`)
+        // 1. Direct Supabase query on profiles table without strict filters or exclusions
         try {
           const { data, error } = await supabase
             .from("profiles")
             .select("*")
-            .ilike("username", `%${clean}%`);
+            .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%,email.ilike.%${clean}%`);
 
           if (!error && Array.isArray(data) && data.length > 0) {
             foundUsers = data.map((d: any) => ({
@@ -145,7 +142,7 @@ export function Sidebar({
         // 2. Server API fallback if direct query found nothing
         if (foundUsers.length === 0) {
           try {
-            const res = await fetch(`/api/user/search?searchTerm=${encodeURIComponent(clean)}${excludeParam}`).catch(() => null);
+            const res = await fetch(`/api/user/search?searchTerm=${encodeURIComponent(clean)}`).catch(() => null);
             if (res && res.ok) {
               const json = await res.json().catch(() => ({}));
               if (Array.isArray(json.users) && json.users.length > 0) {
@@ -162,21 +159,17 @@ export function Sidebar({
           } catch {}
         }
 
-        // 3. Fallback: Directory API (all registered Supabase accounts, excluding current user)
+        // 3. Fallback: Directory API (all registered Supabase accounts)
         if (foundUsers.length === 0) {
-          const dirEndpoint = currentId
-            ? `/api/user/directory?excludeId=${encodeURIComponent(currentId)}`
-            : "/api/user/directory";
-          const dirRes = await fetch(dirEndpoint).catch(() => null);
+          const dirRes = await fetch("/api/user/directory").catch(() => null);
           if (dirRes && dirRes.ok) {
             const dirJson = await dirRes.json().catch(() => ({}));
             if (Array.isArray(dirJson.users)) {
               const matched = dirJson.users
                 .filter((u: any) =>
-                  (!currentId || u.id !== currentId) &&
-                  (u.username?.toLowerCase().includes(clean) ||
-                   u.email?.toLowerCase().includes(clean) ||
-                   u.fullName?.toLowerCase().includes(clean))
+                  u.username?.toLowerCase().includes(clean) ||
+                  u.email?.toLowerCase().includes(clean) ||
+                  u.fullName?.toLowerCase().includes(clean)
                 )
                 .map((u: any) => ({
                   id: u.id,

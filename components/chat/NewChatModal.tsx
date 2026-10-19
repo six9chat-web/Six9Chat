@@ -84,18 +84,13 @@ export function NewChatModal({
       try {
         const fetchedMap = new Map<string, DirectoryUser>();
 
-        // 1. Direct Supabase select query using select('*')
+        // 1. Direct Supabase select query using select('*') without strict filters or auth-ID exclusions
         try {
-          let sbQuery = supabase
+          const { data: sbProfiles, error: sbError } = await supabase
             .from("profiles")
             .select("*")
-            .limit(50);
+            .order("created_at", { ascending: false });
 
-          if (currentUserId) {
-            sbQuery = sbQuery.neq("id", currentUserId);
-          }
-
-          const { data: sbProfiles, error: sbError } = await sbQuery;
           if (!sbError && Array.isArray(sbProfiles)) {
             for (const p of sbProfiles) {
               if (p.id) {
@@ -118,10 +113,7 @@ export function NewChatModal({
 
         // 2. Direct API endpoint call fallback
         try {
-          const endpoint = currentUserId
-            ? `/api/user/directory?excludeId=${encodeURIComponent(currentUserId)}`
-            : "/api/user/directory";
-          const res = await fetch(endpoint, { cache: "no-store" });
+          const res = await fetch("/api/user/directory", { cache: "no-store" });
           const data = await res.json();
           if (data.success && Array.isArray(data.users)) {
             for (const u of data.users) {
@@ -181,7 +173,7 @@ export function NewChatModal({
         const { data, error } = await supabase
           .from("profiles")
           .select("*")
-          .ilike("username", `%${searchTerm.trim()}%`);
+          .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
 
         if (isMounted) {
           if (!error && Array.isArray(data)) {
@@ -197,13 +189,31 @@ export function NewChatModal({
             }));
             setSearchResults(mapped);
           } else {
-            setSearchResults([]);
+            const clientFiltered = directoryUsers.filter((u) => {
+              const q = searchTerm.toLowerCase();
+              return (
+                u.username.toLowerCase().includes(q) ||
+                u.fullName.toLowerCase().includes(q) ||
+                (u.email && u.email.toLowerCase().includes(q)) ||
+                (u.uid && u.uid.toLowerCase().includes(q))
+              );
+            });
+            setSearchResults(clientFiltered);
           }
         }
       } catch (err) {
         if (isMounted) {
           console.warn("[NewChatModal live search error]:", err);
-          setSearchResults([]);
+          const clientFiltered = directoryUsers.filter((u) => {
+            const q = searchTerm.toLowerCase();
+            return (
+              u.username.toLowerCase().includes(q) ||
+              u.fullName.toLowerCase().includes(q) ||
+              (u.email && u.email.toLowerCase().includes(q)) ||
+              (u.uid && u.uid.toLowerCase().includes(q))
+            );
+          });
+          setSearchResults(clientFiltered);
         }
       } finally {
         if (isMounted) {
@@ -216,14 +226,24 @@ export function NewChatModal({
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [searchFilter]);
+  }, [searchFilter, directoryUsers]);
 
   if (!isOpen) return null;
 
-  // When search is active, use searchResults directly without filtering out matching users like 'test2'
+  // Display all registered profiles without any strict filters or auth-ID exclusions
   const filteredUsers = searchResults !== null
     ? searchResults
-    : directoryUsers.filter((u) => !currentUserId || u.id !== currentUserId);
+    : searchFilter.trim()
+    ? directoryUsers.filter((u) => {
+        const q = searchFilter.toLowerCase().trim().replace(/^@+/, "");
+        return (
+          u.username.toLowerCase().includes(q) ||
+          u.fullName.toLowerCase().includes(q) ||
+          (u.email && u.email.toLowerCase().includes(q)) ||
+          (u.uid && u.uid.toLowerCase().includes(q))
+        );
+      })
+    : directoryUsers;
 
   // Filter accepted connected contacts for group creation (excluding groups)
   const connectedContacts = contacts.filter((c) => !c.isGroup);
