@@ -81,18 +81,34 @@ export function NewChatModal({
         const { data: rawProfiles, error } = await supabase.from("profiles").select("*");
         console.log("RAW PROFILES DIRECT FETCH:", rawProfiles, error);
 
-        if (isMounted) {
-          if (!error && Array.isArray(rawProfiles)) {
+        if (isMounted && Array.isArray(rawProfiles) && rawProfiles.length > 0) {
+          setRawProfiles(rawProfiles);
+        } else {
+          // If direct select was blocked by RLS or returned empty, attempt directory endpoint
+          try {
+            const res = await fetch("/api/user/directory", { cache: "no-store" });
+            const json = await res.json();
+            if (json.success && Array.isArray(json.users) && json.users.length > 0) {
+              if (isMounted) setRawProfiles(json.users);
+              return;
+            }
+          } catch (apiErr) {
+            console.warn("Directory endpoint notice:", apiErr);
+          }
+
+          if (isMounted && Array.isArray(rawProfiles)) {
             setRawProfiles(rawProfiles);
-          } else {
-            setRawProfiles([]);
           }
         }
       } catch (err) {
         console.error("Direct raw profiles fetch error:", err);
-        if (isMounted) {
-          setRawProfiles([]);
-        }
+        try {
+          const res = await fetch("/api/user/directory", { cache: "no-store" });
+          const json = await res.json();
+          if (json.success && Array.isArray(json.users) && json.users.length > 0) {
+            if (isMounted) setRawProfiles(json.users);
+          }
+        } catch {}
       } finally {
         if (isMounted) setIsLoading(false);
       }
