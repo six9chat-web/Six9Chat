@@ -82,55 +82,80 @@ export function NewChatModal({
     async function loadDirectory() {
       setIsLoadingDirectory(true);
       try {
+        let activeUserId = currentUserId;
+        if (!activeUserId) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.id) activeUserId = user.id;
+          } catch (e) {
+            console.warn("[NewChatModal] Auth user fetch note:", e);
+          }
+        }
+
+        // a) For initial directory load: Fetch all profiles via select('id, username, full_name, email, avatar_url, about'). Exclude only current user
+        let sbQuery = supabase
+          .from("profiles")
+          .select("id, username, full_name, email, avatar_url, about");
+
+        if (activeUserId) {
+          sbQuery = sbQuery.neq("id", activeUserId);
+        }
+
+        const { data: sbProfiles, error: sbError } = await sbQuery;
+
+        if (sbError) {
+          console.error("[NewChatModal] Profiles fetch error:", sbError);
+        } else {
+          console.log("[NewChatModal] Returned profiles array length:", sbProfiles?.length || 0);
+        }
+
         const fetchedMap = new Map<string, DirectoryUser>();
 
-        // 1. Direct Supabase select query using select('*') without strict filters or auth-ID exclusions
-        try {
-          const { data: sbProfiles, error: sbError } = await supabase
-            .from("profiles")
-            .select("*")
-            .order("created_at", { ascending: false });
-
-          if (!sbError && Array.isArray(sbProfiles)) {
-            for (const p of sbProfiles) {
-              if (p.id) {
-                fetchedMap.set(p.id, {
-                  id: p.id,
-                  username: p.username || `user_${p.id.slice(0, 4)}`,
-                  email: p.email || "",
-                  fullName: p.full_name || p.username || "Six9 Member",
-                  avatarUrl: p.avatar_url || "",
-                  about: p.about || p.status || "Hey there! I am using Six9Chat",
-                  status: p.status || p.about || "Hey there! I am using Six9Chat",
-                  uid: p.uid || "S9-01",
-                });
-              }
+        if (!sbError && Array.isArray(sbProfiles)) {
+          for (const p of sbProfiles) {
+            if (p.id) {
+              fetchedMap.set(p.id, {
+                id: p.id,
+                username: p.username || `user_${p.id.slice(0, 4)}`,
+                email: p.email || "",
+                fullName: p.full_name || p.username || "Six9 Member",
+                avatarUrl: p.avatar_url || "",
+                about: p.about || "Hey there! I am using Six9Chat",
+                status: p.about || "Hey there! I am using Six9Chat",
+                uid: (p as any).uid || "S9-01",
+              });
             }
           }
-        } catch (sbErr) {
-          console.warn("Client Supabase profiles select note:", sbErr);
         }
 
-        // 2. Direct API endpoint call fallback
-        try {
-          const res = await fetch("/api/user/directory", { cache: "no-store" });
-          const data = await res.json();
-          if (data.success && Array.isArray(data.users)) {
-            for (const u of data.users) {
-              if (u.id && !fetchedMap.has(u.id)) {
-                fetchedMap.set(u.id, u);
+        // Fallback to directory API endpoint if Supabase direct query returned 0 rows
+        if (fetchedMap.size === 0) {
+          try {
+            const endpoint = activeUserId
+              ? `/api/user/directory?excludeId=${encodeURIComponent(activeUserId)}`
+              : "/api/user/directory";
+            const res = await fetch(endpoint, { cache: "no-store" });
+            const data = await res.json();
+            if (data.success && Array.isArray(data.users)) {
+              console.log("[NewChatModal] Directory API fallback returned count:", data.users.length);
+              for (const u of data.users) {
+                if (u.id && (!activeUserId || u.id !== activeUserId)) {
+                  fetchedMap.set(u.id, u);
+                }
               }
             }
+          } catch (apiErr) {
+            console.warn("[NewChatModal] Directory API endpoint notice:", apiErr);
           }
-        } catch (apiErr) {
-          console.warn("Directory API endpoint notice:", apiErr);
         }
 
+        const usersList = Array.from(fetchedMap.values());
+        console.log("[NewChatModal] Total registered users loaded into state:", usersList.length);
         if (isMounted) {
-          setDirectoryUsers(Array.from(fetchedMap.values()));
+          setDirectoryUsers(usersList);
         }
       } catch (err) {
-        console.warn("Could not load user directory:", err);
+        console.error("[NewChatModal] Could not load user directory:", err);
       } finally {
         if (isMounted) setIsLoadingDirectory(false);
       }
@@ -138,7 +163,7 @@ export function NewChatModal({
 
     loadDirectory();
 
-    // 2. Real-time Supabase Subscription on 'profiles' table
+    // Real-time Supabase Subscription on 'profiles' table
     const channel = supabase
       .channel("public:profiles_directory_live")
       .on(
@@ -156,7 +181,7 @@ export function NewChatModal({
     };
   }, [isOpen, currentUserId]);
 
-  // Direct live search on profiles table: supabase.from('profiles').select('*').ilike('username', `%${searchTerm.trim()}%`)
+  // b) For active typing/search: Filter client-side or use .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`)
   useEffect(() => {
     const searchTerm = searchFilter.trim().replace(/^@+/, "");
     if (!searchTerm) {
@@ -170,47 +195,67 @@ export function NewChatModal({
 
     const timer = setTimeout(async () => {
       try {
-        const { data, error } = await supabase
+        let activeUserId = currentUserId;
+        if (!activeUserId) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.id) activeUserId = user.id;
+          } catch {}
+        }
+
+        let query = supabase
           .from("profiles")
-          .select("*")
-          .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+          .select("id, username, full_name, email, avatar_url, about")
+          .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`);
+
+        if (activeUserId) {
+          query = query.neq("id", activeUserId);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+          console.error("[NewChatModal] Search query error:", error);
+        } else {
+          console.log("[NewChatModal] Search returned profiles array length:", data?.length || 0);
+        }
 
         if (isMounted) {
-          if (!error && Array.isArray(data)) {
+          if (!error && Array.isArray(data) && data.length > 0) {
             const mapped: DirectoryUser[] = data.map((p: any) => ({
               id: p.id,
               username: p.username || `user_${p.id?.slice(0, 4)}`,
               email: p.email || "",
               fullName: p.full_name || p.username || "Six9 Member",
               avatarUrl: p.avatar_url || "",
-              about: p.about || p.status || "Hey there! I am using Six9Chat",
-              status: p.status || p.about || "Hey there! I am using Six9Chat",
-              uid: p.uid || "S9-01",
+              about: p.about || "Hey there! I am using Six9Chat",
+              status: p.about || "Hey there! I am using Six9Chat",
+              uid: (p as any).uid || "S9-01",
             }));
             setSearchResults(mapped);
           } else {
+            // Client-side fallback filter
+            const q = searchTerm.toLowerCase();
             const clientFiltered = directoryUsers.filter((u) => {
-              const q = searchTerm.toLowerCase();
+              if (activeUserId && u.id === activeUserId) return false;
               return (
                 u.username.toLowerCase().includes(q) ||
-                u.fullName.toLowerCase().includes(q) ||
-                (u.email && u.email.toLowerCase().includes(q)) ||
-                (u.uid && u.uid.toLowerCase().includes(q))
+                u.fullName.toLowerCase().includes(q)
               );
             });
+            console.log("[NewChatModal] Client-side filtered search count:", clientFiltered.length);
             setSearchResults(clientFiltered);
           }
         }
       } catch (err) {
+        console.error("[NewChatModal] Search execution error:", err);
         if (isMounted) {
-          console.warn("[NewChatModal live search error]:", err);
+          const q = searchTerm.toLowerCase();
           const clientFiltered = directoryUsers.filter((u) => {
-            const q = searchTerm.toLowerCase();
+            if (currentUserId && u.id === currentUserId) return false;
             return (
               u.username.toLowerCase().includes(q) ||
-              u.fullName.toLowerCase().includes(q) ||
-              (u.email && u.email.toLowerCase().includes(q)) ||
-              (u.uid && u.uid.toLowerCase().includes(q))
+              u.fullName.toLowerCase().includes(q)
             );
           });
           setSearchResults(clientFiltered);
@@ -220,17 +265,17 @@ export function NewChatModal({
           setIsSearching(false);
         }
       }
-    }, 100);
+    }, 120);
 
     return () => {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [searchFilter, directoryUsers]);
+  }, [searchFilter, directoryUsers, currentUserId]);
 
   if (!isOpen) return null;
 
-  // Display all registered profiles without any strict filters or auth-ID exclusions
+  // Registered users listing state - updates immediately on directoryUsers or searchResults update
   const filteredUsers = searchResults !== null
     ? searchResults
     : searchFilter.trim()
@@ -238,9 +283,7 @@ export function NewChatModal({
         const q = searchFilter.toLowerCase().trim().replace(/^@+/, "");
         return (
           u.username.toLowerCase().includes(q) ||
-          u.fullName.toLowerCase().includes(q) ||
-          (u.email && u.email.toLowerCase().includes(q)) ||
-          (u.uid && u.uid.toLowerCase().includes(q))
+          u.fullName.toLowerCase().includes(q)
         );
       })
     : directoryUsers;
