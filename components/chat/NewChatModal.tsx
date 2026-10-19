@@ -73,10 +73,8 @@ export function NewChatModal({
   const [groupAvatar, setCustomGroupAvatar] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Load Real-time Supabase User Directory on open
+  // Load Real-time Supabase User Directory (eager on mount and on modal open)
   useEffect(() => {
-    if (!isOpen) return;
-
     let isMounted = true;
 
     async function loadDirectory() {
@@ -95,7 +93,8 @@ export function NewChatModal({
         // Direct directory load: Query supabase.from('profiles').select('*') directly, excluding only current user id
         let sbQuery = supabase
           .from("profiles")
-          .select("*");
+          .select("*")
+          .order("created_at", { ascending: false });
 
         if (activeUserId) {
           sbQuery = sbQuery.neq("id", activeUserId);
@@ -111,9 +110,9 @@ export function NewChatModal({
 
         const fetchedMap = new Map<string, DirectoryUser>();
 
-        if (!sbError && Array.isArray(sbProfiles)) {
+        if (!sbError && Array.isArray(sbProfiles) && sbProfiles.length > 0) {
           for (const p of sbProfiles) {
-            if (p.id) {
+            if (p.id && (!activeUserId || p.id !== activeUserId)) {
               fetchedMap.set(p.id, {
                 id: p.id,
                 username: p.username || `user_${p.id.slice(0, 4)}`,
@@ -181,10 +180,10 @@ export function NewChatModal({
     };
   }, [isOpen, currentUserId]);
 
-  // b) For active typing/search: Filter client-side or use .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`)
+  // Active typing/search on profiles: lowercase comparisons & .or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%`)
   useEffect(() => {
-    const searchTerm = searchFilter.trim().replace(/^@+/, "");
-    if (!searchTerm) {
+    const cleanSearch = searchFilter.trim().replace(/^@+/, "").toLowerCase();
+    if (!cleanSearch) {
       setSearchResults(null);
       setIsSearching(false);
       return;
@@ -206,7 +205,7 @@ export function NewChatModal({
         let query = supabase
           .from("profiles")
           .select("*")
-          .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`);
+          .or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%`);
 
         if (activeUserId) {
           query = query.neq("id", activeUserId);
@@ -234,13 +233,12 @@ export function NewChatModal({
             }));
             setSearchResults(mapped);
           } else {
-            // Client-side fallback filter
-            const q = searchTerm.toLowerCase();
+            // Client-side fallback filter using lowercase comparisons
             const clientFiltered = directoryUsers.filter((u) => {
               if (activeUserId && u.id === activeUserId) return false;
               return (
-                u.username.toLowerCase().includes(q) ||
-                u.fullName.toLowerCase().includes(q)
+                u.username.toLowerCase().includes(cleanSearch) ||
+                u.fullName.toLowerCase().includes(cleanSearch)
               );
             });
             console.log("[NewChatModal] Client-side filtered search count:", clientFiltered.length);
@@ -250,12 +248,11 @@ export function NewChatModal({
       } catch (err) {
         console.error("[NewChatModal] Search execution error:", err);
         if (isMounted) {
-          const q = searchTerm.toLowerCase();
           const clientFiltered = directoryUsers.filter((u) => {
             if (currentUserId && u.id === currentUserId) return false;
             return (
-              u.username.toLowerCase().includes(q) ||
-              u.fullName.toLowerCase().includes(q)
+              u.username.toLowerCase().includes(cleanSearch) ||
+              u.fullName.toLowerCase().includes(cleanSearch)
             );
           });
           setSearchResults(clientFiltered);
@@ -275,17 +272,15 @@ export function NewChatModal({
 
   if (!isOpen) return null;
 
-  // Registered users listing state - updates immediately on directoryUsers or searchResults update
-  const filteredUsers = searchResults !== null
-    ? searchResults
-    : searchFilter.trim()
-    ? directoryUsers.filter((u) => {
-        const q = searchFilter.toLowerCase().trim().replace(/^@+/, "");
-        return (
-          u.username.toLowerCase().includes(q) ||
-          u.fullName.toLowerCase().includes(q)
-        );
-      })
+  // Registered users listing state: displays all other profiles before typing, and filters when typing
+  const cleanSearch = searchFilter.trim().replace(/^@+/, "").toLowerCase();
+  const filteredUsers = cleanSearch
+    ? searchResults !== null
+      ? searchResults
+      : directoryUsers.filter((u) =>
+          u.username.toLowerCase().includes(cleanSearch) ||
+          u.fullName.toLowerCase().includes(cleanSearch)
+        )
     : directoryUsers;
 
   // Filter accepted connected contacts for group creation (excluding groups)
