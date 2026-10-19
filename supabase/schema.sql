@@ -24,10 +24,12 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- 3. Row Level Security Policies
 -- Allow anyone to view profiles (needed for search, chat contacts, and presence)
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON public.profiles;
 DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
-CREATE POLICY "Public profiles are viewable by everyone" 
+CREATE POLICY "Public profiles are viewable by everyone." 
   ON public.profiles 
   FOR SELECT 
+  TO authenticated, anon
   USING (true);
 
 -- Allow users to insert their own profile

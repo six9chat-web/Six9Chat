@@ -118,12 +118,24 @@ export function Sidebar({
           avatarUrl?: string;
         }> = [];
 
-        // 1. Direct Supabase query on profiles table without strict filters or exclusions
+        // 1. Direct Supabase query on profiles table with case-insensitive search and safe exclusion
         try {
-          const { data, error } = await supabase
+          let query = supabase
             .from("profiles")
             .select("*")
             .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%,email.ilike.%${clean}%`);
+
+          if (currentUser?.id) {
+            query = query.neq("id", currentUser.id);
+          }
+
+          const { data, error } = await query;
+          console.log("[Sidebar search query response]:", {
+            clean,
+            count: data?.length,
+            data,
+            error,
+          });
 
           if (!error && Array.isArray(data) && data.length > 0) {
             foundUsers = data.map((d: any) => ({
@@ -136,7 +148,7 @@ export function Sidebar({
             }));
           }
         } catch (sbErr) {
-          console.warn("Direct profiles select error:", sbErr);
+          console.warn("[Sidebar] Direct profiles select error:", sbErr);
         }
 
         // 2. Server API fallback if direct query found nothing

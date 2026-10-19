@@ -14,7 +14,6 @@ export async function createClientServer() {
     supabaseAnonKey || "placeholder-key",
     {
       cookieOptions: {
-        name: "sb-auth-token",
         path: "/",
         sameSite: "lax",
         maxAge: 400 * 24 * 60 * 60,

@@ -19,27 +19,27 @@ export function isSupabaseConfigured(): boolean {
   );
 }
 
-/**
- * Client-side Supabase client for use in Browser / React Client Components ('use client')
- */
+let clientInstance: ReturnType<typeof createBrowserClient> | null = null;
+
 export function createClient() {
   const url = supabaseUrl || 'https://rjoxghjmtrsfdhbfkodr.supabase.co';
   const key = supabaseAnonKey || 'sb_publishable_uFcHccTx94Y8Kx2Qy1AsHQ_V-qovUQw';
 
-  return createBrowserClient(url, key, {
-    cookieOptions: {
-      name: 'sb-auth-token',
-      path: '/',
-      sameSite: 'lax',
-      maxAge: 400 * 24 * 60 * 60, // 400 days persistent session across browser reloads & computer shutdowns
-    },
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storageKey: 'sb-auth-token',
-    },
-  });
+  if (typeof window === 'undefined') {
+    return createBrowserClient(url, key);
+  }
+
+  if (!clientInstance) {
+    clientInstance = createBrowserClient(url, key, {
+      cookieOptions: {
+        path: '/',
+        sameSite: 'lax',
+        maxAge: 400 * 24 * 60 * 60,
+      },
+    });
+  }
+
+  return clientInstance;
 }
 
 /**

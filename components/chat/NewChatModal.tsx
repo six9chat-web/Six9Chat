@@ -57,9 +57,11 @@ export function NewChatModal({
   // Modal Navigation Mode: 'directory' | 'group-select' | 'group-details'
   const [mode, setMode] = useState<"directory" | "group-select" | "group-details">("directory");
 
-  // User Directory State strictly from raw database fetch
+  // User Directory State
   const [rawProfiles, setRawProfiles] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<any[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
   const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
   const [sendingId, setSendingId] = useState<string | null>(null);
@@ -71,39 +73,58 @@ export function NewChatModal({
   const [groupAvatar, setCustomGroupAvatar] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Direct Supabase raw query on component mount
+  // Direct Supabase raw query on component mount for initial directory listing
   useEffect(() => {
     let isMounted = true;
 
     async function loadProfiles() {
       setIsLoading(true);
       try {
-        const { data: rawProfiles, error } = await supabase.from("profiles").select("*");
-        console.log("RAW PROFILES DIRECT FETCH:", rawProfiles, error);
+        let query = supabase.from("profiles").select("*");
+        // Safe exclusion of currently logged-in user without breaking if null or loading
+        if (currentUserId) {
+          query = query.neq("id", currentUserId);
+        }
 
-        if (isMounted && Array.isArray(rawProfiles) && rawProfiles.length > 0) {
-          setRawProfiles(rawProfiles);
-        } else {
-          // If direct select was blocked by RLS or returned empty, attempt directory endpoint
-          try {
-            const res = await fetch("/api/user/directory", { cache: "no-store" });
-            const json = await res.json();
-            if (json.success && Array.isArray(json.users) && json.users.length > 0) {
-              if (isMounted) setRawProfiles(json.users);
-              return;
+        const { data, error } = await query;
+        console.log("[NewChatModal direct directory query response]:", {
+          count: data?.length,
+          currentUserId,
+          data,
+          error,
+        });
+
+        if (isMounted) {
+          if (Array.isArray(data) && data.length > 0) {
+            setRawProfiles(data);
+          } else {
+            // Secondary fallback via server directory endpoint
+            try {
+              const res = await fetch(
+                `/api/user/directory${currentUserId ? `?excludeId=${encodeURIComponent(currentUserId)}` : ""}`,
+                { cache: "no-store" }
+              );
+              const json = await res.json();
+              if (json.success && Array.isArray(json.users) && json.users.length > 0) {
+                if (isMounted) setRawProfiles(json.users);
+                return;
+              }
+            } catch (apiErr) {
+              console.warn("[NewChatModal] Directory fallback notice:", apiErr);
             }
-          } catch (apiErr) {
-            console.warn("Directory endpoint notice:", apiErr);
-          }
 
-          if (isMounted && Array.isArray(rawProfiles)) {
-            setRawProfiles(rawProfiles);
+            if (isMounted && Array.isArray(data)) {
+              setRawProfiles(data);
+            }
           }
         }
       } catch (err) {
-        console.error("Direct raw profiles fetch error:", err);
+        console.error("[NewChatModal] Direct directory fetch error:", err);
         try {
-          const res = await fetch("/api/user/directory", { cache: "no-store" });
+          const res = await fetch(
+            `/api/user/directory${currentUserId ? `?excludeId=${encodeURIComponent(currentUserId)}` : ""}`,
+            { cache: "no-store" }
+          );
           const json = await res.json();
           if (json.success && Array.isArray(json.users) && json.users.length > 0) {
             if (isMounted) setRawProfiles(json.users);
@@ -132,28 +153,142 @@ export function NewChatModal({
       isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, [isOpen]);
+  }, [isOpen, currentUserId]);
+
+  // Debounced search query against Supabase profiles table using .ilike and input sanitization
+  useEffect(() => {
+    let isCancelled = false;
+    // Input sanitization: trimming whitespace and handling leading symbols like '@'
+    const clean = searchFilter.trim().replace(/^@+/, "");
+
+    if (!clean) {
+      setSearchResults(null);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        console.log("[NewChatModal] Initiating case-insensitive search for:", clean);
+
+        // 1. Direct Supabase query with case-insensitive pattern matching (.ilike)
+        let query = supabase
+          .from("profiles")
+          .select("*")
+          .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%,email.ilike.%${clean}%`);
+
+        // Safe exclusion of currently logged-in user without breaking if null or loading
+        if (currentUserId) {
+          query = query.neq("id", currentUserId);
+        }
+
+        const { data, error } = await query;
+        console.log("[NewChatModal search query response]:", {
+          clean,
+          count: data?.length,
+          data,
+          error,
+        });
+
+        if (isCancelled) return;
+
+        const combinedMap = new Map<string, any>();
+
+        if (!error && Array.isArray(data)) {
+          for (const item of data) {
+            if (item?.id && (!currentUserId || item.id !== currentUserId)) {
+              combinedMap.set(item.id, item);
+            }
+          }
+        }
+
+        // 2. Also match against loaded directory profiles in memory
+        const qLower = clean.toLowerCase();
+        for (const p of rawProfiles) {
+          if (currentUserId && p.id === currentUserId) continue;
+          const u = (p.username || "").toLowerCase();
+          const fn = (p.full_name || p.fullName || "").toLowerCase();
+          const em = (p.email || "").toLowerCase();
+          if (u.includes(qLower) || fn.includes(qLower) || em.includes(qLower)) {
+            if (p.id && !combinedMap.has(p.id)) {
+              combinedMap.set(p.id, p);
+            }
+          }
+        }
+
+        // 3. Fallback server API search if direct query returned 0 items
+        if (combinedMap.size === 0) {
+          try {
+            const apiRes = await fetch(
+              `/api/user/search?searchTerm=${encodeURIComponent(clean)}${
+                currentUserId ? `&excludeId=${encodeURIComponent(currentUserId)}` : ""
+              }`,
+              { cache: "no-store" }
+            );
+            if (apiRes.ok) {
+              const apiJson = await apiRes.json();
+              if (Array.isArray(apiJson.users)) {
+                for (const u of apiJson.users) {
+                  if (u?.id && (!currentUserId || u.id !== currentUserId)) {
+                    combinedMap.set(u.id, u);
+                  }
+                }
+              }
+            }
+          } catch (apiErr) {
+            console.warn("[NewChatModal] Search API fallback notice:", apiErr);
+          }
+        }
+
+        if (!isCancelled) {
+          setSearchResults(Array.from(combinedMap.values()));
+        }
+      } catch (err) {
+        console.error("[NewChatModal] Search query exception:", err);
+        if (!isCancelled) {
+          // Instant memory fallback on error
+          const qLower = clean.toLowerCase();
+          const fallback = rawProfiles.filter((p: any) => {
+            if (currentUserId && p.id === currentUserId) return false;
+            const u = (p.username || "").toLowerCase();
+            const fn = (p.full_name || p.fullName || "").toLowerCase();
+            const em = (p.email || "").toLowerCase();
+            return u.includes(qLower) || fn.includes(qLower) || em.includes(qLower);
+          });
+          setSearchResults(fallback);
+        }
+      } finally {
+        if (!isCancelled) setIsSearching(false);
+      }
+    }, 200);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchFilter, currentUserId, rawProfiles]);
 
   if (!isOpen) return null;
 
-  // Display ALL rows returned from database without hiding or filtering out any user
-  const availableProfiles = rawProfiles;
+  // Active user list resolution
+  const cleanTerm = searchFilter.trim().replace(/^@+/, "");
 
-  // Local array filtering for search input
-  const term = searchFilter.trim().toLowerCase().replace(/^@+/, "");
-
-  const filteredProfiles = term
-    ? rawProfiles.filter(
-        (p: any) =>
-          p.username?.toLowerCase().includes(term) ||
-          p.email?.toLowerCase().includes(term) ||
-          p.full_name?.toLowerCase().includes(term) ||
-          p.fullName?.toLowerCase().includes(term)
-      )
-    : rawProfiles;
+  const activeList = cleanTerm
+    ? searchResults !== null
+      ? searchResults
+      : rawProfiles.filter((p: any) => {
+          if (currentUserId && p.id === currentUserId) return false;
+          const u = (p.username || "").toLowerCase();
+          const fn = (p.full_name || p.fullName || "").toLowerCase();
+          const em = (p.email || "").toLowerCase();
+          const q = cleanTerm.toLowerCase();
+          return u.includes(q) || fn.includes(q) || em.includes(q);
+        })
+    : rawProfiles.filter((p: any) => !currentUserId || p.id !== currentUserId);
 
   // Render raw profiles directly under REGISTERED USERS
-  const displayedUsers: DirectoryUser[] = filteredProfiles.map((p: any) => ({
+  const displayedUsers: DirectoryUser[] = activeList.map((p: any) => ({
     id: p.id,
     username: p.username || `user_${p.id?.slice(0, 4)}`,
     fullName: p.full_name || p.fullName || p.username || "Six9 Member",
@@ -367,10 +502,13 @@ export function NewChatModal({
                     type="text"
                     value={searchFilter}
                     onChange={(e) => setSearchFilter(e.target.value)}
-                    placeholder="Search users by username or name..."
+                    placeholder="Search users by username, name, or @tag..."
                     className="w-full bg-transparent text-white placeholder-slate-300 outline-none text-xs sm:text-sm"
                     autoFocus
                   />
+                  {isSearching && (
+                    <Loader2 className="w-3.5 h-3.5 text-[#97D7FF] animate-spin shrink-0 mr-1" />
+                  )}
                   {searchFilter && (
                     <button
                       type="button"
@@ -406,7 +544,11 @@ export function NewChatModal({
               <div className="flex items-center justify-between pb-1.5 px-1 shrink-0 border-b border-[#4D8DBA]/25">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FFEFC4] flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3 text-[#97D7FF]" />
-                  <span>Registered Users ({term ? displayedUsers.length : availableProfiles.length})</span>
+                  <span>
+                    {cleanTerm
+                      ? `Search Results (${displayedUsers.length})`
+                      : `Registered Users (${displayedUsers.length})`}
+                  </span>
                 </span>
                 <span className="text-[10px] font-mono text-[#97D7FF]/80">
                   Real-time Directory
@@ -415,22 +557,22 @@ export function NewChatModal({
 
               {/* Real-time Users List */}
               <div className="flex-1 overflow-y-auto space-y-2 pr-1 pt-2 divide-y divide-[#4D8DBA]/20">
-                {isLoading && displayedUsers.length === 0 ? (
+                {(isLoading || isSearching) && displayedUsers.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-slate-300">
                     <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin mb-2" />
                     <p className="text-xs font-semibold text-slate-200">
-                      Loading registered users...
+                      {isSearching ? "Searching registered users..." : "Loading registered users..."}
                     </p>
                   </div>
                 ) : displayedUsers.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-slate-300">
                     <p className="text-xs font-bold text-red-200 flex items-center justify-center gap-1.5">
                       <AlertCircle className="w-4 h-4 text-red-400" />
-                      <span>{term ? "User not found" : "No users found"}</span>
+                      <span>{cleanTerm ? "User not found" : "No users found"}</span>
                     </p>
                     <p className="text-[11px] text-slate-300 mt-1 max-w-[220px]">
-                      {term
-                        ? `No registered user matches "${term}". Try another username.`
+                      {cleanTerm
+                        ? `No registered user matches "${cleanTerm}". Try another username.`
                         : "No other registered users in the network yet."}
                     </p>
                   </div>

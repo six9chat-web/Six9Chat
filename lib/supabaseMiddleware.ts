@@ -17,7 +17,6 @@ export async function updateSession(request: NextRequest) {
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookieOptions: {
-      name: "sb-auth-token",
       path: "/",
       sameSite: "lax",
       maxAge: 400 * 24 * 60 * 60,

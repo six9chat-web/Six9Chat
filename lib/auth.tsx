@@ -961,7 +961,7 @@ export function onAuthStateChange(
 ) {
   const {
     data: { subscription },
-  } = supabase.auth.onAuthStateChange((event, session) => {
+  } = supabase.auth.onAuthStateChange((event: any, session: any) => {
     callback(event, session);
   });
 
@@ -1123,7 +1123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (_event: any, newSession: any) => {
       if (!mounted) return;
 
       if (newSession?.user) {

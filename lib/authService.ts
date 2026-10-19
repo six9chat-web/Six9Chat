@@ -445,13 +445,13 @@ export async function searchRegisteredUsers(
     uid: string;
   }>();
 
-  // 1. Direct Supabase query on public.profiles table using .ilike('username', `%${searchTerm}%`)
+  // 1. Direct Supabase query on public.profiles table using case-insensitive .ilike matching
   try {
     let sbQuery = supabaseServer
       .from("profiles")
       .select("*")
-      .ilike("username", `%${searchTerm}%`)
-      .limit(20);
+      .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+      .limit(30);
 
     if (excludeId) {
       sbQuery = sbQuery.neq("id", excludeId);
@@ -476,7 +476,7 @@ export async function searchRegisteredUsers(
       }
     }
   } catch (err) {
-    console.warn("[AuthService] searchRegisteredUsers ilike username query notice:", err);
+    console.warn("[AuthService] searchRegisteredUsers ilike query notice:", err);
   }
 
   // 2. Also check if search matches email via .ilike('email', `%${searchTerm}%`)

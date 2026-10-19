@@ -122,7 +122,7 @@ export function useRealtimeChat() {
       });
 
       // Listen for broadcast messages
-      channel.on("broadcast", { event: "new_message" }, (payload) => {
+      channel.on("broadcast", { event: "new_message" }, (payload: any) => {
         const incoming = payload.payload as ChatMessage & { receiverId?: string };
         if (incoming && incoming.senderId !== currentUser.id) {
           const isGroup = incoming.conversationId?.startsWith("group-");
@@ -188,7 +188,7 @@ export function useRealtimeChat() {
       });
 
       // Listen for message reactions broadcast
-      channel.on("broadcast", { event: "message_reaction" }, (payload) => {
+      channel.on("broadcast", { event: "message_reaction" }, (payload: any) => {
         const { messageId, emoji, userId, conversationId } = payload.payload as any;
         if (messageId && conversationId) {
           setMessagesMap((prev) => {
@@ -220,7 +220,7 @@ export function useRealtimeChat() {
       });
 
       // Listen for typing events
-      channel.on("broadcast", { event: "typing" }, (payload) => {
+      channel.on("broadcast", { event: "typing" }, (payload: any) => {
         const { contactId, typing } = payload.payload;
         if (contactId === activeContactId) {
           setIsTyping(Boolean(typing));
@@ -228,7 +228,7 @@ export function useRealtimeChat() {
       });
 
       // Listen for incoming real-time chat requests via broadcast
-      channel.on("broadcast", { event: "chat_request" }, (payload) => {
+      channel.on("broadcast", { event: "chat_request" }, (payload: any) => {
         const incomingReq = payload.payload as ChatRequest;
         if (incomingReq && incomingReq.receiverId === currentUser.id) {
           setChatRequests((prev) => [
@@ -239,7 +239,7 @@ export function useRealtimeChat() {
       });
 
       // Listen for accepted/rejected status responses
-      channel.on("broadcast", { event: "chat_request_response" }, (payload) => {
+      channel.on("broadcast", { event: "chat_request_response" }, (payload: any) => {
         const data = payload.payload as any;
         if (data?.requestId) {
           setChatRequests((prev) => prev.filter((r) => r.id !== data.requestId));
@@ -279,7 +279,7 @@ export function useRealtimeChat() {
       });
 
       // Listen for newly created groups
-      channel.on("broadcast", { event: "new_group" }, (payload) => {
+      channel.on("broadcast", { event: "new_group" }, (payload: any) => {
         const incomingGroup = payload.payload as ChatContact;
         if (incomingGroup && incomingGroup.id) {
           setContacts((prev) => [
@@ -290,7 +290,7 @@ export function useRealtimeChat() {
       });
 
       // Listen for incoming direct broadcast messages (0ms ultra-low latency)
-      channel.on("broadcast", { event: "new_message" }, (payload) => {
+      channel.on("broadcast", { event: "new_message" }, (payload: any) => {
         const msg = payload.payload as any;
         if (msg && msg.receiverId === currentUser.id) {
           const conversationKey = msg.senderId;
@@ -338,7 +338,7 @@ export function useRealtimeChat() {
       });
 
       // Listen for real-time broadcast chat requests
-      channel.on("broadcast", { event: "chat_request" }, (payload) => {
+      channel.on("broadcast", { event: "chat_request" }, (payload: any) => {
         const req = payload.payload as any;
         if (req && req.receiverId === currentUser.id && req.status === "pending") {
           const formattedReq: ChatRequest = {
@@ -360,7 +360,7 @@ export function useRealtimeChat() {
       });
 
       // Listen for real-time broadcast chat request accept/reject response
-      channel.on("broadcast", { event: "chat_request_response" }, (payload) => {
+      channel.on("broadcast", { event: "chat_request_response" }, (payload: any) => {
         const p = payload.payload as any;
         if (p && p.status === "accepted" && p.senderId === currentUser.id) {
           const displayName = p.receiverUsername
@@ -394,7 +394,7 @@ export function useRealtimeChat() {
       channel.on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
+        (payload: any) => {
           const newRecord = payload.new as Record<string, unknown> | null;
           if (newRecord) {
             const isSelf = newRecord.sender_id === currentUser.id;
@@ -438,7 +438,7 @@ export function useRealtimeChat() {
       channel.on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages" },
-        (payload) => {
+        (payload: any) => {
           const updated = payload.new as Record<string, unknown> | null;
           if (updated && updated.id) {
             setMessagesMap((prev) => {
@@ -466,7 +466,7 @@ export function useRealtimeChat() {
       channel.on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_requests" },
-        async (payload) => {
+        async (payload: any) => {
           const newReq = payload.new as Record<string, unknown> | null;
           if (
             newReq &&
@@ -515,7 +515,7 @@ export function useRealtimeChat() {
       channel.on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "chat_requests" },
-        async (payload) => {
+        async (payload: any) => {
           const updated = payload.new as Record<string, unknown> | null;
           if (updated) {
             setChatRequests((prev) => prev.filter((r) => r.id !== String(updated.id)));
@@ -562,7 +562,7 @@ export function useRealtimeChat() {
         }
       );
 
-      channel.subscribe((status) => {
+      channel.subscribe((status: string) => {
         if (status === "SUBSCRIBED") {
           setChannelConnected(true);
         }
@@ -979,16 +979,16 @@ export function useRealtimeChat() {
               .order("created_at", { ascending: false });
 
             if (dbRequests && dbRequests.length > 0) {
-              const senderIds = Array.from(new Set(dbRequests.map((r) => r.sender_id)));
+              const senderIds = Array.from(new Set(dbRequests.map((r: any) => r.sender_id)));
               const { data: senderProfiles } = await supabase
                 .from("profiles")
                 .select("id, full_name, username, avatar_url")
                 .in("id", senderIds);
 
               const profileMap = new Map<string, { full_name?: string; username?: string; avatar_url?: string }>();
-              senderProfiles?.forEach((p) => profileMap.set(p.id, p));
+              senderProfiles?.forEach((p: any) => profileMap.set(p.id, p));
 
-              const mapped: ChatRequest[] = dbRequests.map((r) => {
+              const mapped: ChatRequest[] = dbRequests.map((r: any) => {
                 const sp = profileMap.get(r.sender_id);
                 return {
                   id: r.id,
