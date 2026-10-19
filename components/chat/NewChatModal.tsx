@@ -92,10 +92,10 @@ export function NewChatModal({
           }
         }
 
-        // a) For initial directory load: Fetch all profiles via select('id, username, full_name, email, avatar_url, about'). Exclude only current user
+        // Direct directory load: Query supabase.from('profiles').select('*') directly, excluding only current user id
         let sbQuery = supabase
           .from("profiles")
-          .select("id, username, full_name, email, avatar_url, about");
+          .select("*");
 
         if (activeUserId) {
           sbQuery = sbQuery.neq("id", activeUserId);
@@ -205,7 +205,7 @@ export function NewChatModal({
 
         let query = supabase
           .from("profiles")
-          .select("id, username, full_name, email, avatar_url, about")
+          .select("*")
           .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`);
 
         if (activeUserId) {
