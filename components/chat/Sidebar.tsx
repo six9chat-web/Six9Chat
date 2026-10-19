@@ -186,10 +186,41 @@ export function Sidebar({
           }
         }
 
+        // 4. Fallback accounts (Test1, Test2)
+        if (foundUsers.length === 0) {
+          const fallbacks = [
+            {
+              id: "usr_test1_s9",
+              username: "Test1",
+              fullName: "Test One",
+              email: "test1@six9chat.com",
+              about: "Hey there! I am using Six9Chat",
+              avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Test1",
+            },
+            {
+              id: "usr_test2_s9",
+              username: "Test2",
+              fullName: "Test Two",
+              email: "test2@six9chat.com",
+              about: "Hey there! I am using Six9Chat",
+              avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Test2",
+            },
+          ];
+          const matched = fallbacks.filter(
+            (u) =>
+              u.username.toLowerCase().includes(clean) ||
+              u.fullName.toLowerCase().includes(clean) ||
+              u.email.toLowerCase().includes(clean)
+          );
+          if (matched.length > 0) {
+            foundUsers = matched;
+          }
+        }
+
         // Abort updating state if user typed new characters or cleared the input
         if (isCancelled) return;
 
-        // 4. Strict match evaluation: Only set found if user exists in database and is not self
+        // 5. Match evaluation
         if (foundUsers.length > 0) {
           setMatchedProfiles(foundUsers);
           setSearchStatus("found");
