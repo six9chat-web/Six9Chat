@@ -58,7 +58,7 @@ export function NewChatModal({
   const [mode, setMode] = useState<"directory" | "group-select" | "group-details">("directory");
 
   // User Directory State
-  const [users, setUsers] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
   const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
@@ -75,22 +75,22 @@ export function NewChatModal({
   useEffect(() => {
     let isMounted = true;
 
-    async function loadUsers() {
+    async function loadProfiles() {
       setIsLoading(true);
       try {
-        const { data } = await supabase.from("profiles").select("*");
-        console.log("PROFILES DIRECT FETCH:", data);
+        const { data, error } = await supabase.from("profiles").select("*");
+        console.log("PROFILES DIRECT FETCH:", data, error);
 
         if (isMounted) {
           if (Array.isArray(data) && data.length > 0) {
-            setUsers(data);
+            setProfiles(data);
           } else {
-            // Fallback to directory endpoint if direct query returns empty or blocked
+            // Secondary fallback if direct anon query is blocked
             try {
               const res = await fetch("/api/user/directory", { cache: "no-store" });
               const json = await res.json();
               if (json.success && Array.isArray(json.users) && json.users.length > 0) {
-                setUsers(json.users);
+                setProfiles(json.users);
               }
             } catch {}
           }
@@ -102,7 +102,7 @@ export function NewChatModal({
       }
     }
 
-    loadUsers();
+    loadProfiles();
 
     // Real-time Supabase Subscription on 'profiles' table
     const channel = supabase
@@ -111,7 +111,7 @@ export function NewChatModal({
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
         () => {
-          loadUsers();
+          loadProfiles();
         }
       )
       .subscribe();
@@ -124,21 +124,24 @@ export function NewChatModal({
 
   if (!isOpen) return null;
 
-  // Search filtering locally without any extra filtering conditions
+  // Local array filtering for search input: test1, test2, etc. match case-insensitively
   const searchTerm = searchFilter.trim().toLowerCase().replace(/^@+/, "");
 
-  const searchedUsers = searchTerm
-    ? users.filter(
-        (p) =>
-          p.username?.toLowerCase().includes(searchTerm) ||
-          p.full_name?.toLowerCase().includes(searchTerm) ||
-          p.fullName?.toLowerCase().includes(searchTerm) ||
-          p.email?.toLowerCase().includes(searchTerm)
-      )
-    : users;
+  const searchedProfiles = searchTerm
+    ? profiles.filter((p) => {
+        const uName = (p.username || "").toLowerCase();
+        const fName = (p.full_name || p.fullName || "").toLowerCase();
+        const email = (p.email || "").toLowerCase();
+        return (
+          uName.includes(searchTerm) ||
+          fName.includes(searchTerm) ||
+          email.includes(searchTerm)
+        );
+      })
+    : profiles;
 
   // Render profiles directly under REGISTERED USERS
-  const displayedUsers: DirectoryUser[] = searchedUsers.map((p: any) => ({
+  const displayedUsers: DirectoryUser[] = searchedProfiles.map((p: any) => ({
     id: p.id,
     username: p.username || `user_${p.id?.slice(0, 4)}`,
     fullName: p.full_name || p.fullName || p.username || "Six9 Member",
@@ -388,7 +391,7 @@ export function NewChatModal({
               <div className="flex items-center justify-between pb-1.5 px-1 shrink-0 border-b border-[#4D8DBA]/25">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FFEFC4] flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3 text-[#97D7FF]" />
-                  <span>Registered Users ({displayedUsers.length})</span>
+                  <span>Registered Users ({searchTerm ? displayedUsers.length : profiles.length})</span>
                 </span>
                 <span className="text-[10px] font-mono text-[#97D7FF]/80">
                   Real-time Directory
@@ -397,7 +400,7 @@ export function NewChatModal({
 
               {/* Real-time Users List */}
               <div className="flex-1 overflow-y-auto space-y-2 pr-1 pt-2 divide-y divide-[#4D8DBA]/20">
-                {isLoading && users.length === 0 ? (
+                {isLoading && profiles.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-slate-300">
                     <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin mb-2" />
                     <p className="text-xs font-semibold text-slate-200">
