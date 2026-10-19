@@ -57,8 +57,8 @@ export function NewChatModal({
   // Modal Navigation Mode: 'directory' | 'group-select' | 'group-details'
   const [mode, setMode] = useState<"directory" | "group-select" | "group-details">("directory");
 
-  // User Directory State strictly from database
-  const [profiles, setProfiles] = useState<any[]>([]);
+  // User Directory State strictly from raw database fetch
+  const [rawProfiles, setRawProfiles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
   const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
@@ -71,27 +71,27 @@ export function NewChatModal({
   const [groupAvatar, setCustomGroupAvatar] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Direct Supabase query strictly on profiles table
+  // Direct Supabase raw query on component mount
   useEffect(() => {
     let isMounted = true;
 
     async function loadProfiles() {
       setIsLoading(true);
       try {
-        const { data, error } = await supabase.from("profiles").select("*");
-        console.log("PROFILES DIRECT FETCH:", data, error);
+        const { data: rawProfiles, error } = await supabase.from("profiles").select("*");
+        console.log("RAW PROFILES DIRECT FETCH:", rawProfiles, error);
 
         if (isMounted) {
-          if (!error && Array.isArray(data)) {
-            setProfiles(data);
+          if (!error && Array.isArray(rawProfiles)) {
+            setRawProfiles(rawProfiles);
           } else {
-            setProfiles([]);
+            setRawProfiles([]);
           }
         }
       } catch (err) {
-        console.error("Direct profiles fetch error:", err);
+        console.error("Direct raw profiles fetch error:", err);
         if (isMounted) {
-          setProfiles([]);
+          setRawProfiles([]);
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -120,30 +120,27 @@ export function NewChatModal({
 
   if (!isOpen) return null;
 
-  // Filter out current logged-in user if ID matches
-  const availableProfiles = profiles.filter((p: any) => {
-    if (!currentUserId) return true;
-    return p.id !== currentUserId;
-  });
+  // Active pool: filter out exact matching auth user id if non-null, but keep all during test if only user
+  const availableProfiles =
+    currentUserId && rawProfiles.some((p: any) => p?.id !== currentUserId)
+      ? rawProfiles.filter((p: any) => p?.id !== currentUserId)
+      : rawProfiles;
 
-  // Local array filtering for search input: matches username, name, email
-  const searchTerm = searchFilter.trim().toLowerCase().replace(/^@+/, "");
+  // Local array filtering for search input
+  const term = searchFilter.trim().toLowerCase().replace(/^@+/, "");
 
-  const searchedProfiles = searchTerm
-    ? availableProfiles.filter((p: any) => {
-        const uName = (p.username || "").toLowerCase();
-        const fName = (p.full_name || p.fullName || "").toLowerCase();
-        const email = (p.email || "").toLowerCase();
-        return (
-          uName.includes(searchTerm) ||
-          fName.includes(searchTerm) ||
-          email.includes(searchTerm)
-        );
-      })
+  const filteredProfiles = term
+    ? rawProfiles.filter(
+        (p: any) =>
+          p.username?.toLowerCase().includes(term) ||
+          p.email?.toLowerCase().includes(term) ||
+          p.full_name?.toLowerCase().includes(term) ||
+          p.fullName?.toLowerCase().includes(term)
+      )
     : availableProfiles;
 
-  // Render profiles directly under REGISTERED USERS
-  const displayedUsers: DirectoryUser[] = searchedProfiles.map((p: any) => ({
+  // Render raw profiles directly under REGISTERED USERS
+  const displayedUsers: DirectoryUser[] = filteredProfiles.map((p: any) => ({
     id: p.id,
     username: p.username || `user_${p.id?.slice(0, 4)}`,
     fullName: p.full_name || p.fullName || p.username || "Six9 Member",
@@ -396,7 +393,7 @@ export function NewChatModal({
               <div className="flex items-center justify-between pb-1.5 px-1 shrink-0 border-b border-[#4D8DBA]/25">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FFEFC4] flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3 text-[#97D7FF]" />
-                  <span>Registered Users ({searchTerm ? displayedUsers.length : availableProfiles.length})</span>
+                  <span>Registered Users ({term ? displayedUsers.length : availableProfiles.length})</span>
                 </span>
                 <span className="text-[10px] font-mono text-[#97D7FF]/80">
                   Real-time Directory
@@ -416,11 +413,11 @@ export function NewChatModal({
                   <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-slate-300">
                     <p className="text-xs font-bold text-red-200 flex items-center justify-center gap-1.5">
                       <AlertCircle className="w-4 h-4 text-red-400" />
-                      <span>{searchTerm ? "User not found" : "No users found"}</span>
+                      <span>{term ? "User not found" : "No users found"}</span>
                     </p>
                     <p className="text-[11px] text-slate-300 mt-1 max-w-[220px]">
-                      {searchTerm
-                        ? `No registered user matches "${searchTerm}". Try another username.`
+                      {term
+                        ? `No registered user matches "${term}". Try another username.`
                         : "No other registered users in the network yet."}
                     </p>
                   </div>
