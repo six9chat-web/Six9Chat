@@ -32,10 +32,10 @@ export default function UserSearchDirectory() {
         query = query.neq('id', user.id);
       }
 
-      // Direct plain text search without symbol requirements matching username or full_name
-      const cleanSearch = searchTerm.trim();
+      // Direct plain text search without symbol requirements matching username, full_name, or email
+      const cleanSearch = searchTerm.trim().replace(/^@+/, "");
       if (cleanSearch.length > 0) {
-        query = query.or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%`);
+        query = query.or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%`);
       }
 
       console.log('SEARCH TERM:', searchTerm);

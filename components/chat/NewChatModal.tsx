@@ -159,7 +159,7 @@ export function NewChatModal({
   useEffect(() => {
     let isCancelled = false;
     // Direct plain text search without symbol requirements
-    const clean = searchFilter.trim();
+    const clean = searchFilter.trim().replace(/^@+/, "");
 
     if (!clean) {
       setSearchResults(null);
@@ -189,10 +189,12 @@ export function NewChatModal({
           query = query.neq("id", activeUid);
         }
 
-        // Direct plain text search matching username or full_name
+        // Direct plain text search matching username, full_name, or email
         const cleanSearch = clean;
         if (cleanSearch.length > 0) {
-          query = query.or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%`);
+          query = query.or(
+            `username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%`
+          );
         }
 
         console.log('SEARCH TERM:', cleanSearch);

@@ -97,7 +97,7 @@ export function Sidebar({
   // Debounced search validation strictly against Supabase profiles table
   useEffect(() => {
     let isCancelled = false;
-    const clean = searchQuery.trim().toLowerCase();
+    const clean = searchQuery.trim().replace(/^@+/, "");
 
     if (!clean) {
       setSearchStatus("idle");
@@ -118,7 +118,7 @@ export function Sidebar({
           avatarUrl?: string;
         }> = [];
 
-        // 1. Direct Supabase query on profiles table with plain text search on username or full_name
+        // 1. Direct Supabase query on profiles table with plain text search on username, full_name, or email
         try {
           let activeUid = currentUser?.id;
           if (!activeUid) {
@@ -138,7 +138,9 @@ export function Sidebar({
 
           const cleanSearch = clean;
           if (cleanSearch.length > 0) {
-            query = query.or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%`);
+            query = query.or(
+              `username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%`
+            );
           }
 
           console.log('SEARCH TERM:', cleanSearch);

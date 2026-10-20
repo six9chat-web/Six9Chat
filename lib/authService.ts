@@ -454,7 +454,7 @@ export async function searchRegisteredUsers(
     let sbQuery = supabaseServer
       .from("profiles")
       .select("id, username, email, full_name, about, avatar_url, updated_at, created_at")
-      .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`)
+      .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
       .limit(30);
 
     if (excludeId) {
