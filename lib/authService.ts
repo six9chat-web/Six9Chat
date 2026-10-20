@@ -48,20 +48,12 @@ export async function getNextSequentialUid(): Promise<string> {
   let highestSeq = 0;
 
   try {
-    const { data: allProfiles } = await supabaseServer
+    const { count } = await supabaseServer
       .from("profiles")
-      .select("uid");
+      .select("id", { count: "exact", head: true });
 
-    if (allProfiles && allProfiles.length > 0) {
-      for (const p of allProfiles) {
-        if (p.uid) {
-          const match = p.uid.match(/^S9-(\d+)$/i);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            if (num < 1000 && num > highestSeq) highestSeq = num;
-          }
-        }
-      }
+    if (typeof count === "number" && count > 0) {
+      highestSeq = count;
     }
   } catch (err) {
     console.warn("[AuthService] getNextSequentialUid db notice:", err);
@@ -236,11 +228,8 @@ export async function registerNewUser(params: {
         id: userId,
         username: cleanUsername,
         email: cleanEmail,
-        password_hash: passwordHash,
-        uid: assignedUid,
         full_name: fullName,
         about: "Building with Six9Chat 🚀",
-        status: "Building with Six9Chat 🚀",
         updated_at: new Date().toISOString(),
       },
       { onConflict: "id" }
@@ -387,7 +376,7 @@ export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
   try {
     const query = supabaseServer
       .from("profiles")
-      .select("id, username, email, full_name, about, avatar_url, status, uid");
+      .select("id, username, email, full_name, about, avatar_url, updated_at, created_at");
 
     const { data: profiles, error } = await query;
 
@@ -400,9 +389,9 @@ export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
             email: p.email || "",
             fullName: p.full_name || p.username || "Six9 Member",
             avatarUrl: p.avatar_url || "",
-            about: p.about || p.status || "Hey there! I am using Six9Chat",
-            status: p.status || p.about || "Hey there! I am using Six9Chat",
-            uid: p.uid || "S9-01",
+            about: p.about || "Hey there! I am using Six9Chat",
+            status: p.about || "Hey there! I am using Six9Chat",
+            uid: `S9-${p.id.slice(0, 4)}`,
           });
         }
       }
@@ -464,7 +453,7 @@ export async function searchRegisteredUsers(
   try {
     let sbQuery = supabaseServer
       .from("profiles")
-      .select("id, username, email, full_name, about, avatar_url, status, uid")
+      .select("id, username, email, full_name, about, avatar_url, updated_at, created_at")
       .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`)
       .limit(30);
 
@@ -483,9 +472,9 @@ export async function searchRegisteredUsers(
             email: p.email || "",
             fullName: p.full_name || p.username || "Six9 Member",
             avatarUrl: p.avatar_url || "",
-            about: p.about || p.status || "Hey there! I am using Six9Chat",
-            status: p.status || p.about || "Hey there! I am using Six9Chat",
-            uid: p.uid || "S9-01",
+            about: p.about || "Hey there! I am using Six9Chat",
+            status: p.about || "Hey there! I am using Six9Chat",
+            uid: `S9-${p.id.slice(0, 4)}`,
           });
         }
       }
@@ -498,7 +487,7 @@ export async function searchRegisteredUsers(
   try {
     let emailQuery = supabaseServer
       .from("profiles")
-      .select("id, username, email, about, avatar_url, full_name, status, uid")
+      .select("id, username, email, about, avatar_url, full_name, updated_at, created_at")
       .ilike("email", `%${searchTerm}%`)
       .limit(20);
 
@@ -517,9 +506,9 @@ export async function searchRegisteredUsers(
             email: p.email || "",
             fullName: p.full_name || p.username || "Six9 Member",
             avatarUrl: p.avatar_url || "",
-            about: p.about || p.status || "Hey there! I am using Six9Chat",
-            status: p.status || p.about || "Hey there! I am using Six9Chat",
-            uid: p.uid || "S9-01",
+            about: p.about || "Hey there! I am using Six9Chat",
+            status: p.about || "Hey there! I am using Six9Chat",
+            uid: `S9-${p.id.slice(0, 4)}`,
           });
         }
       }
@@ -555,7 +544,7 @@ export async function searchRegisteredUsers(
     try {
       const { data: allProfiles } = await supabaseServer
         .from("profiles")
-        .select("id, username, email, about, avatar_url, full_name, status, uid")
+        .select("id, username, email, about, avatar_url, full_name, updated_at, created_at")
         .limit(50);
 
       if (Array.isArray(allProfiles)) {
@@ -571,9 +560,9 @@ export async function searchRegisteredUsers(
               email: p.email || "",
               fullName: p.full_name || p.username || "Six9 Member",
               avatarUrl: p.avatar_url || "",
-              about: p.about || p.status || "Hey there! I am using Six9Chat",
-              status: p.status || p.about || "Hey there! I am using Six9Chat",
-              uid: p.uid || "S9-01",
+              about: p.about || "Hey there! I am using Six9Chat",
+              status: p.about || "Hey there! I am using Six9Chat",
+              uid: `S9-${p.id.slice(0, 4)}`,
             });
           }
         }

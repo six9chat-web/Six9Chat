@@ -359,7 +359,7 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
     try {
       const { data: profiles } = await supabaseServer
         .from("profiles")
-        .select("id, username, email, full_name, about, avatar_url, status, uid")
+        .select("id, username, email, full_name, about, avatar_url, updated_at, created_at")
         .in("id", Array.from(contactIds));
 
       if (Array.isArray(profiles)) {
@@ -378,7 +378,7 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
             avatarColor: "from-[#086288] to-[#4D8DBA]",
             status: "online",
             lastSeen: "Online now",
-            about: p.about || p.status || "Hey there! I am using Six9Chat",
+            about: p.about || "Hey there! I am using Six9Chat",
             phone: p.username || p.email || "",
             unreadCount: 0,
             lastMessage: lastMsg,

@@ -40,11 +40,10 @@ export async function POST(request: Request) {
       await supabaseServer.from("profiles").upsert(
         {
           id: userId,
-          uid: assignedUid,
           email: cleanEmail,
           full_name: displayName,
-          username: `user_${assignedUid.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`,
-          status: "Hey there! I am using Six9Chat 🚀",
+          username: `user_${cleanEmail.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8)}`,
+          about: "Hey there! I am using Six9Chat 🚀",
           updated_at: new Date().toISOString(),
         },
         { onConflict: "id" }

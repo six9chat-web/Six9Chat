@@ -526,7 +526,7 @@ export function useRealtimeChat() {
               try {
                 const { data: rp } = await supabase
                   .from("profiles")
-                  .select("id, full_name, username, avatar_url, status")
+                  .select("id, full_name, username, avatar_url, about")
                   .eq("id", receiverId)
                   .maybeSingle();
 

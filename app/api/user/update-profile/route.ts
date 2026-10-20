@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     }
 
     if (statusText !== undefined) {
-      updates.status = String(statusText).trim();
+      updates.about = String(statusText).trim();
     }
 
     if (avatarUrl !== undefined) {
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
         ...currentSession,
         ...(updates.username && { username: updates.username }),
         ...(updates.full_name && { fullName: updates.full_name }),
-        ...(updates.status && { statusText: updates.status }),
+        ...(updates.about && { statusText: updates.about }),
         ...(updates.avatar_url !== undefined && { avatarUrl: updates.avatar_url }),
       };
       cookieStore.set("six9_mock_session", JSON.stringify(updatedSession), {

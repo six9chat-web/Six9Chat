@@ -55,12 +55,12 @@ export async function POST(request: Request) {
     try {
       const { data: existingProf } = await supabaseServer
         .from("profiles")
-        .select("uid")
+        .select("id")
         .eq("email", cleanEmail)
         .maybeSingle();
 
-      if (existingProf?.uid && /^S9-\d+$/i.test(existingProf.uid)) {
-        assignedUid = existingProf.uid;
+      if (existingProf?.id) {
+        assignedUid = `S9-${existingProf.id.slice(0, 4)}`;
       }
     } catch (e) {
       console.warn("[Passcode Auth] profile check note:", e);
@@ -78,20 +78,12 @@ export async function POST(request: Request) {
     if (!assignedUid) {
       let highestSeq = 0;
       try {
-        const { data: allProfiles } = await supabaseServer
+        const { count } = await supabaseServer
           .from("profiles")
-          .select("uid");
+          .select("id", { count: "exact", head: true });
 
-        if (allProfiles && allProfiles.length > 0) {
-          for (const p of allProfiles) {
-            if (p.uid) {
-              const match = p.uid.match(/^S9-(\d+)$/i);
-              if (match) {
-                const num = parseInt(match[1], 10);
-                if (num < 1000 && num > highestSeq) highestSeq = num;
-              }
-            }
-          }
+        if (typeof count === "number" && count > 0) {
+          highestSeq = count;
         }
       } catch (err) {
         console.warn("[Passcode Auth] sequential query note:", err);
@@ -121,11 +113,10 @@ export async function POST(request: Request) {
       await supabaseServer.from("profiles").upsert(
         {
           id: userId,
-          uid: assignedUid,
           email: cleanEmail,
           full_name: displayName,
-          username: `user_${assignedUid.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`,
-          status: "Hey there! I am using Six9Chat 🚀",
+          username: `user_${cleanEmail.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8)}`,
+          about: "Hey there! I am using Six9Chat 🚀",
           updated_at: new Date().toISOString(),
         },
         { onConflict: "id" }

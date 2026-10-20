@@ -285,38 +285,17 @@ export async function getOrAssignSequentialUid(userId: string, email?: string): 
   }
 
   try {
-    // 2. Query Supabase profiles table for existing user profile
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("uid")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (profile?.uid && /^S9-\d+$/i.test(profile.uid)) {
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`six9_uid_${userId}`, profile.uid);
-        if (cleanEmail) localStorage.setItem(`six9_uid_${cleanEmail}`, profile.uid);
-        localStorage.setItem("six9_current_uid", profile.uid);
-      }
-      return profile.uid;
-    }
-
-    // 3. Find highest sequential number in Supabase profiles (starts at 0 -> first is S9-01)
-    const { data: allProfiles } = await supabase
-      .from("profiles")
-      .select("uid");
-
     let highestSeq = 0;
-    if (allProfiles && allProfiles.length > 0) {
-      for (const p of allProfiles) {
-        if (p.uid) {
-          const match = p.uid.match(/^S9-(\d+)$/i);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            if (num < 1000 && num > highestSeq) highestSeq = num;
-          }
-        }
+    try {
+      const { count } = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true });
+
+      if (typeof count === "number" && count > 0) {
+        highestSeq = count;
       }
+    } catch (e) {
+      console.warn("UID count query note:", e);
     }
 
     // Check local counter fallback
@@ -337,12 +316,6 @@ export async function getOrAssignSequentialUid(userId: string, email?: string): 
       if (cleanEmail) localStorage.setItem(`six9_uid_${cleanEmail}`, assignedUid);
       localStorage.setItem("six9_current_uid", assignedUid);
     }
-
-    // Update Supabase profile with the sequential UID
-    await supabase
-      .from("profiles")
-      .update({ uid: assignedUid, updated_at: new Date().toISOString() })
-      .eq("id", userId);
 
     return assignedUid;
   } catch (err) {
@@ -849,9 +822,16 @@ export async function updateUserProfile(
   }
 
   try {
+    const dbPayload: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (updates.full_name !== undefined) dbPayload.full_name = updates.full_name;
+    if (updates.username !== undefined) dbPayload.username = updates.username;
+    if (updates.avatar_url !== undefined) dbPayload.avatar_url = updates.avatar_url;
+    if (updates.about !== undefined) dbPayload.about = updates.about;
+    else if (updates.status !== undefined) dbPayload.about = updates.status;
+
     const { data, error } = await supabase
       .from("profiles")
-      .update(payload)
+      .update(dbPayload)
       .eq("id", userId)
       .select()
       .single();
@@ -892,9 +872,19 @@ export async function ensureProfileExists(profile: Partial<Profile> & { id: stri
   }
 
   try {
+    const dbPayload = {
+      id: normalizedProfile.id,
+      username: normalizedProfile.username,
+      full_name: normalizedProfile.full_name,
+      avatar_url: normalizedProfile.avatar_url,
+      email: normalizedProfile.email,
+      about: normalizedProfile.about,
+      updated_at: normalizedProfile.updated_at,
+    };
+
     const { data, error } = await supabase
       .from("profiles")
-      .upsert(normalizedProfile, { onConflict: "id" })
+      .upsert(dbPayload, { onConflict: "id" })
       .select()
       .maybeSingle();
 
