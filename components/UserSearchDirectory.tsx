@@ -37,7 +37,9 @@ export default function UserSearchDirectory() {
         query = query.ilike('username', `%${cleanSearch}%`);
       }
 
+      console.log('SEARCH TERM:', searchTerm);
       const { data, error } = await query.limit(20);
+      console.log('FETCHED PROFILES DATA:', data, 'ERROR:', error);
 
       if (error) {
         console.error('Search error:', error.message);
@@ -78,8 +80,8 @@ export default function UserSearchDirectory() {
             {profiles.map((profile) => (
               <li key={profile.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-lg">
                 <div>
-                  <div className="font-bold">{profile.full_name || profile.username}</div>
-                  <div className="text-sm text-gray-400">@{profile.username}</div>
+                  <div className="font-bold">{profile.full_name || profile.username || profile.email || profile.id}</div>
+                  <div className="text-sm text-gray-400">@{profile.username || profile.id}</div>
                 </div>
                 <button 
                   onClick={() => console.log('Chat with:', profile.id)}

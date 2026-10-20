@@ -195,13 +195,9 @@ export function NewChatModal({
           query = query.ilike("username", `%${cleanSearch}%`);
         }
 
+        console.log('SEARCH TERM:', cleanSearch);
         const { data, error } = await query.limit(20);
-        console.log("[NewChatModal search query response]:", {
-          cleanSearch,
-          count: data?.length,
-          data,
-          error: error?.message,
-        });
+        console.log('FETCHED PROFILES DATA:', data, 'ERROR:', error);
 
         if (isCancelled) return;
 

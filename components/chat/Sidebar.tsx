@@ -141,13 +141,9 @@ export function Sidebar({
             query = query.ilike("username", `%${cleanSearch}%`);
           }
 
+          console.log('SEARCH TERM:', cleanSearch);
           const { data, error } = await query.limit(20);
-          console.log("[Sidebar search query response]:", {
-            cleanSearch,
-            count: data?.length,
-            data,
-            error: error?.message,
-          });
+          console.log('FETCHED PROFILES DATA:', data, 'ERROR:', error);
 
           if (!error && Array.isArray(data) && data.length > 0) {
             foundUsers = data.map((d: any) => ({
