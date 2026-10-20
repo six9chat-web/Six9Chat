@@ -282,11 +282,18 @@ export function NewChatModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      {isOpen && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+        onClick={handleClose}
+        aria-modal="true"
+        role="dialog"
+      >
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
+          onClick={(e) => e.stopPropagation()}
           className="relative w-full max-w-md bg-[#086288] border border-[#4D8DBA]/60 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-slate-100"
         >
           {/* ============================================================== */}
@@ -361,7 +368,7 @@ export function NewChatModal({
                     type="text"
                     value={searchFilter}
                     onChange={(e) => setSearchFilter(e.target.value)}
-                    placeholder="Search users by username, name, or @tag..."
+                    placeholder="Search users by username or email..."
                     className="w-full bg-transparent text-white placeholder-slate-300 outline-none text-xs sm:text-sm"
                     autoFocus
                   />
@@ -756,6 +763,7 @@ export function NewChatModal({
           )}
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   );
 }
