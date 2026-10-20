@@ -34,9 +34,13 @@ export default function UserSearchDirectory() {
 
       // Direct plain text search without symbol requirements matching username, full_name, or email
       const cleanSearch = searchTerm.trim().replace(/^@+/, "");
-      if (cleanSearch.length > 0) {
-        query = query.or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%`);
+      if (!cleanSearch) {
+        setProfiles([]);
+        setLoading(false);
+        return;
       }
+
+      query = query.or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%`);
 
       console.log('SEARCH TERM:', searchTerm);
       const { data, error } = await query.limit(20);
@@ -79,16 +83,20 @@ export default function UserSearchDirectory() {
         type="text"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Search users by name or username..."
+        placeholder="Type a username or email to search..."
         className="w-full px-4 py-2 border rounded-lg bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
 
       <div className="mt-4">
         {loading ? (
           <div className="text-center py-2 text-gray-400">Searching...</div>
+        ) : !searchTerm.trim() ? (
+          <div className="text-center py-6 text-gray-400 text-sm">
+            Type a username or email to search for people.
+          </div>
         ) : profiles.length === 0 ? (
           <div className="text-center py-2 text-gray-400">
-            {searchTerm ? `No user found for "${searchTerm}"` : 'No other users found.'}
+            No user found matching &quot;{searchTerm.trim()}&quot;
           </div>
         ) : (
           <ul className="space-y-2">

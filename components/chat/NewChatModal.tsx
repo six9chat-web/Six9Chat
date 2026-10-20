@@ -309,7 +309,7 @@ export function NewChatModal({
           const q = cleanTerm.toLowerCase();
           return u.includes(q) || fn.includes(q) || em.includes(q);
         })
-    : rawProfiles.filter((p: any) => !currentUserId || p.id !== currentUserId);
+    : [];
 
   // Render raw profiles directly under REGISTERED USERS
   const displayedUsers: DirectoryUser[] = activeList.map((p: any) => ({
@@ -523,7 +523,7 @@ export function NewChatModal({
                     type="text"
                     value={searchFilter}
                     onChange={(e) => setSearchFilter(e.target.value)}
-                    placeholder="Search users by username, name, or @tag..."
+                    placeholder="Type a username or email to search..."
                     className="w-full bg-transparent text-white placeholder-slate-300 outline-none text-xs sm:text-sm"
                     autoFocus
                   />
@@ -561,43 +561,54 @@ export function NewChatModal({
                 <ArrowRight className="w-4 h-4 text-[#97D7FF] group-hover:translate-x-1 transition-transform shrink-0" />
               </div>
 
-              {/* Section Header: Real-time Registered Users */}
-              <div className="flex items-center justify-between pb-1.5 px-1 shrink-0 border-b border-[#4D8DBA]/25">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FFEFC4] flex items-center gap-1.5">
-                  <Sparkles className="w-3 h-3 text-[#97D7FF]" />
-                  <span>
-                    {cleanTerm
-                      ? `Search Results (${displayedUsers.length})`
-                      : `Registered Users (${displayedUsers.length})`}
-                  </span>
-                </span>
-                <span className="text-[10px] font-mono text-[#97D7FF]/80">
-                  Real-time Directory
-                </span>
-              </div>
+              {/* Dynamic Header & Content State */}
+              {!cleanTerm ? (
+                /* 1. Default Empty State: No Registered Users Directory rendered by default */
+                <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center select-none animate-in fade-in duration-150">
+                  <div className="w-12 h-12 rounded-full bg-[#086288]/30 border border-[#4D8DBA]/35 flex items-center justify-center text-[#97D7FF] mb-3 shadow-inner">
+                    <Search className="w-5 h-5 text-[#97D7FF]" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-100">
+                    Type a username or email to search for people.
+                  </p>
+                  <p className="text-xs text-[#97D7FF]/70 mt-1 max-w-[260px] leading-relaxed">
+                    Search by exact username or email to connect and start chatting.
+                  </p>
+                </div>
+              ) : (
+                /* 2. Dynamic Search Results State */
+                <>
+                  <div className="flex items-center justify-between pb-1.5 px-1 shrink-0 border-b border-[#4D8DBA]/25">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FFEFC4] flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-[#97D7FF]" />
+                      <span>Results for &quot;{cleanTerm}&quot;</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-[#97D7FF]/80">
+                      {displayedUsers.length} {displayedUsers.length === 1 ? "result" : "results"}
+                    </span>
+                  </div>
 
-              {/* Real-time Users List */}
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1 pt-2 divide-y divide-[#4D8DBA]/20">
-                {(isLoading || isSearching) && displayedUsers.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-slate-300">
-                    <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin mb-2" />
-                    <p className="text-xs font-semibold text-slate-200">
-                      {isSearching ? "Searching registered users..." : "Loading registered users..."}
-                    </p>
-                  </div>
-                ) : displayedUsers.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-slate-300">
-                    <p className="text-xs font-bold text-red-200 flex items-center justify-center gap-1.5">
-                      <AlertCircle className="w-4 h-4 text-red-400" />
-                      <span>{cleanTerm ? "User not found" : "No users found"}</span>
-                    </p>
-                    <p className="text-[11px] text-slate-300 mt-1 max-w-[220px]">
-                      {cleanTerm
-                        ? `No registered user matches "${cleanTerm}". Try another username.`
-                        : "No other registered users in the network yet."}
-                    </p>
-                  </div>
-                ) : (
+                  <div className="flex-1 overflow-y-auto space-y-2 pr-1 pt-2 divide-y divide-[#4D8DBA]/20">
+                    {(isLoading || isSearching) && displayedUsers.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-slate-300">
+                        <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin mb-2" />
+                        <p className="text-xs font-semibold text-slate-200">
+                          Searching users for &quot;{cleanTerm}&quot;...
+                        </p>
+                      </div>
+                    ) : displayedUsers.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-slate-300 animate-in fade-in duration-150">
+                        <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/25 flex items-center justify-center text-red-400 mb-2">
+                          <AlertCircle className="w-5 h-5" />
+                        </div>
+                        <p className="text-xs font-bold text-red-200">
+                          No user found matching &quot;{cleanTerm}&quot;
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-1 max-w-[220px]">
+                          Check the spelling or try searching with another username or email.
+                        </p>
+                      </div>
+                    ) : (
                   displayedUsers.map((user) => {
                     const isConnected = connectedIds.has(user.id);
                     const isRequested = sentRequestIds.has(user.id);
@@ -675,7 +686,9 @@ export function NewChatModal({
                     );
                   })
                 )}
-              </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
