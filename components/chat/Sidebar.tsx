@@ -120,21 +120,33 @@ export function Sidebar({
 
         // 1. Direct Supabase query on profiles table with case-insensitive search and safe exclusion
         try {
-          let query = supabase
-            .from("profiles")
-            .select("*")
-            .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%,email.ilike.%${clean}%`);
-
-          if (currentUser?.id) {
-            query = query.neq("id", currentUser.id);
+          let activeUid = currentUser?.id;
+          if (!activeUid) {
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              activeUid = user?.id;
+            } catch {}
           }
 
-          const { data, error } = await query;
+          let query = supabase
+            .from("profiles")
+            .select("*");
+
+          if (activeUid) {
+            query = query.neq("id", activeUid);
+          }
+
+          const cleanSearch = clean;
+          if (cleanSearch.length > 0) {
+            query = query.ilike("username", `%${cleanSearch}%`);
+          }
+
+          const { data, error } = await query.limit(20);
           console.log("[Sidebar search query response]:", {
-            clean,
+            cleanSearch,
             count: data?.length,
             data,
-            error,
+            error: error?.message,
           });
 
           if (!error && Array.isArray(data) && data.length > 0) {

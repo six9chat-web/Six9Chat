@@ -172,32 +172,46 @@ export function NewChatModal({
       try {
         console.log("[NewChatModal] Initiating case-insensitive search for:", clean);
 
-        // 1. Direct Supabase query with case-insensitive pattern matching (.ilike)
-        let query = supabase
-          .from("profiles")
-          .select("*")
-          .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%,email.ilike.%${clean}%`);
-
-        // Safe exclusion of currently logged-in user without breaking if null or loading
-        if (currentUserId) {
-          query = query.neq("id", currentUserId);
+        // Current logged-in user check
+        let activeUid = currentUserId;
+        if (!activeUid) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            activeUid = user?.id;
+          } catch {}
         }
 
-        const { data, error } = await query;
+        // Database query for profiles using .select('*') combined with .ilike('username', `%${cleanSearch}%`)
+        let query = supabase.from("profiles").select("*");
+
+        // Exclude current user if logged in
+        if (activeUid) {
+          query = query.neq("id", activeUid);
+        }
+
+        // Clean search input and apply case-insensitive ilike filter
+        const cleanSearch = clean;
+        if (cleanSearch.length > 0) {
+          query = query.ilike("username", `%${cleanSearch}%`);
+        }
+
+        const { data, error } = await query.limit(20);
         console.log("[NewChatModal search query response]:", {
-          clean,
+          cleanSearch,
           count: data?.length,
           data,
-          error,
+          error: error?.message,
         });
 
         if (isCancelled) return;
 
         const combinedMap = new Map<string, any>();
 
-        if (!error && Array.isArray(data)) {
+        if (error) {
+          console.error("Search error:", error.message);
+        } else if (Array.isArray(data)) {
           for (const item of data) {
-            if (item?.id && (!currentUserId || item.id !== currentUserId)) {
+            if (item?.id && (!activeUid || item.id !== activeUid)) {
               combinedMap.set(item.id, item);
             }
           }
