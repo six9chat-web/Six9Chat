@@ -19,13 +19,11 @@ export async function POST(req: Request) {
           sender_id: senderId,
           receiver_id: receiverId,
           status: "pending",
-          message: message || "wants to start a conversation with you",
-          updated_at: new Date().toISOString(),
         },
         { onConflict: "sender_id,receiver_id" }
       )
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.warn("[SendRequest API] db notice:", error);
@@ -59,7 +57,6 @@ export async function PATCH(req: Request) {
       .from("chat_requests")
       .update({
         status,
-        updated_at: new Date().toISOString(),
       })
       .eq("id", requestId)
       .select()

@@ -131,6 +131,18 @@ export function NewChatModal({
           }
         } catch {}
       } finally {
+        if (currentUserId) {
+          try {
+            const { data: sentReqs } = await supabase
+              .from("chat_requests")
+              .select("receiver_id")
+              .eq("sender_id", currentUserId)
+              .eq("status", "pending");
+            if (sentReqs && isMounted) {
+              setSentRequestIds(new Set(sentReqs.map((r: any) => r.receiver_id)));
+            }
+          } catch {}
+        }
         if (isMounted) setIsLoading(false);
       }
     }
@@ -623,17 +635,40 @@ export function NewChatModal({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleStartDirectChat(user);
+                              if (isConnected) {
+                                handleStartDirectChat(user);
+                              } else if (!isRequested && !isBusy) {
+                                handleSendRequest(user);
+                              }
                             }}
+                            disabled={(!isConnected && isRequested) || isBusy}
                             className={cn(
-                              "px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer",
+                              "px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md transition active:scale-95",
                               isConnected
-                                ? "bg-[#053b53] hover:bg-[#4D8DBA]/40 text-[#97D7FF] hover:text-white border border-[#4D8DBA]/60"
-                                : "bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] hover:brightness-105 text-[#086288]"
+                                ? "bg-[#053b53] hover:bg-[#4D8DBA]/40 text-[#97D7FF] hover:text-white border border-[#4D8DBA]/60 cursor-pointer"
+                                : isRequested
+                                ? "bg-[#053b53]/80 text-[#97D7FF] border border-[#4D8DBA]/40 opacity-90 cursor-default"
+                                : "bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] hover:brightness-105 text-[#086288] cursor-pointer"
                             )}
                           >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            <span>+ Request</span>
+                            {isBusy ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : isConnected ? (
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            ) : isRequested ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#97D7FF]" />
+                            ) : (
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            )}
+                            <span>
+                              {isBusy
+                                ? "Sending..."
+                                : isConnected
+                                ? "Chat"
+                                : isRequested
+                                ? "Requested"
+                                : "+ Request"}
+                            </span>
                           </button>
                         </div>
                       </div>

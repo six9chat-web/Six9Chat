@@ -56,6 +56,11 @@ export function useRealtimeChat() {
   const [stories, setStories] = useState<StoryItem[]>(INITIAL_STORIES);
   const [activeStory, setActiveStory] = useState<StoryItem | null>(null);
   const [chatRequests, setChatRequests] = useState<ChatRequest[]>(INITIAL_CHAT_REQUESTS);
+  const currentUserRef = useRef<UserProfile>(currentUser);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
 
   // Call preview state
   const [callState, setCallState] = useState<CallModalState>({
@@ -468,9 +473,10 @@ export function useRealtimeChat() {
         { event: "INSERT", schema: "public", table: "chat_requests" },
         async (payload: any) => {
           const newReq = payload.new as Record<string, unknown> | null;
+          const activeId = currentUserRef.current.id;
           if (
             newReq &&
-            newReq.receiver_id === currentUser.id &&
+            newReq.receiver_id === activeId &&
             newReq.status === "pending"
           ) {
             let senderName = "Six9 User";
@@ -501,7 +507,7 @@ export function useRealtimeChat() {
               senderAvatar,
               receiverId: String(newReq.receiver_id),
               status: "pending",
-              message: String(newReq.message || "wants to start a conversation with you"),
+              message: "wants to start a conversation with you",
               createdAt: "Just now",
             };
             setChatRequests((prev) => [
@@ -517,11 +523,12 @@ export function useRealtimeChat() {
         { event: "UPDATE", schema: "public", table: "chat_requests" },
         async (payload: any) => {
           const updated = payload.new as Record<string, unknown> | null;
+          const activeId = currentUserRef.current.id;
           if (updated) {
             setChatRequests((prev) => prev.filter((r) => r.id !== String(updated.id)));
 
             // If my sent request was accepted by the other user, add them to contacts immediately!
-            if (updated.status === "accepted" && String(updated.sender_id) === currentUser.id) {
+            if (updated.status === "accepted" && String(updated.sender_id) === activeId) {
               const receiverId = String(updated.receiver_id);
               try {
                 const { data: rp } = await supabase
@@ -973,7 +980,7 @@ export function useRealtimeChat() {
           try {
             const { data: dbRequests } = await supabase
               .from("chat_requests")
-              .select("id, sender_id, receiver_id, status, message, created_at")
+              .select("id, sender_id, receiver_id, status, created_at")
               .eq("receiver_id", user.id)
               .eq("status", "pending")
               .order("created_at", { ascending: false });
@@ -998,7 +1005,7 @@ export function useRealtimeChat() {
                   senderAvatar: sp?.avatar_url || "",
                   receiverId: r.receiver_id,
                   status: r.status as "pending",
-                  message: r.message || "wants to start a conversation with you",
+                  message: "wants to start a conversation with you",
                   createdAt: new Date(r.created_at).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -1081,7 +1088,7 @@ export function useRealtimeChat() {
     try {
       await supabase
         .from("chat_requests")
-        .update({ status: "accepted", updated_at: new Date().toISOString() })
+        .update({ status: "accepted" })
         .eq("id", req.id);
     } catch (err) {
       console.warn("Could not sync chat_request accept to Supabase:", err);
@@ -1163,7 +1170,7 @@ export function useRealtimeChat() {
     try {
       await supabase
         .from("chat_requests")
-        .update({ status: "rejected", updated_at: new Date().toISOString() })
+        .update({ status: "rejected" })
         .eq("id", requestId);
     } catch (err) {
       console.warn("Could not sync chat_request reject to Supabase:", err);

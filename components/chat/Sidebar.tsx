@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Loader2,
   UserX,
+  CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChatList } from "@/components/chat/ChatList";
@@ -92,6 +93,61 @@ export function Sidebar({
     popupTimerRef.current = setTimeout(() => {
       setPopupMessage(null);
     }, 4000);
+  };
+
+  const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    supabase
+      .from("chat_requests")
+      .select("receiver_id")
+      .eq("sender_id", currentUser.id)
+      .eq("status", "pending")
+      .then((res: any) => {
+        const data = res?.data;
+        if (data && Array.isArray(data)) {
+          setSentRequestIds(new Set(data.map((r: any) => r.receiver_id)));
+        }
+      });
+  }, [currentUser?.id]);
+
+  const handleSendRequestFromSidebar = async (target: {
+    id: string;
+    username: string;
+    fullName: string;
+  }) => {
+    if (!target?.id || !currentUser?.id) return;
+    try {
+      setSendingId(target.id);
+      await fetch("/api/user/send-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          senderId: currentUser.id,
+          receiverId: target.id,
+        }),
+      });
+      // also direct client fallback
+      try {
+        await supabase.from("chat_requests").upsert(
+          {
+            sender_id: currentUser.id,
+            receiver_id: target.id,
+            status: "pending",
+          },
+          { onConflict: "sender_id,receiver_id" }
+        );
+      } catch {}
+
+      setSentRequestIds((prev) => new Set(prev).add(target.id));
+      triggerPopup(`Request sent to ${target.fullName || target.username}!`);
+    } catch (err) {
+      console.warn("Could not dispatch chat request:", err);
+    } finally {
+      setSendingId(null);
+    }
   };
 
   // Debounced search validation strictly against Supabase profiles table
@@ -424,11 +480,30 @@ export function Sidebar({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleStartChatWithFoundUser(user);
+                    if (!sentRequestIds.has(user.id) && sendingId !== user.id) {
+                      handleSendRequestFromSidebar(user);
+                    }
                   }}
-                  className="px-2.5 py-1.5 rounded-lg bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-[11px] transition cursor-pointer shrink-0"
+                  disabled={sentRequestIds.has(user.id) || sendingId === user.id}
+                  className={cn(
+                    "px-2.5 py-1.5 rounded-lg font-black text-[11px] transition shrink-0 flex items-center gap-1",
+                    sentRequestIds.has(user.id)
+                      ? "bg-[#053b53] text-[#97D7FF] border border-[#4D8DBA]/40 cursor-default"
+                      : "bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] cursor-pointer"
+                  )}
                 >
-                  + Request
+                  {sendingId === user.id ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : sentRequestIds.has(user.id) ? (
+                    <CheckCircle2 className="w-3 h-3 text-[#97D7FF]" />
+                  ) : null}
+                  <span>
+                    {sendingId === user.id
+                      ? "Sending..."
+                      : sentRequestIds.has(user.id)
+                      ? "Requested"
+                      : "+ Request"}
+                  </span>
                 </button>
               </div>
             ))}
