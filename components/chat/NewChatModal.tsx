@@ -14,7 +14,6 @@ import {
   CheckCircle2,
   Camera,
   Loader2,
-  Sparkles,
   AlertCircle,
 } from "lucide-react";
 import { ChatContact } from "@/types/chat";
@@ -58,9 +57,7 @@ export function NewChatModal({
   const [mode, setMode] = useState<"directory" | "group-select" | "group-details">("directory");
 
   // User Directory State
-  const [rawProfiles, setRawProfiles] = useState<any[]>([]);
   const [searchResults, setSearchResults] = useState<any[] | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
   const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
@@ -73,104 +70,32 @@ export function NewChatModal({
   const [groupAvatar, setCustomGroupAvatar] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Direct Supabase raw query on component mount for initial directory listing
+  // On modal open: only preload pending sent request IDs (no directory listing)
   useEffect(() => {
+    if (!isOpen || !currentUserId) return;
     let isMounted = true;
 
-    async function loadProfiles() {
-      setIsLoading(true);
+    async function loadSentRequests() {
       try {
-        let query = supabase.from("profiles").select("*");
-        // Safe exclusion of currently logged-in user without breaking if null or loading
-        if (currentUserId) {
-          query = query.neq("id", currentUserId);
+        const { data: sentReqs } = await supabase
+          .from("chat_requests")
+          .select("receiver_id")
+          .eq("sender_id", currentUserId)
+          .eq("status", "pending");
+        if (sentReqs && isMounted) {
+          setSentRequestIds(new Set(sentReqs.map((r: any) => r.receiver_id)));
         }
-
-        const { data, error } = await query;
-        console.log("[NewChatModal direct directory query response]:", {
-          count: data?.length,
-          currentUserId,
-          data,
-          error,
-        });
-
-        if (isMounted) {
-          if (Array.isArray(data) && data.length > 0) {
-            setRawProfiles(data);
-          } else {
-            // Secondary fallback via server directory endpoint
-            try {
-              const res = await fetch(
-                `/api/user/directory${currentUserId ? `?excludeId=${encodeURIComponent(currentUserId)}` : ""}`,
-                { cache: "no-store" }
-              );
-              const json = await res.json();
-              if (json.success && Array.isArray(json.users) && json.users.length > 0) {
-                if (isMounted) setRawProfiles(json.users);
-                return;
-              }
-            } catch (apiErr) {
-              console.warn("[NewChatModal] Directory fallback notice:", apiErr);
-            }
-
-            if (isMounted && Array.isArray(data)) {
-              setRawProfiles(data);
-            }
-          }
-        }
-      } catch (err) {
-        console.error("[NewChatModal] Direct directory fetch error:", err);
-        try {
-          const res = await fetch(
-            `/api/user/directory${currentUserId ? `?excludeId=${encodeURIComponent(currentUserId)}` : ""}`,
-            { cache: "no-store" }
-          );
-          const json = await res.json();
-          if (json.success && Array.isArray(json.users) && json.users.length > 0) {
-            if (isMounted) setRawProfiles(json.users);
-          }
-        } catch {}
-      } finally {
-        if (currentUserId) {
-          try {
-            const { data: sentReqs } = await supabase
-              .from("chat_requests")
-              .select("receiver_id")
-              .eq("sender_id", currentUserId)
-              .eq("status", "pending");
-            if (sentReqs && isMounted) {
-              setSentRequestIds(new Set(sentReqs.map((r: any) => r.receiver_id)));
-            }
-          } catch {}
-        }
-        if (isMounted) setIsLoading(false);
-      }
+      } catch {}
     }
 
-    loadProfiles();
-
-    // Real-time Supabase Subscription on 'profiles' table
-    const channel = supabase
-      .channel("public:profiles_directory_live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "profiles" },
-        () => {
-          loadProfiles();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      isMounted = false;
-      supabase.removeChannel(channel);
-    };
+    loadSentRequests();
+    return () => { isMounted = false; };
   }, [isOpen, currentUserId]);
 
-  // Debounced search query against Supabase profiles table using .ilike and input sanitization
+
+  // Debounced search — only runs when user types a query (no search = no fetch)
   useEffect(() => {
     let isCancelled = false;
-    // Direct plain text search without symbol requirements
     const clean = searchFilter.trim().replace(/^@+/, "");
 
     if (!clean) {
@@ -182,9 +107,6 @@ export function NewChatModal({
     setIsSearching(true);
     const timer = setTimeout(async () => {
       try {
-        console.log("[NewChatModal] Initiating plain text search for:", clean);
-
-        // Current logged-in user check
         let activeUid = currentUserId;
         if (!activeUid) {
           try {
@@ -193,126 +115,41 @@ export function NewChatModal({
           } catch {}
         }
 
-        // Database query for profiles using .select('*') combined with direct plain text matching
         let query = supabase.from("profiles").select("*");
+        if (activeUid) query = query.neq("id", activeUid);
+        query = query.or(
+          `username.ilike.%${clean}%,full_name.ilike.%${clean}%,email.ilike.%${clean}%`
+        );
 
-        // Exclude current user if logged in
-        if (activeUid) {
-          query = query.neq("id", activeUid);
-        }
-
-        // Direct plain text search matching username, full_name, or email
-        const cleanSearch = clean;
-        if (cleanSearch.length > 0) {
-          query = query.or(
-            `username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%`
-          );
-        }
-
-        console.log('SEARCH TERM:', cleanSearch);
         const { data, error } = await query.limit(20);
-        console.log('FETCHED PROFILES DATA:', data, 'ERROR:', error);
-
         if (isCancelled) return;
 
-        const combinedMap = new Map<string, any>();
-
         if (error) {
-          console.error("Search error:", error.message);
-        } else if (Array.isArray(data)) {
-          for (const item of data) {
-            if (item?.id && (!activeUid || item.id !== activeUid)) {
-              combinedMap.set(item.id, item);
-            }
-          }
-        }
-
-        // 2. Also match against loaded directory profiles in memory
-        const qLower = clean.toLowerCase();
-        for (const p of rawProfiles) {
-          if (currentUserId && p.id === currentUserId) continue;
-          const u = (p.username || "").toLowerCase();
-          const fn = (p.full_name || p.fullName || "").toLowerCase();
-          const em = (p.email || "").toLowerCase();
-          if (u.includes(qLower) || fn.includes(qLower) || em.includes(qLower)) {
-            if (p.id && !combinedMap.has(p.id)) {
-              combinedMap.set(p.id, p);
-            }
-          }
-        }
-
-        // 3. Fallback server API search if direct query returned 0 items
-        if (combinedMap.size === 0) {
-          try {
-            const apiRes = await fetch(
-              `/api/user/search?searchTerm=${encodeURIComponent(clean)}${
-                currentUserId ? `&excludeId=${encodeURIComponent(currentUserId)}` : ""
-              }`,
-              { cache: "no-store" }
-            );
-            if (apiRes.ok) {
-              const apiJson = await apiRes.json();
-              if (Array.isArray(apiJson.users)) {
-                for (const u of apiJson.users) {
-                  if (u?.id && (!currentUserId || u.id !== currentUserId)) {
-                    combinedMap.set(u.id, u);
-                  }
-                }
-              }
-            }
-          } catch (apiErr) {
-            console.warn("[NewChatModal] Search API fallback notice:", apiErr);
-          }
-        }
-
-        if (!isCancelled) {
-          setSearchResults(Array.from(combinedMap.values()));
+          console.error("[NewChatModal] Search error:", error.message);
+          if (!isCancelled) setSearchResults([]);
+        } else {
+          const results = (Array.isArray(data) ? data : [])
+            .filter((p: any) => p?.id && (!activeUid || p.id !== activeUid));
+          if (!isCancelled) setSearchResults(results);
         }
       } catch (err) {
-        console.error("[NewChatModal] Search query exception:", err);
-        if (!isCancelled) {
-          // Instant memory fallback on error
-          const qLower = clean.toLowerCase();
-          const fallback = rawProfiles.filter((p: any) => {
-            if (currentUserId && p.id === currentUserId) return false;
-            const u = (p.username || "").toLowerCase();
-            const fn = (p.full_name || p.fullName || "").toLowerCase();
-            const em = (p.email || "").toLowerCase();
-            return u.includes(qLower) || fn.includes(qLower) || em.includes(qLower);
-          });
-          setSearchResults(fallback);
-        }
+        console.error("[NewChatModal] Search exception:", err);
+        if (!isCancelled) setSearchResults([]);
       } finally {
         if (!isCancelled) setIsSearching(false);
       }
-    }, 200);
+    }, 250);
 
     return () => {
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [searchFilter, currentUserId, rawProfiles]);
+  }, [searchFilter, currentUserId]);
 
-  if (!isOpen) return null;
-
-  // Active user list resolution
-  const cleanTerm = searchFilter.trim().replace(/^@+/, "");
-
-  const activeList = cleanTerm
-    ? searchResults !== null
-      ? searchResults
-      : rawProfiles.filter((p: any) => {
-          if (currentUserId && p.id === currentUserId) return false;
-          const u = (p.username || "").toLowerCase();
-          const fn = (p.full_name || p.fullName || "").toLowerCase();
-          const em = (p.email || "").toLowerCase();
-          const q = cleanTerm.toLowerCase();
-          return u.includes(q) || fn.includes(q) || em.includes(q);
-        })
-    : [];
 
   // Render raw profiles directly under REGISTERED USERS
-  const displayedUsers: DirectoryUser[] = activeList.map((p: any) => ({
+  const cleanTerm = searchFilter.trim().replace(/^@+/, "");
+  const displayedUsers: DirectoryUser[] = (searchResults ?? []).map((p: any) => ({
     id: p.id,
     username: p.username || `user_${p.id?.slice(0, 4)}`,
     fullName: p.full_name || p.fullName || p.username || "Six9 Member",
@@ -322,6 +159,7 @@ export function NewChatModal({
     status: p.status || p.about || "Hey there! I am using Six9Chat",
     uid: p.uid || "S9-01",
   }));
+
 
   // Filter accepted connected contacts for group creation (excluding groups)
   const connectedContacts = contacts.filter((c) => !c.isGroup);
@@ -523,7 +361,7 @@ export function NewChatModal({
                     type="text"
                     value={searchFilter}
                     onChange={(e) => setSearchFilter(e.target.value)}
-                    placeholder="Type a username or email to search..."
+                    placeholder="Search users by username, name, or @tag..."
                     className="w-full bg-transparent text-white placeholder-slate-300 outline-none text-xs sm:text-sm"
                     autoFocus
                   />
@@ -561,54 +399,60 @@ export function NewChatModal({
                 <ArrowRight className="w-4 h-4 text-[#97D7FF] group-hover:translate-x-1 transition-transform shrink-0" />
               </div>
 
-              {/* Dynamic Header & Content State */}
-              {!cleanTerm ? (
-                /* 1. Default Empty State: No Registered Users Directory rendered by default */
-                <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center select-none animate-in fade-in duration-150">
-                  <div className="w-12 h-12 rounded-full bg-[#086288]/30 border border-[#4D8DBA]/35 flex items-center justify-center text-[#97D7FF] mb-3 shadow-inner">
-                    <Search className="w-5 h-5 text-[#97D7FF]" />
-                  </div>
-                  <p className="text-sm font-semibold text-slate-100">
-                    Type a username or email to search for people.
-                  </p>
-                  <p className="text-xs text-[#97D7FF]/70 mt-1 max-w-[260px] leading-relaxed">
-                    Search by exact username or email to connect and start chatting.
-                  </p>
+              {/* Section Header \u2014 only shown when there is a search query */}
+              {cleanTerm && (
+                <div className="flex items-center justify-between pb-1.5 px-1 shrink-0 border-b border-[#4D8DBA]/25">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FFEFC4] flex items-center gap-1.5">
+                    <Search className="w-3 h-3 text-[#97D7FF]" />
+                    <span>
+                      {isSearching
+                        ? `Searching...`
+                        : `Results for "${cleanTerm}" (${displayedUsers.length})`}
+                    </span>
+                  </span>
+                  {isSearching && (
+                    <Loader2 className="w-3.5 h-3.5 text-[#97D7FF] animate-spin" />
+                  )}
                 </div>
-              ) : (
-                /* 2. Dynamic Search Results State */
-                <>
-                  <div className="flex items-center justify-between pb-1.5 px-1 shrink-0 border-b border-[#4D8DBA]/25">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FFEFC4] flex items-center gap-1.5">
-                      <Sparkles className="w-3 h-3 text-[#97D7FF]" />
-                      <span>Results for &quot;{cleanTerm}&quot;</span>
-                    </span>
-                    <span className="text-[10px] font-mono text-[#97D7FF]/80">
-                      {displayedUsers.length} {displayedUsers.length === 1 ? "result" : "results"}
-                    </span>
-                  </div>
+              )}
 
-                  <div className="flex-1 overflow-y-auto space-y-2 pr-1 pt-2 divide-y divide-[#4D8DBA]/20">
-                    {(isLoading || isSearching) && displayedUsers.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-12 text-slate-300">
-                        <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin mb-2" />
-                        <p className="text-xs font-semibold text-slate-200">
-                          Searching users for &quot;{cleanTerm}&quot;...
-                        </p>
-                      </div>
-                    ) : displayedUsers.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-slate-300 animate-in fade-in duration-150">
-                        <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/25 flex items-center justify-center text-red-400 mb-2">
-                          <AlertCircle className="w-5 h-5" />
-                        </div>
-                        <p className="text-xs font-bold text-red-200">
-                          No user found matching &quot;{cleanTerm}&quot;
-                        </p>
-                        <p className="text-[11px] text-slate-400 mt-1 max-w-[220px]">
-                          Check the spelling or try searching with another username or email.
-                        </p>
-                      </div>
-                    ) : (
+              {/* Body — 3 states */}
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 pt-2 divide-y divide-[#4D8DBA]/20">
+
+                {/* STATE 1: Empty input — show placeholder */}
+                {!cleanTerm && (
+                  <div className="flex flex-col items-center justify-center py-12 px-4 text-center select-none">
+                    <div className="w-14 h-14 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/40 flex items-center justify-center mb-4 shadow-lg">
+                      <Search className="w-6 h-6 text-[#4D8DBA]" />
+                    </div>
+                    <p className="text-sm font-bold text-white mb-1">Find people on Six9Chat</p>
+                    <p className="text-[11px] text-slate-300 max-w-[220px] leading-relaxed">
+                      Type a username or name above to search for people.
+                    </p>
+                  </div>
+                )}
+
+                {/* STATE 2: Searching spinner */}
+                {cleanTerm && isSearching && (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-300">
+                    <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin mb-2" />
+                    <p className="text-xs font-semibold text-slate-200">Searching users...</p>
+                  </div>
+                )}
+
+                {/* STATE 3: No results */}
+                {cleanTerm && !isSearching && displayedUsers.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-slate-300">
+                    <AlertCircle className="w-8 h-8 text-red-400 mb-2" />
+                    <p className="text-xs font-bold text-red-200">No user found</p>
+                    <p className="text-[11px] text-slate-300 mt-1 max-w-[220px]">
+                      No registered user matches &quot;{cleanTerm}&quot;. Try another username.
+                    </p>
+                  </div>
+                )}
+
+                {/* STATE 4: Search results list */}
+                {cleanTerm && !isSearching && displayedUsers.length > 0 &&
                   displayedUsers.map((user) => {
                     const isConnected = connectedIds.has(user.id);
                     const isRequested = sentRequestIds.has(user.id);
@@ -685,12 +529,11 @@ export function NewChatModal({
                       </div>
                     );
                   })
-                )}
-                  </div>
-                </>
-              )}
+                }
+              </div>
             </div>
           )}
+
 
           {/* ============================================================== */}
           {/* 2. GROUP CREATION: STEP 1 (MEMBER SELECTION)                   */}
