@@ -31,10 +31,10 @@ export default function UserSearchDirectory() {
         query = query.neq('id', user.id);
       }
 
-      // Clean search input and apply case-insensitive ilike filter
-      const cleanSearch = searchTerm.trim().replace(/^@/, '');
+      // Direct plain text search without symbol requirements matching username or full_name
+      const cleanSearch = searchTerm.trim();
       if (cleanSearch.length > 0) {
-        query = query.ilike('username', `%${cleanSearch}%`);
+        query = query.or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%`);
       }
 
       console.log('SEARCH TERM:', searchTerm);
@@ -64,7 +64,7 @@ export default function UserSearchDirectory() {
         type="text"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Search users by username..."
+        placeholder="Search users by name or username..."
         className="w-full px-4 py-2 border rounded-lg bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
 

@@ -97,7 +97,7 @@ export function Sidebar({
   // Debounced search validation strictly against Supabase profiles table
   useEffect(() => {
     let isCancelled = false;
-    const clean = searchQuery.trim().replace(/^@+/, "").toLowerCase();
+    const clean = searchQuery.trim().toLowerCase();
 
     if (!clean) {
       setSearchStatus("idle");
@@ -118,7 +118,7 @@ export function Sidebar({
           avatarUrl?: string;
         }> = [];
 
-        // 1. Direct Supabase query on profiles table with case-insensitive search and safe exclusion
+        // 1. Direct Supabase query on profiles table with plain text search on username or full_name
         try {
           let activeUid = currentUser?.id;
           if (!activeUid) {
@@ -138,7 +138,7 @@ export function Sidebar({
 
           const cleanSearch = clean;
           if (cleanSearch.length > 0) {
-            query = query.ilike("username", `%${cleanSearch}%`);
+            query = query.or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%`);
           }
 
           console.log('SEARCH TERM:', cleanSearch);

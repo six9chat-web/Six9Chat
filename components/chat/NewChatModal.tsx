@@ -158,8 +158,8 @@ export function NewChatModal({
   // Debounced search query against Supabase profiles table using .ilike and input sanitization
   useEffect(() => {
     let isCancelled = false;
-    // Input sanitization: trimming whitespace and handling leading symbols like '@'
-    const clean = searchFilter.trim().replace(/^@+/, "");
+    // Direct plain text search without symbol requirements
+    const clean = searchFilter.trim();
 
     if (!clean) {
       setSearchResults(null);
@@ -170,7 +170,7 @@ export function NewChatModal({
     setIsSearching(true);
     const timer = setTimeout(async () => {
       try {
-        console.log("[NewChatModal] Initiating case-insensitive search for:", clean);
+        console.log("[NewChatModal] Initiating plain text search for:", clean);
 
         // Current logged-in user check
         let activeUid = currentUserId;
@@ -181,7 +181,7 @@ export function NewChatModal({
           } catch {}
         }
 
-        // Database query for profiles using .select('*') combined with .ilike('username', `%${cleanSearch}%`)
+        // Database query for profiles using .select('*') combined with direct plain text matching
         let query = supabase.from("profiles").select("*");
 
         // Exclude current user if logged in
@@ -189,10 +189,10 @@ export function NewChatModal({
           query = query.neq("id", activeUid);
         }
 
-        // Clean search input and apply case-insensitive ilike filter
+        // Direct plain text search matching username or full_name
         const cleanSearch = clean;
         if (cleanSearch.length > 0) {
-          query = query.ilike("username", `%${cleanSearch}%`);
+          query = query.or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%`);
         }
 
         console.log('SEARCH TERM:', cleanSearch);
