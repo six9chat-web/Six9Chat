@@ -416,14 +416,6 @@ export function Sidebar({
                     <p className="font-bold text-white text-xs truncate leading-tight">
                       {user.fullName || user.username}
                     </p>
-                    <p className="truncate font-mono font-medium text-[#97D7FF] text-[10px] leading-tight">
-                      @{user.username.replace(/^@+/, "")}
-                    </p>
-                    {user.email && (
-                      <p className="truncate text-slate-300 text-[10px] leading-tight opacity-80">
-                        {user.email}
-                      </p>
-                    )}
                   </div>
                 </div>
                 <button
@@ -434,7 +426,7 @@ export function Sidebar({
                   }}
                   className="px-2.5 py-1.5 rounded-lg bg-[#97D7FF] hover:bg-[#b4e3ff] text-[#086288] font-black text-[11px] transition cursor-pointer shrink-0"
                 >
-                  + Chat Now
+                  + Request
                 </button>
               </div>
             ))}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
+import { Avatar } from '@/components/ui/Avatar';
 
 export default function UserSearchDirectory() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -93,15 +94,21 @@ export default function UserSearchDirectory() {
           <ul className="space-y-2">
             {profiles.map((profile) => (
               <li key={profile.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-lg">
-                <div>
-                  <div className="font-bold">{profile.full_name || profile.username || profile.email || profile.id}</div>
-                  <div className="text-sm text-gray-400">@{profile.username || profile.id}</div>
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar
+                    src={profile.avatar_url || profile.avatarUrl || ""}
+                    alt={profile.full_name || profile.username || "User"}
+                    className="w-10 h-10 shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="font-bold truncate">{profile.full_name || profile.username}</div>
+                  </div>
                 </div>
                 <button 
-                  onClick={() => console.log('Chat with:', profile.id)}
-                  className="px-3 py-1 bg-blue-600 rounded-md hover:bg-blue-500 text-sm"
+                  onClick={() => console.log('Request to:', profile.id)}
+                  className="px-3 py-1 bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] text-[#086288] font-bold rounded-md hover:brightness-105 text-sm shrink-0"
                 >
-                  Chat
+                  + Request
                 </button>
               </li>
             ))}

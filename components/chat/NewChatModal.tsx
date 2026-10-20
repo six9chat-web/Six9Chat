@@ -303,10 +303,7 @@ export function NewChatModal({
     username: p.username || `user_${p.id?.slice(0, 4)}`,
     fullName: p.full_name || p.fullName || p.username || "Six9 Member",
     email: p.email || "",
-    avatarUrl:
-      p.avatar_url ||
-      p.avatarUrl ||
-      `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username || p.id}`,
+    avatarUrl: p.avatar_url || p.avatarUrl || "",
     about: p.about || p.status || "Hey there! I am using Six9Chat",
     status: p.status || p.about || "Hey there! I am using Six9Chat",
     uid: p.uid || "S9-01",
@@ -608,16 +605,8 @@ export function NewChatModal({
 
                           <div className="flex-1 min-w-0">
                             <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-[#97D7FF] transition-colors">
-                              {user.fullName}
+                              {user.fullName || user.username}
                             </h4>
-                            <p className="text-[11px] font-mono text-[#97D7FF] truncate">
-                              @{user.username.replace(/^@/, "")}
-                            </p>
-                            {user.email && (
-                              <p className="text-[10px] text-slate-300 truncate opacity-80">
-                                {user.email}
-                              </p>
-                            )}
                             {user.status && (
                               <p className="text-[10px] text-slate-400 truncate">
                                 {user.status}
@@ -642,7 +631,7 @@ export function NewChatModal({
                             )}
                           >
                             <MessageSquare className="w-3.5 h-3.5" />
-                            <span>{isConnected ? "Chat" : "+ Chat"}</span>
+                            <span>+ Request</span>
                           </button>
                         </div>
                       </div>
