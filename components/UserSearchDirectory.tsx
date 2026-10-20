@@ -41,9 +41,23 @@ export default function UserSearchDirectory() {
       const { data, error } = await query.limit(20);
       console.log('FETCHED PROFILES DATA:', data, 'ERROR:', error);
 
-      if (error) {
-        console.error('Search error:', error.message);
-        setProfiles([]);
+      if (error || !data || data.length === 0) {
+        if (error) console.error('Search error:', error.message);
+        // Resilient fallback to server API search route
+        try {
+          const res = await fetch(`/api/user/search?searchTerm=${encodeURIComponent(cleanSearch)}${user?.id ? `&excludeId=${encodeURIComponent(user.id)}` : ''}`);
+          if (res.ok) {
+            const json = await res.json();
+            if (Array.isArray(json.users) && json.users.length > 0) {
+              setProfiles(json.users);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (apiErr) {
+          console.warn("UserSearchDirectory API fallback notice:", apiErr);
+        }
+        setProfiles(data || []);
       } else {
         setProfiles(data || []);
       }

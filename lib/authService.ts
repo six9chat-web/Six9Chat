@@ -387,8 +387,7 @@ export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
   try {
     const query = supabaseServer
       .from("profiles")
-      .select("id, username, email, full_name, about, avatar_url, status, uid")
-      .order("created_at", { ascending: false });
+      .select("id, username, email, full_name, about, avatar_url, status, uid");
 
     const { data: profiles, error } = await query;
 
@@ -410,6 +409,22 @@ export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
     }
   } catch (err) {
     console.warn("[AuthService] getAllRegisteredUsers db notice:", err);
+  }
+
+  // 2. Also populate from server memory users
+  for (const cached of memoryUsers.values()) {
+    if (cached?.id && !usersMap.has(cached.id)) {
+      usersMap.set(cached.id, {
+        id: cached.id,
+        username: cached.username,
+        email: cached.email || "",
+        fullName: cached.fullName || cached.username,
+        avatarUrl: "",
+        about: "Hey there! I am using Six9Chat",
+        status: "Hey there! I am using Six9Chat",
+        uid: cached.uid || "S9-01",
+      });
+    }
   }
 
   return Array.from(usersMap.values());
@@ -449,8 +464,8 @@ export async function searchRegisteredUsers(
   try {
     let sbQuery = supabaseServer
       .from("profiles")
-      .select("*")
-      .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+      .select("id, username, email, full_name, about, avatar_url, status, uid")
+      .or(`username.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`)
       .limit(30);
 
     if (excludeId) {
@@ -513,13 +528,34 @@ export async function searchRegisteredUsers(
     console.warn("[AuthService] searchRegisteredUsers ilike email query notice:", err);
   }
 
-  // 3. Full profiles scan fallback to guarantee freshly registered accounts appear instantly
+  // 3. Match against server memory users
+  for (const cached of memoryUsers.values()) {
+    if (excludeId && cached.id === excludeId) continue;
+    const u = (cached.username || "").toLowerCase();
+    const fn = (cached.fullName || "").toLowerCase();
+    const em = (cached.email || "").toLowerCase();
+    if (u.includes(searchTerm) || fn.includes(searchTerm) || em.includes(searchTerm)) {
+      if (!matchedMap.has(cached.id)) {
+        matchedMap.set(cached.id, {
+          id: cached.id,
+          username: cached.username,
+          email: cached.email || "",
+          fullName: cached.fullName || cached.username,
+          avatarUrl: "",
+          about: "Hey there! I am using Six9Chat",
+          status: "Hey there! I am using Six9Chat",
+          uid: cached.uid || "S9-01",
+        });
+      }
+    }
+  }
+
+  // 4. Full profiles scan fallback without relying on non-existent created_at column
   if (matchedMap.size === 0) {
     try {
       const { data: allProfiles } = await supabaseServer
         .from("profiles")
         .select("id, username, email, about, avatar_url, full_name, status, uid")
-        .order("created_at", { ascending: false })
         .limit(50);
 
       if (Array.isArray(allProfiles)) {

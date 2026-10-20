@@ -390,7 +390,7 @@ export function Sidebar({
         </div>
 
         {/* Searching Validation Indicator */}
-        {searchStatus === "searching" && searchQuery.trim().replace(/^@+/, "").length > 0 && (
+        {searchStatus === "searching" && searchQuery.trim().length > 0 && (
           <div className="mt-2 p-2 rounded-xl bg-[#086288]/50 border border-[#4D8DBA]/30 flex items-center gap-2 text-xs text-slate-300">
             <Loader2 className="w-3.5 h-3.5 text-[#97D7FF] animate-spin shrink-0" />
             <span className="text-[11px] text-slate-300 font-medium">Searching users in Supabase...</span>
@@ -398,7 +398,7 @@ export function Sidebar({
         )}
 
         {/* Valid User Found List */}
-        {searchStatus === "found" && matchedProfiles.length > 0 && searchQuery.trim().replace(/^@+/, "").length > 0 && (
+        {searchStatus === "found" && matchedProfiles.length > 0 && searchQuery.trim().length > 0 && (
           <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
             {matchedProfiles.map((user) => (
               <div
@@ -442,7 +442,7 @@ export function Sidebar({
         )}
 
         {/* Invalid User Search Validation: Clean "User not found" state ONLY when query has active characters */}
-        {searchStatus === "not_found" && searchQuery.trim().replace(/^@+/, "").length > 0 && (
+        {searchStatus === "not_found" && searchQuery.trim().length > 0 && (
           <div className="mt-2 p-2.5 rounded-xl bg-[#032433] border border-red-500/40 flex items-center justify-between text-xs text-red-200 shadow-md animate-in fade-in duration-150">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-7 h-7 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
@@ -451,7 +451,7 @@ export function Sidebar({
               <div className="min-w-0">
                 <p className="font-bold text-red-100 text-xs tracking-tight">User not found</p>
                 <p className="text-[10px] text-slate-400 font-mono truncate">
-                  No registered user matches &quot;{searchQuery.trim().replace(/^@+/, "")}&quot;
+                  No registered user matches &quot;{searchQuery.trim()}&quot;
                 </p>
               </div>
             </div>
@@ -483,7 +483,16 @@ export function Sidebar({
 
       {/* 4. Chat List Section */}
       <ChatList
-        contacts={contacts}
+        contacts={
+          searchQuery.trim()
+            ? contacts.filter(
+                (c) =>
+                  c.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+                  (c.phone && c.phone.toLowerCase().includes(searchQuery.trim().toLowerCase())) ||
+                  (c.lastMessage?.text && c.lastMessage.text.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+              )
+            : contacts
+        }
         activeContactId={activeContactId}
         onSelectContact={onSelectContact}
       />
