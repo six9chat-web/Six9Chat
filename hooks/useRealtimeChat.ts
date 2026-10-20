@@ -46,7 +46,7 @@ export type ChatFilterType =
 export function useRealtimeChat() {
   const [currentUser, setCurrentUser] = useState<UserProfile>(CURRENT_USER);
   const [contacts, setContacts] = useState<ChatContact[]>(INITIAL_CONTACTS);
-  const [activeContactId, setActiveContactId] = useState<string>("contact-1");
+  const [activeContactId, setActiveContactId] = useState<string>("");
   const [messagesMap, setMessagesMap] = useState<Record<string, ChatMessage[]>>(
     INITIAL_MESSAGES_BY_CONTACT
   );
@@ -57,6 +57,22 @@ export function useRealtimeChat() {
   const [activeStory, setActiveStory] = useState<StoryItem | null>(null);
   const [chatRequests, setChatRequests] = useState<ChatRequest[]>(INITIAL_CHAT_REQUESTS);
   const currentUserRef = useRef<UserProfile>(currentUser);
+
+  // Clear any legacy local storage contacts caches to ensure strictly genuine DB state
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith("six9_saved_contacts_") || k.startsWith("six9_contacts_"))) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+      } catch {}
+    }
+  }, []);
 
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -927,53 +943,24 @@ export function useRealtimeChat() {
             uid: assignedUid,
           });
 
-          // 1. Fetch connected contacts & groups from Supabase + localStorage cache
+          // 1. Fetch connected contacts & groups strictly from Supabase DB conversations API
           try {
-            if (typeof window !== "undefined") {
-              const localSaved = localStorage.getItem(`six9_saved_contacts_${user.id}`);
-              if (localSaved) {
-                try {
-                  const parsed = JSON.parse(localSaved);
-                  if (Array.isArray(parsed) && parsed.length > 0) {
-                    setContacts(parsed);
-                    if (!activeContactId) {
-                      setActiveContactId(parsed[0].id);
-                    }
-                  }
-                } catch {}
-              }
-            }
-
             const convRes = await fetch(`/api/chat/conversations?userId=${user.id}`);
             const convData = await convRes.json();
             if (convData.success && Array.isArray(convData.contacts)) {
-              setContacts((prev) => {
-                const map = new Map<string, ChatContact>();
-                // Add server contacts
-                for (const c of convData.contacts) {
-                  map.set(c.id, c);
-                }
-                // Preserve contacts added locally
-                for (const c of prev) {
-                  if (!map.has(c.id)) {
-                    map.set(c.id, c);
-                  }
-                }
-                const merged = Array.from(map.values());
-                if (typeof window !== "undefined") {
-                  try {
-                    localStorage.setItem(`six9_saved_contacts_${user.id}`, JSON.stringify(merged));
-                  } catch {}
-                }
-                return merged;
-              });
-
-              if (!activeContactId && convData.contacts.length > 0) {
+              setContacts(convData.contacts);
+              if (convData.contacts.length > 0) {
                 setActiveContactId(convData.contacts[0].id);
+              } else {
+                setActiveContactId("");
               }
+            } else {
+              setContacts([]);
+              setActiveContactId("");
             }
           } catch (e) {
             console.warn("Could not load conversations from API:", e);
+            setContacts([]);
           }
 
           // 2. Fetch pending chat requests from Supabase
@@ -1218,15 +1205,7 @@ export function useRealtimeChat() {
       },
     };
 
-    setContacts((prev) => {
-      const updated = [newContact, ...prev.filter((c) => c.id !== id)];
-      if (typeof window !== "undefined" && currentUser?.id) {
-        try {
-          localStorage.setItem(`six9_saved_contacts_${currentUser.id}`, JSON.stringify(updated));
-        } catch {}
-      }
-      return updated;
-    });
+    setContacts((prev) => [newContact, ...prev.filter((c) => c.id !== id)]);
 
     setActiveContactId(id);
 
