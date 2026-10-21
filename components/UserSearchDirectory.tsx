@@ -128,19 +128,36 @@ export default function UserSearchDirectory() {
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    // TODO: Wire up send-request API
-                    fetch('/api/user/send-request', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ targetUserId: profile.id }),
-                    }).catch(() => {});
-                  }}
-                  className="px-3 py-1 bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] text-[#086288] font-bold rounded-md hover:brightness-105 text-sm shrink-0"
-                >
-                  + Request
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      if (!currentUserIdRef.current) return;
+                      fetch('/api/user/send-request', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          senderId: currentUserIdRef.current,
+                          receiverId: profile.id,
+                        }),
+                      }).catch(() => {});
+                      setProfiles((prev) =>
+                        prev.map((p) => (p.id === profile.id ? { ...p, isRequested: true } : p))
+                      );
+                    }}
+                    className="px-3 py-1 bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] text-[#086288] font-bold rounded-md hover:brightness-105 text-sm shrink-0 transition"
+                  >
+                    {profile.isRequested ? 'Requested' : '+ Request'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setProfiles((prev) => prev.filter((p) => p.id !== profile.id));
+                    }}
+                    className="px-2 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 font-semibold rounded-md text-sm shrink-0 transition"
+                    title="Delete / Remove user"
+                  >
+                    Delete
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

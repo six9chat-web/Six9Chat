@@ -56,6 +56,8 @@ export function ChatWorkspace() {
     chatRequests,
     acceptChatRequest,
     rejectChatRequest,
+    sendChatRequest,
+    deleteContact,
   } = useRealtimeChat();
 
   // Mobile viewport navigation state: 'sidebar' | 'chat'
@@ -180,6 +182,8 @@ export function ChatWorkspace() {
             chatRequests={chatRequests}
             onAcceptChatRequest={acceptChatRequest}
             onRejectChatRequest={rejectChatRequest}
+            onSendChatRequest={sendChatRequest}
+            onDeleteContact={deleteContact}
           />
         </div>
 

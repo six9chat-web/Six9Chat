@@ -1203,6 +1203,22 @@ export function useRealtimeChat() {
       console.warn("Could not sync chat_request accept to API:", err);
     }
 
+    // Automatically generate or verify 1-on-1 row in conversations table
+    try {
+      if (currentUser?.id && req.senderId) {
+        await fetch("/api/chat/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            partnerId: req.senderId,
+          }),
+        });
+      }
+    } catch (e) {
+      console.warn("Could not generate conversation on request accept:", e);
+    }
+
     // Direct Supabase client sync fallback
     try {
       await supabase
@@ -1269,7 +1285,7 @@ export function useRealtimeChat() {
     setActiveContactId(newContact.id);
   }, [currentUser]);
 
-  // Reject a pending chat request
+  // Decline a pending chat request
   const rejectChatRequest = useCallback(async (requestId: string) => {
     // 1. Update status in Supabase via server API route
     try {
@@ -1278,21 +1294,21 @@ export function useRealtimeChat() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           requestId,
-          status: "rejected",
+          status: "declined",
         }),
       });
     } catch (err) {
-      console.warn("Could not sync chat_request reject to API:", err);
+      console.warn("Could not sync chat_request decline to API:", err);
     }
 
     // Direct Supabase client sync fallback
     try {
       await supabase
         .from("chat_requests")
-        .update({ status: "rejected" })
+        .update({ status: "declined" })
         .eq("id", requestId);
     } catch (err) {
-      console.warn("Could not sync chat_request reject to Supabase:", err);
+      console.warn("Could not sync chat_request decline to Supabase:", err);
     }
 
     // 2. Broadcast response via Realtime channel
@@ -1300,13 +1316,39 @@ export function useRealtimeChat() {
       channelRef.current?.send({
         type: "broadcast",
         event: "chat_request_response",
-        payload: { requestId, status: "rejected" },
+        payload: { requestId, status: "declined" },
       });
     } catch {}
 
     // 3. Remove from pending requests
     setChatRequests((prev) => prev.filter((r) => r.id !== requestId));
   }, []);
+
+  // Delete / Remove contact from view and clear active session
+  const deleteContact = useCallback(async (contactId: string) => {
+    setContacts((prev) => prev.filter((c) => c.id !== contactId));
+
+    if (activeContactId === contactId) {
+      setActiveContactId("");
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("six9chat_active_chat");
+        const url = new URL(window.location.href);
+        url.searchParams.delete("c");
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+
+    try {
+      if (currentUser?.id) {
+        await supabase
+          .from("conversations")
+          .delete()
+          .or(`and(user1_id.eq.${currentUser.id},user2_id.eq.${contactId}),and(user1_id.eq.${contactId},user2_id.eq.${currentUser.id})`);
+      }
+    } catch (e) {
+      console.warn("Delete conversation DB notice:", e);
+    }
+  }, [activeContactId, currentUser?.id]);
 
   // Add a new direct contact or start chat using their genuine Supabase user ID
   const addNewContact = useCallback((name: string, phone: string, avatar?: string, existingUserId?: string) => {
@@ -1493,6 +1535,7 @@ export function useRealtimeChat() {
     acceptChatRequest,
     rejectChatRequest,
     sendChatRequest,
+    deleteContact,
     signOut: handleSignOut,
   };
 }

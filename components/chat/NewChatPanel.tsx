@@ -9,6 +9,9 @@ import {
   X,
   Loader2,
   MessageSquare,
+  Trash2,
+  Check,
+  UserPlus,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { ChatContact, UserProfile } from "@/types/chat";
@@ -35,6 +38,8 @@ interface NewChatPanelProps {
     targetUserId?: string
   ) => void;
   onOpenNewGroup?: () => void;
+  onSendChatRequest?: (targetUserId: string) => Promise<void> | void;
+  onDeleteContact?: (contactId: string) => void;
 }
 
 export function NewChatPanel({
@@ -45,12 +50,48 @@ export function NewChatPanel({
   onSelectContact,
   onAddNewContact,
   onOpenNewGroup,
+  onSendChatRequest,
+  onDeleteContact,
 }: NewChatPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [registeredUsers, setRegisteredUsers] = useState<DirectoryUserItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isStartingChat, setIsStartingChat] = useState<string | null>(null);
+  const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
+  const [removedUserIds, setRemovedUserIds] = useState<Set<string>>(new Set());
+  const [requestingUserId, setRequestingUserId] = useState<string | null>(null);
+
+  const handleSendRequest = async (e: React.MouseEvent, user: any) => {
+    e.stopPropagation();
+    try {
+      setRequestingUserId(user.id);
+      if (onSendChatRequest) {
+        await onSendChatRequest(user.id);
+      } else {
+        await fetch("/api/user/send-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            senderId: currentUser.id,
+            receiverId: user.id,
+            message: `${currentUser.name || "User"} wants to start a conversation with you`,
+          }),
+        });
+      }
+      setSentRequests((prev) => new Set(prev).add(user.id));
+    } catch (err) {
+      console.warn("Could not send chat request:", err);
+    } finally {
+      setRequestingUserId(null);
+    }
+  };
+
+  const handleRemoveUser = (e: React.MouseEvent, userId: string) => {
+    e.stopPropagation();
+    setRemovedUserIds((prev) => new Set(prev).add(userId));
+    onDeleteContact?.(userId);
+  };
 
   // Live user fetch from Supabase `profiles` table (with API fallback)
   useEffect(() => {
@@ -209,6 +250,10 @@ export function NewChatPanel({
     );
   }, [contacts, registeredUsers, currentUser, searchQuery]);
 
+  const visibleUsers = useMemo(() => {
+    return displayedUsers.filter((u) => !removedUserIds.has(u.id));
+  }, [displayedUsers, removedUserIds]);
+
   // Instant Conversation Trigger: Check/create conversation in DB, activate, and close panel
   const handleSelectUser = useCallback(
     async (user: {
@@ -341,12 +386,12 @@ export function NewChatPanel({
 
       {/* 5. Scrollable Contacts & Registered Users List */}
       <div className="flex-1 overflow-y-auto divide-y divide-[#4D8DBA]/10 custom-scrollbar">
-        {isLoading && displayedUsers.length === 0 ? (
+        {isLoading && visibleUsers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center select-none">
             <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin mb-3" />
             <p className="text-xs text-slate-300">Loading contacts...</p>
           </div>
-        ) : displayedUsers.length === 0 ? (
+        ) : visibleUsers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center select-none">
             <div className="w-12 h-12 rounded-2xl bg-[#032433] border border-[#4D8DBA]/40 flex items-center justify-center mb-3 shadow-lg">
               <MessageSquare className="w-5 h-5 text-[#4D8DBA]" />
@@ -361,24 +406,25 @@ export function NewChatPanel({
             </p>
           </div>
         ) : (
-          displayedUsers.map((user) => (
-            <button
+          visibleUsers.map((user) => (
+            <div
               key={user.id}
-              type="button"
-              disabled={isStartingChat === user.id}
-              onClick={() => handleSelectUser(user)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#086288]/40 active:bg-[#086288]/60 transition text-left cursor-pointer group disabled:opacity-60"
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#086288]/40 transition text-left group"
             >
-              <div className="relative shrink-0">
-                <Avatar
-                  src={user.avatar}
-                  alt={user.displayName || user.username}
-                  className="w-11 h-11 rounded-full ring-1 ring-[#97D7FF]/30 group-hover:scale-105 transition"
-                />
-              </div>
+              {/* Left clickable info area */}
+              <div
+                onClick={() => handleSelectUser(user)}
+                className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+              >
+                <div className="relative shrink-0">
+                  <Avatar
+                    src={user.avatar}
+                    alt={user.displayName || user.username}
+                    className="w-11 h-11 rounded-full ring-1 ring-[#97D7FF]/30 group-hover:scale-105 transition"
+                  />
+                </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <h3 className="text-sm font-bold text-white truncate group-hover:text-[#97D7FF] transition">
                       {user.displayName}
@@ -389,23 +435,61 @@ export function NewChatPanel({
                       </span>
                     )}
                   </div>
-                  {user.isExistingContact ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#4D8DBA]/30 text-[#97D7FF] font-medium shrink-0">
-                      Chat
-                    </span>
-                  ) : isStartingChat === user.id ? (
-                    <Loader2 className="w-3.5 h-3.5 text-[#97D7FF] animate-spin shrink-0" />
-                  ) : null}
+                  <p className="text-xs text-slate-300 truncate mt-0.5">
+                    {user.about}
+                  </p>
                 </div>
-                <p className="text-xs text-slate-300 truncate mt-0.5">
-                  {user.about}
-                </p>
               </div>
-            </button>
+
+              {/* Right Action Buttons: "Request" / "Chat" + "Delete / Remove" */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {user.isExistingContact ? (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectUser(user)}
+                    className="px-2.5 py-1 rounded-lg bg-[#4D8DBA]/30 hover:bg-[#4D8DBA]/60 text-[#97D7FF] text-xs font-semibold transition cursor-pointer"
+                  >
+                    Chat
+                  </button>
+                ) : sentRequests.has(user.id) ? (
+                  <span className="text-[11px] px-2 py-1 rounded-lg bg-[#4D8DBA]/20 text-[#97D7FF] font-medium flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    <span>Requested</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={requestingUserId === user.id}
+                    onClick={(e) => handleSendRequest(e, user)}
+                    className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] text-[#086288] hover:brightness-105 active:scale-95 text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shadow-sm"
+                    title="Send chat request"
+                  >
+                    {requestingUserId === user.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <UserPlus className="w-3.5 h-3.5" />
+                        <span>Request</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* Delete / Remove action */}
+                <button
+                  type="button"
+                  onClick={(e) => handleRemoveUser(e, user.id)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 transition cursor-pointer"
+                  title="Delete / Remove from view"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           ))
         )}
 
-        {fetchError && displayedUsers.length === 0 && (
+        {fetchError && visibleUsers.length === 0 && (
           <div className="p-4 text-center text-xs text-rose-300">
             {fetchError}
           </div>

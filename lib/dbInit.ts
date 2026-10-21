@@ -70,6 +70,16 @@ export async function ensureDatabaseTablesExist() {
           is_read BOOLEAN DEFAULT false,
           created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS public.chat_requests (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          sender_id UUID NOT NULL,
+          receiver_id UUID NOT NULL,
+          status TEXT DEFAULT 'pending',
+          message TEXT,
+          created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+          updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+        );
       `);
       isInitialized = true;
       return { success: true };

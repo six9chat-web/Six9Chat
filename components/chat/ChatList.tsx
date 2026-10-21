@@ -13,6 +13,7 @@ import {
   Users,
   Phone,
   Video,
+  Trash2,
 } from "lucide-react";
 import { ChatContact, MessageStatus } from "@/types/chat";
 import { Avatar } from "@/components/ui/Avatar";
@@ -22,12 +23,14 @@ interface ChatListProps {
   contacts: ChatContact[];
   activeContactId: string;
   onSelectContact: (id: string) => void;
+  onDeleteContact?: (id: string) => void;
 }
 
 export function ChatList({
   contacts,
   activeContactId,
   onSelectContact,
+  onDeleteContact,
 }: ChatListProps) {
   const renderStatusTicks = (status?: MessageStatus) => {
     switch (status) {
@@ -149,8 +152,22 @@ export function ChatList({
                   </span>
                 </p>
 
-                {/* Right badges: Pin / Unread Count */}
+                {/* Right badges: Pin / Unread Count / Delete Action */}
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {onDeleteContact && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteContact(contact.id);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-500/20 transition shrink-0 cursor-pointer"
+                      title="Delete / Remove contact"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
                   {contact.isPinned && (
                     <Pin className="w-3.5 h-3.5 text-[#97D7FF] rotate-45" />
                   )}

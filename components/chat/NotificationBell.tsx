@@ -250,7 +250,7 @@ export function NotificationBell({
                             className="flex-1 py-1.5 px-3 rounded-lg bg-[#032433] hover:bg-rose-500/20 text-slate-300 hover:text-rose-200 border border-[#4D8DBA]/40 active:scale-95 font-semibold text-xs flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
                           >
                             <X className="w-3.5 h-3.5" />
-                            <span>Reject</span>
+                            <span>Decline</span>
                           </button>
                         </div>
                       </motion.div>

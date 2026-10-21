@@ -44,6 +44,8 @@ interface SidebarProps {
   chatRequests?: ChatRequest[];
   onAcceptChatRequest?: (req: ChatRequest) => Promise<void> | void;
   onRejectChatRequest?: (id: string) => Promise<void> | void;
+  onSendChatRequest?: (targetUserId: string) => Promise<void> | void;
+  onDeleteContact?: (contactId: string) => void;
 }
 
 export function Sidebar({
@@ -62,6 +64,8 @@ export function Sidebar({
   chatRequests = [],
   onAcceptChatRequest,
   onRejectChatRequest,
+  onSendChatRequest,
+  onDeleteContact,
 }: SidebarProps) {
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const userRecord = currentUser as unknown as Record<string, unknown>;
@@ -225,6 +229,7 @@ export function Sidebar({
           contacts={filteredContacts}
           activeContactId={activeContactId}
           onSelectContact={onSelectContact}
+          onDeleteContact={onDeleteContact}
         />
       )}
 
@@ -239,6 +244,8 @@ export function Sidebar({
             onSelectContact={onSelectContact}
             onAddNewContact={onAddNewContact}
             onOpenNewGroup={onOpenNewGroup}
+            onSendChatRequest={onSendChatRequest}
+            onDeleteContact={onDeleteContact}
           />
         )}
       </AnimatePresence>
