@@ -6,8 +6,9 @@ const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://rjoxghjmtrsfdhbf
 const supabaseUrl = rawUrl.replace(/\/rest\/v1\/?$/, "").replace(/\/+$/, "");
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SECRET_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "sb_publishable_uFcHccTx94Y8Kx2Qy1AsHQ_V-qovUQw";
+  "";
 
 export const supabaseServer = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false },
@@ -404,7 +405,36 @@ export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
     console.warn("[AuthService] getAllRegisteredUsers db notice:", err);
   }
 
-  // 2. Also populate from server memory users
+  // 2. Also fetch all users from Supabase Auth admin API (using service role key)
+  try {
+    const { data: authData, error: authErr } = await supabaseServer.auth.admin.listUsers({
+      perPage: 100,
+    });
+    if (!authErr && authData?.users) {
+      for (const u of authData.users) {
+        if (u.id && (!excludeId || u.id !== excludeId) && !usersMap.has(u.id)) {
+          const meta = u.user_metadata || {};
+          const rawName = meta.username || (u.email ? u.email.split("@")[0] : `user_${u.id.slice(0, 4)}`);
+          const cleanUname = String(rawName).replace(/^@+/, "");
+          const fullName = meta.full_name || meta.name || cleanUname;
+          usersMap.set(u.id, {
+            id: u.id,
+            username: cleanUname,
+            email: u.email || "",
+            fullName,
+            avatarUrl: meta.avatar_url || "",
+            about: meta.about || meta.status || "Hey there! I am using Six9Chat",
+            status: meta.about || meta.status || "Hey there! I am using Six9Chat",
+            uid: `S9-${u.id.slice(0, 4)}`,
+          });
+        }
+      }
+    }
+  } catch (adminErr) {
+    console.warn("[AuthService] getAllRegisteredUsers auth admin notice:", adminErr);
+  }
+
+  // 3. Also populate from server memory users
   for (const cached of memoryUsers.values()) {
     if (cached?.id && (!excludeId || cached.id !== excludeId) && !usersMap.has(cached.id)) {
       usersMap.set(cached.id, {
@@ -574,6 +604,37 @@ export async function searchRegisteredUsers(
     } catch (err) {
       console.warn("[AuthService] searchRegisteredUsers fallback notice:", err);
     }
+  }
+
+  // 5. Match against Supabase Auth admin API registered users
+  try {
+    const { data: authData } = await supabaseServer.auth.admin.listUsers({ perPage: 100 });
+    if (authData?.users) {
+      for (const u of authData.users) {
+        if (excludeId && u.id === excludeId) continue;
+        if (matchedMap.has(u.id)) continue;
+        const meta = u.user_metadata || {};
+        const rawName = meta.username || (u.email ? u.email.split("@")[0] : "");
+        const uname = String(rawName).toLowerCase().replace(/^@+/, "");
+        const fname = String(meta.full_name || meta.name || "").toLowerCase();
+        const em = String(u.email || "").toLowerCase();
+
+        if (uname.includes(searchTerm) || fname.includes(searchTerm) || em.includes(searchTerm)) {
+          matchedMap.set(u.id, {
+            id: u.id,
+            username: uname || `user_${u.id.slice(0, 4)}`,
+            email: u.email || "",
+            fullName: meta.full_name || meta.name || uname || "Six9 Member",
+            avatarUrl: meta.avatar_url || "",
+            about: meta.about || meta.status || "Hey there! I am using Six9Chat",
+            status: meta.about || meta.status || "Hey there! I am using Six9Chat",
+            uid: `S9-${u.id.slice(0, 4)}`,
+          });
+        }
+      }
+    }
+  } catch (authSearchErr) {
+    console.warn("[AuthService] searchRegisteredUsers auth admin notice:", authSearchErr);
   }
 
   return Array.from(matchedMap.values());
