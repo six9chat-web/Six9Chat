@@ -33,6 +33,64 @@ export function getCanonicalConversationId(userA: string, userB: string): string
 }
 
 /**
+ * Get or create a 1-on-1 conversation record in Supabase conversations table
+ */
+export async function getOrCreateConversation(userA: string, userB: string): Promise<{
+  id: string;
+  user1_id: string;
+  user2_id: string;
+  last_message?: string;
+  updated_at?: string;
+}> {
+  const [user1_id, user2_id] = [userA, userB].sort();
+
+  // 1. Try finding existing conversation in Supabase
+  try {
+    const { data: existing, error } = await supabaseServer
+      .from("conversations")
+      .select("id, user1_id, user2_id, last_message, updated_at")
+      .or(`and(user1_id.eq.${user1_id},user2_id.eq.${user2_id}),and(user1_id.eq.${user2_id},user2_id.eq.${user1_id})`)
+      .limit(1)
+      .maybeSingle();
+
+    if (!error && existing) {
+      return existing;
+    }
+  } catch (err) {
+    console.warn("[ChatService] getOrCreateConversation select note:", err);
+  }
+
+  // 2. Insert new conversation row
+  try {
+    const { data: newRow, error: insertErr } = await supabaseServer
+      .from("conversations")
+      .insert({
+        user1_id,
+        user2_id,
+        last_message: "",
+        updated_at: new Date().toISOString(),
+      })
+      .select("id, user1_id, user2_id, last_message, updated_at")
+      .maybeSingle();
+
+    if (!insertErr && newRow) {
+      return newRow;
+    }
+  } catch (err) {
+    console.warn("[ChatService] getOrCreateConversation insert note:", err);
+  }
+
+  // 3. Fallback canonical conversation ID
+  return {
+    id: getCanonicalConversationId(user1_id, user2_id),
+    user1_id,
+    user2_id,
+    last_message: "",
+    updated_at: new Date().toISOString(),
+  };
+}
+
+/**
  * Save a new message into Supabase messages table and in-memory cache
  */
 export async function saveMessage(msg: {
@@ -95,9 +153,11 @@ export async function saveMessage(msg: {
         conversation_id: record.conversation_id,
         sender_id: record.sender_id,
         receiver_id: record.receiver_id,
+        content: record.text,
+        text: record.text,
+        is_read: false,
         sender_name: record.sender_name,
         sender_avatar: record.sender_avatar,
-        text: record.text,
         media_type: record.media_type,
         media_url: record.media_url,
         media_meta: record.media_meta,
@@ -109,6 +169,22 @@ export async function saveMessage(msg: {
     );
   } catch (err) {
     console.warn("[ChatService] saveMessage db notice:", err);
+  }
+
+  // 3. Update conversations table last_message and updated_at
+  if (record.receiver_id && record.sender_id && !record.conversation_id.startsWith("group-")) {
+    const [u1, u2] = [record.sender_id, record.receiver_id].sort();
+    try {
+      await supabaseServer
+        .from("conversations")
+        .update({
+          last_message: record.text,
+          updated_at: new Date().toISOString(),
+        })
+        .or(`and(user1_id.eq.${u1},user2_id.eq.${u2}),and(user1_id.eq.${u2},user2_id.eq.${u1})`);
+    } catch (convErr) {
+      console.warn("[ChatService] saveMessage conversation update notice:", convErr);
+    }
   }
 
   return record;
@@ -286,12 +362,43 @@ export async function toggleMessageReaction(
 }
 
 /**
- * Load all connected contacts (from accepted chat_requests) and groups for a user
+ * Load all connected contacts (from conversations & accepted requests) and groups for a user
  */
 export async function getUserConnectedContacts(userId: string): Promise<ChatContact[]> {
   const contactsMap = new Map<string, ChatContact>();
   const contactIds = new Set<string>();
   const lastMessageMap = new Map<string, { text: string; timestamp: string; isSelf: boolean; status: "sent" | "delivered" | "read" }>();
+
+  // 0. Fetch contacts from Supabase `conversations` table
+  try {
+    const { data: convs, error: convErr } = await supabaseServer
+      .from("conversations")
+      .select("id, user1_id, user2_id, last_message, updated_at")
+      .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+      .order("updated_at", { ascending: false });
+
+    if (!convErr && Array.isArray(convs)) {
+      for (const c of convs) {
+        const partnerId = c.user1_id === userId ? c.user2_id : c.user1_id;
+        if (partnerId && partnerId !== userId) {
+          contactIds.add(partnerId);
+          if (c.last_message && !lastMessageMap.has(partnerId)) {
+            const timeStr = c.updated_at
+              ? new Date(c.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "Recently";
+            lastMessageMap.set(partnerId, {
+              text: c.last_message,
+              timestamp: timeStr,
+              isSelf: false,
+              status: "read",
+            });
+          }
+        }
+      }
+    }
+  } catch (convNotice) {
+    console.warn("[ChatService] getUserConnectedContacts conversations note:", convNotice);
+  }
 
   // 1. Fetch contacts from messages history (any 1-on-1 messages sent or received)
   try {

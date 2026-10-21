@@ -419,11 +419,14 @@ export function useRealtimeChat() {
           const newRecord = payload.new as Record<string, unknown> | null;
           if (newRecord) {
             const isSelf = newRecord.sender_id === currentUser.id;
-            const conversationKey = (newRecord.conversation_id as string)?.startsWith("group-")
-              ? (newRecord.conversation_id as string)
+            const convId = (newRecord.conversation_id as string) || "";
+            const conversationKey = convId.startsWith("group-")
+              ? convId
               : isSelf
-              ? (newRecord.receiver_id as string || newRecord.conversation_id as string)
+              ? (newRecord.receiver_id as string || convId)
               : (newRecord.sender_id as string);
+
+            const contentText = String(newRecord.content || newRecord.text || "");
 
             const formatted: ChatMessage = {
               id: String(newRecord.id || Date.now()),
@@ -432,7 +435,7 @@ export function useRealtimeChat() {
               senderName: String(newRecord.sender_name || "Contact"),
               senderAvatar: String(newRecord.sender_avatar || ""),
               isSelf,
-              text: String(newRecord.text || ""),
+              text: contentText,
               timestamp: new Date().toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -445,13 +448,37 @@ export function useRealtimeChat() {
               reactions: (newRecord.reactions as any) || [],
             };
 
-            setMessagesMap((prev) => ({
-              ...prev,
-              [conversationKey]: [
-                ...(prev[conversationKey] || []).filter((m) => m.id !== formatted.id),
+            setMessagesMap((prev) => {
+              const currentList = prev[conversationKey] || prev[convId] || [];
+              const updatedList = [
+                ...currentList.filter((m) => m.id !== formatted.id),
                 formatted,
-              ],
-            }));
+              ];
+              return {
+                ...prev,
+                [conversationKey]: updatedList,
+                ...(convId && convId !== conversationKey ? { [convId]: updatedList } : {}),
+              };
+            });
+
+            // Update contact sidebar last message
+            setContacts((prev) =>
+              prev.map((c) =>
+                c.id === conversationKey ||
+                c.id === convId ||
+                (isSelf ? c.id === newRecord.receiver_id : c.id === newRecord.sender_id)
+                  ? {
+                      ...c,
+                      lastMessage: {
+                        text: contentText,
+                        timestamp: formatted.timestamp,
+                        isSelf,
+                        status: formatted.status,
+                      },
+                    }
+                  : c
+              )
+            );
           }
         }
       );
@@ -479,6 +506,37 @@ export function useRealtimeChat() {
               }
               return res;
             });
+          }
+        }
+      );
+
+      // Listen for realtime conversation updates (last_message, updated_at)
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "conversations" },
+        (payload: any) => {
+          const conv = payload.new as Record<string, unknown> | null;
+          if (conv && conv.last_message) {
+            const partnerId = conv.user1_id === currentUser.id ? conv.user2_id : conv.user1_id;
+            const timeStr = conv.updated_at
+              ? new Date(conv.updated_at as string).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "Recently";
+
+            setContacts((prev) =>
+              prev.map((c) =>
+                c.id === partnerId || c.id === conv.id
+                  ? {
+                      ...c,
+                      lastMessage: {
+                        text: String(conv.last_message),
+                        timestamp: timeStr,
+                        isSelf: false,
+                        status: "read",
+                      },
+                    }
+                  : c
+              )
+            );
           }
         }
       );

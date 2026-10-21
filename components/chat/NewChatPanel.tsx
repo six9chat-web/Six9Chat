@@ -6,13 +6,13 @@ import {
   ArrowLeft,
   Search,
   Users,
-  UserPlus,
   X,
   Loader2,
   MessageSquare,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { ChatContact, UserProfile } from "@/types/chat";
+import { supabase } from "@/lib/supabaseClient";
 
 export interface DirectoryUserItem {
   id: string;
@@ -47,94 +47,112 @@ export function NewChatPanel({
   onOpenNewGroup,
 }: NewChatPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [directoryUsers, setDirectoryUsers] = useState<DirectoryUserItem[]>([]);
+  const [registeredUsers, setRegisteredUsers] = useState<DirectoryUserItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isStartingChat, setIsStartingChat] = useState<string | null>(null);
 
-  // Fetch initial network users from directory when opened
+  // Live user fetch from Supabase `profiles` table (with API fallback)
   useEffect(() => {
     if (!isOpen) return;
 
     let isMounted = true;
-    const fetchDirectory = async () => {
+    const cleanTerm = searchQuery.trim().replace(/^@/, "");
+
+    const fetchProfiles = async () => {
       setIsLoading(true);
       setFetchError(null);
+
       try {
-        const excludeId = currentUser?.id ? `?excludeId=${encodeURIComponent(currentUser.id)}` : "";
-        const res = await fetch(`/api/user/directory${excludeId}`);
-        if (!res.ok) throw new Error("Could not load directory");
-        const data = await res.json();
-        if (isMounted && Array.isArray(data.users)) {
-          setDirectoryUsers(data.users);
+        // 1. Direct query against Supabase profiles table
+        let sbQuery = supabase
+          .from("profiles")
+          .select("id, username, full_name, avatar_url, about");
+
+        if (currentUser?.id) {
+          sbQuery = sbQuery.neq("id", currentUser.id);
+        }
+
+        if (cleanTerm) {
+          sbQuery = sbQuery.or(
+            `username.ilike.%${cleanTerm}%,full_name.ilike.%${cleanTerm}%`
+          );
+        }
+
+        sbQuery = sbQuery.limit(50);
+
+        const { data: profiles, error } = await sbQuery;
+
+        if (!error && Array.isArray(profiles) && profiles.length > 0) {
+          if (isMounted) {
+            setRegisteredUsers(
+              profiles.map((p: any) => ({
+                id: p.id,
+                username: p.username || `user_${p.id.slice(0, 4)}`,
+                fullName: p.full_name || p.username || "",
+                avatarUrl: p.avatar_url || "",
+                about: p.about || "Hey there! I am using Six9Chat",
+              }))
+            );
+          }
+          return;
+        }
+
+        // 2. Server API fallback for memory cache or cold-start fallback
+        const endpoint = cleanTerm
+          ? `/api/user/search?searchTerm=${encodeURIComponent(cleanTerm)}${
+              currentUser?.id ? `&excludeId=${encodeURIComponent(currentUser.id)}` : ""
+            }`
+          : `/api/user/directory${
+              currentUser?.id ? `?excludeId=${encodeURIComponent(currentUser.id)}` : ""
+            }`;
+
+        const res = await fetch(endpoint);
+        if (res.ok) {
+          const apiData = await res.json();
+          if (isMounted && Array.isArray(apiData.users)) {
+            setRegisteredUsers(apiData.users);
+          }
         }
       } catch (err) {
         if (isMounted) {
-          console.warn("[NewChatPanel] directory load notice:", err);
-          setFetchError("Unable to load network directory");
+          console.warn("[NewChatPanel] fetch users error:", err);
+          setFetchError("Unable to load contacts");
         }
       } finally {
         if (isMounted) setIsLoading(false);
       }
     };
 
-    fetchDirectory();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isOpen, currentUser?.id]);
-
-  // Dynamic server search when typing a search query
-  useEffect(() => {
-    if (!isOpen || !searchQuery.trim()) return;
-
-    let isMounted = true;
-    const timer = setTimeout(async () => {
-      try {
-        const cleanTerm = searchQuery.trim().replace(/^@/, "");
-        const excludeParam = currentUser?.id ? `&excludeId=${encodeURIComponent(currentUser.id)}` : "";
-        const res = await fetch(`/api/user/search?searchTerm=${encodeURIComponent(cleanTerm)}${excludeParam}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (isMounted && Array.isArray(data.users)) {
-          setDirectoryUsers((prev) => {
-            const map = new Map<string, DirectoryUserItem>();
-            data.users.forEach((u: DirectoryUserItem) => map.set(u.id, u));
-            prev.forEach((u) => {
-              if (!map.has(u.id)) map.set(u.id, u);
-            });
-            return Array.from(map.values());
-          });
-        }
-      } catch (err) {
-        console.warn("[NewChatPanel] search error:", err);
-      }
-    }, 250);
+    const timer = setTimeout(fetchProfiles, cleanTerm ? 220 : 0);
 
     return () => {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [searchQuery, isOpen, currentUser?.id]);
+  }, [isOpen, searchQuery, currentUser?.id]);
 
-  // Combine active contacts and directory users, eliminating duplicates
-  const allAvailableUsers = useMemo(() => {
-    const map = new Map<string, {
-      id: string;
-      name: string;
-      username: string;
-      avatar: string;
-      about: string;
-      isExistingContact: boolean;
-    }>();
+  // Combine contacts and registered users, deduplicated by ID
+  const displayedUsers = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        id: string;
+        displayName: string;
+        username: string;
+        avatar: string;
+        about: string;
+        isExistingContact: boolean;
+      }
+    >();
 
-    // 1. Add active contacts
+    // 1. Existing contacts in current conversation list
     contacts.forEach((c) => {
       if (c.id === currentUser?.id) return;
       const cleanUsername = c.name.startsWith("@") ? c.name.slice(1) : c.name;
       map.set(c.id, {
         id: c.id,
-        name: c.name,
+        displayName: cleanUsername,
         username: cleanUsername,
         avatar: c.avatar || "",
         about: c.about || "Active chat",
@@ -142,14 +160,24 @@ export function NewChatPanel({
       });
     });
 
-    // 2. Add directory users
-    directoryUsers.forEach((u) => {
+    // 2. Supabase registered users
+    registeredUsers.forEach((u) => {
       if (u.id === currentUser?.id) return;
-      if (!map.has(u.id)) {
+      const cleanUsername = (u.username || "").replace(/^@/, "");
+      const existing = map.get(u.id);
+      if (existing) {
+        map.set(u.id, {
+          ...existing,
+          displayName: u.fullName || cleanUsername,
+          username: cleanUsername,
+          avatar: u.avatarUrl || existing.avatar,
+          about: u.about || existing.about,
+        });
+      } else {
         map.set(u.id, {
           id: u.id,
-          name: u.fullName || u.username,
-          username: u.username.replace(/^@/, ""),
+          displayName: u.fullName || cleanUsername,
+          username: cleanUsername,
           avatar: u.avatarUrl || "",
           about: u.about || "Hey there! I am using Six9Chat",
           isExistingContact: false,
@@ -157,34 +185,61 @@ export function NewChatPanel({
       }
     });
 
-    return Array.from(map.values());
-  }, [contacts, directoryUsers, currentUser?.id]);
-
-  // Filter list based on clean search term
-  const filteredUsers = useMemo(() => {
+    const list = Array.from(map.values());
     const q = searchQuery.trim().toLowerCase().replace(/^@/, "");
-    if (!q) return allAvailableUsers;
+    if (!q) return list;
 
-    return allAvailableUsers.filter(
+    return list.filter(
       (u) =>
-        u.name.toLowerCase().includes(q) ||
+        u.displayName.toLowerCase().includes(q) ||
         u.username.toLowerCase().includes(q)
     );
-  }, [allAvailableUsers, searchQuery]);
+  }, [contacts, registeredUsers, currentUser?.id, searchQuery]);
 
-  // Contact selection handler: activates existing conversation or creates new contact immediately
+  // Instant Conversation Trigger: Check/create conversation in DB, activate, and close panel
   const handleSelectUser = useCallback(
-    (user: { id: string; name: string; username: string; avatar: string; isExistingContact: boolean }) => {
-      if (user.isExistingContact) {
+    async (user: {
+      id: string;
+      displayName: string;
+      username: string;
+      avatar: string;
+      isExistingContact: boolean;
+    }) => {
+      setIsStartingChat(user.id);
+      try {
+        if (currentUser?.id && user.id) {
+          // Check/create 1-on-1 row in conversations table
+          await fetch("/api/chat/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              partnerId: user.id,
+            }),
+          }).catch((e) => console.warn("Conversation trigger notice:", e));
+        }
+
+        if (user.isExistingContact) {
+          onSelectContact(user.id);
+        } else if (onAddNewContact) {
+          onAddNewContact(
+            user.displayName || user.username,
+            user.username,
+            user.avatar,
+            user.id
+          );
+        } else {
+          onSelectContact(user.id);
+        }
+      } catch (err) {
+        console.warn("[NewChatPanel] handleSelectUser notice:", err);
         onSelectContact(user.id);
-      } else if (onAddNewContact) {
-        onAddNewContact(user.name, user.username, user.avatar, user.id);
-      } else {
-        onSelectContact(user.id);
+      } finally {
+        setIsStartingChat(null);
+        onClose();
       }
-      onClose();
     },
-    [onSelectContact, onAddNewContact, onClose]
+    [currentUser?.id, onSelectContact, onAddNewContact, onClose]
   );
 
   if (!isOpen) return null;
@@ -197,7 +252,7 @@ export function NewChatPanel({
       transition={{ type: "tween", duration: 0.22, ease: "easeOut" }}
       className="absolute inset-0 z-30 flex flex-col bg-[#053b53] border-r border-[#4D8DBA]/30 overflow-hidden select-none"
     >
-      {/* 1. WhatsApp Top Header: Back Arrow + "New chat" */}
+      {/* 1. Header: Back Arrow + "New chat" */}
       <div className="h-16 px-4 bg-[#086288] border-b border-[#4D8DBA]/35 backdrop-blur-xl flex items-center gap-3 shrink-0">
         <button
           type="button"
@@ -239,10 +294,9 @@ export function NewChatPanel({
         </div>
       </div>
 
-      {/* 3. Action List Items (WhatsApp Style Top Actions) */}
+      {/* 3. Action List: Only "New group" (User Directory completely removed) */}
       {!searchQuery && (
-        <div className="divide-y divide-[#4D8DBA]/15 border-b border-[#4D8DBA]/25 shrink-0">
-          {/* New Group Action Button */}
+        <div className="border-b border-[#4D8DBA]/25 shrink-0">
           <button
             type="button"
             onClick={() => {
@@ -263,21 +317,6 @@ export function NewChatPanel({
               </span>
             </div>
           </button>
-
-          {/* New Contact / User Directory Action */}
-          <div className="w-full px-4 py-3 flex items-center gap-3.5 bg-[#032433]/30">
-            <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#053b53] to-[#086288] flex items-center justify-center text-white ring-1 ring-[#97D7FF]/20 shadow-md">
-              <UserPlus className="w-5 h-5 text-[#97D7FF]" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-sm font-semibold text-white tracking-tight">
-                User Directory
-              </span>
-              <span className="text-[11px] text-slate-300 truncate">
-                Browse network contacts below
-              </span>
-            </div>
-          </div>
         </div>
       )}
 
@@ -287,14 +326,14 @@ export function NewChatPanel({
         {isLoading && <Loader2 className="w-3.5 h-3.5 text-[#97D7FF] animate-spin" />}
       </div>
 
-      {/* 5. Scrollable Contacts & Network Users List */}
+      {/* 5. Scrollable Contacts & Registered Users List */}
       <div className="flex-1 overflow-y-auto divide-y divide-[#4D8DBA]/10 custom-scrollbar">
-        {isLoading && filteredUsers.length === 0 ? (
+        {isLoading && displayedUsers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center select-none">
             <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin mb-3" />
             <p className="text-xs text-slate-300">Loading contacts...</p>
           </div>
-        ) : filteredUsers.length === 0 ? (
+        ) : displayedUsers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center select-none">
             <div className="w-12 h-12 rounded-2xl bg-[#032433] border border-[#4D8DBA]/40 flex items-center justify-center mb-3 shadow-lg">
               <MessageSquare className="w-5 h-5 text-[#4D8DBA]" />
@@ -309,17 +348,18 @@ export function NewChatPanel({
             </p>
           </div>
         ) : (
-          filteredUsers.map((user) => (
+          displayedUsers.map((user) => (
             <button
               key={user.id}
               type="button"
+              disabled={isStartingChat === user.id}
               onClick={() => handleSelectUser(user)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#086288]/40 active:bg-[#086288]/60 transition text-left cursor-pointer group"
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#086288]/40 active:bg-[#086288]/60 transition text-left cursor-pointer group disabled:opacity-60"
             >
               <div className="relative shrink-0">
                 <Avatar
                   src={user.avatar}
-                  alt={user.name || user.username}
+                  alt={user.displayName || user.username}
                   className="w-11 h-11 rounded-full ring-1 ring-[#97D7FF]/30 group-hover:scale-105 transition"
                 />
               </div>
@@ -327,13 +367,15 @@ export function NewChatPanel({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-sm font-bold text-white truncate group-hover:text-[#97D7FF] transition">
-                    {user.name}
+                    {user.displayName}
                   </h3>
-                  {user.isExistingContact && (
+                  {user.isExistingContact ? (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#4D8DBA]/30 text-[#97D7FF] font-medium shrink-0">
                       Chat
                     </span>
-                  )}
+                  ) : isStartingChat === user.id ? (
+                    <Loader2 className="w-3.5 h-3.5 text-[#97D7FF] animate-spin shrink-0" />
+                  ) : null}
                 </div>
                 <p className="text-xs text-slate-300 truncate mt-0.5">
                   {user.about}
@@ -343,7 +385,7 @@ export function NewChatPanel({
           ))
         )}
 
-        {fetchError && filteredUsers.length === 0 && (
+        {fetchError && displayedUsers.length === 0 && (
           <div className="p-4 text-center text-xs text-rose-300">
             {fetchError}
           </div>
