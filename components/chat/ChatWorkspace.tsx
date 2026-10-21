@@ -49,6 +49,7 @@ export function ChatWorkspace() {
     selectContact,
     sendMessage,
     addReaction,
+    addNewContact,
     createGroup,
     supabaseStatus,
     channelConnected,
@@ -84,6 +85,17 @@ export function ChatWorkspace() {
 
   const handleBackToSidebarMobile = () => {
     setMobileView("sidebar");
+  };
+
+  const handleAddNewContact = (
+    name: string,
+    phoneOrUid: string,
+    avatarUrl?: string,
+    targetUserId?: string
+  ) => {
+    const newId = addNewContact(name, phoneOrUid, avatarUrl, targetUserId);
+    selectContact(newId);
+    setMobileView("chat");
   };
 
   const handleCreateNewGroup = (
@@ -141,7 +153,7 @@ export function ChatWorkspace() {
             onFilterChange={setActiveFilter}
             stories={stories}
             onOpenStories={() => openStory(stories[0])}
-            onOpenNewChat={() => setIsNewGroupOpen(true)}
+            onAddNewContact={handleAddNewContact}
             onOpenNewGroup={() => setIsNewGroupOpen(true)}
             onOpenCommunity={() => setIsCommunityOpen(true)}
             supabaseStatus={supabaseStatus}

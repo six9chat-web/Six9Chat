@@ -1,17 +1,19 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Search,
   MessageSquarePlus,
   X,
   MessageSquare,
 } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
 import { ChatList } from "@/components/chat/ChatList";
 import { ChatContact, StoryItem, UserProfile, ChatRequest } from "@/types/chat";
 import { ChatFilterType } from "@/hooks/useRealtimeChat";
 import { Avatar } from "@/components/ui/Avatar";
 import { NotificationBell } from "@/components/chat/NotificationBell";
+import { NewChatPanel } from "@/components/chat/NewChatPanel";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
@@ -25,9 +27,15 @@ interface SidebarProps {
   onFilterChange: (filter: ChatFilterType) => void;
   stories: StoryItem[];
   onOpenStories: () => void;
-  onOpenNewChat: () => void;
+  onOpenNewChat?: () => void;
   onOpenNewGroup?: () => void;
   onOpenCommunity?: () => void;
+  onAddNewContact?: (
+    name: string,
+    phoneOrUid: string,
+    avatarUrl?: string,
+    targetUserId?: string
+  ) => void;
   supabaseStatus: "checking" | "connected" | "pending" | "error";
   channelConnected: boolean;
   onSignOut?: () => void;
@@ -48,11 +56,14 @@ export function Sidebar({
   activeFilter,
   onFilterChange,
   onOpenNewChat,
+  onOpenNewGroup,
+  onAddNewContact,
   onOpenProfile,
   chatRequests = [],
   onAcceptChatRequest,
   onRejectChatRequest,
 }: SidebarProps) {
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const userRecord = currentUser as unknown as Record<string, unknown>;
   const currentUsername =
     (typeof userRecord?.username === "string" && userRecord.username ? userRecord.username : null) ||
@@ -118,7 +129,10 @@ export function Sidebar({
           {/* New Chat Button */}
           <button
             type="button"
-            onClick={onOpenNewChat}
+            onClick={() => {
+              setIsNewChatOpen(true);
+              onOpenNewChat?.();
+            }}
             className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-[#4D8DBA] hover:bg-[#97D7FF] text-white hover:text-[#086288] font-bold text-xs flex items-center gap-1.5 shadow-md shadow-[#086288]/40 transition active:scale-95 cursor-pointer"
             title="New Chat (+)"
           >
@@ -135,7 +149,10 @@ export function Sidebar({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search by username or email..."
+            placeholder="Search name or username..."
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
             className="w-full h-10 pl-10 pr-9 rounded-full bg-[#032433] border border-[#4D8DBA]/40 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
           />
           {searchQuery && (
@@ -183,7 +200,10 @@ export function Sidebar({
             No conversation matches &ldquo;{searchQuery.trim()}&rdquo;. Use&nbsp;
             <button
               type="button"
-              onClick={onOpenNewChat}
+              onClick={() => {
+                setIsNewChatOpen(true);
+                onOpenNewChat?.();
+              }}
               className="text-[#97D7FF] underline underline-offset-2 cursor-pointer hover:text-white transition"
             >
               New Chat
@@ -198,6 +218,21 @@ export function Sidebar({
           onSelectContact={onSelectContact}
         />
       )}
+
+      {/* WhatsApp-Style New Chat Left Panel View */}
+      <AnimatePresence>
+        {isNewChatOpen && (
+          <NewChatPanel
+            isOpen={isNewChatOpen}
+            onClose={() => setIsNewChatOpen(false)}
+            currentUser={currentUser}
+            contacts={contacts}
+            onSelectContact={onSelectContact}
+            onAddNewContact={onAddNewContact}
+            onOpenNewGroup={onOpenNewGroup}
+          />
+        )}
+      </AnimatePresence>
     </aside>
   );
 }
