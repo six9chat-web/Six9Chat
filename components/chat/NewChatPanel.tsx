@@ -83,7 +83,7 @@ export function NewChatPanel({
 
         const { data: profiles, error } = await sbQuery;
 
-        if (!error && Array.isArray(profiles) && profiles.length > 0) {
+        if (!error && Array.isArray(profiles)) {
           if (isMounted) {
             setRegisteredUsers(
               profiles.map((p: any) => ({
@@ -95,7 +95,9 @@ export function NewChatPanel({
               }))
             );
           }
-          return;
+          if (profiles.length > 0 || cleanTerm) {
+            return;
+          }
         }
 
         // 2. Server API fallback for memory cache or cold-start fallback
@@ -366,9 +368,16 @@ export function NewChatPanel({
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-bold text-white truncate group-hover:text-[#97D7FF] transition">
-                    {user.displayName}
-                  </h3>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <h3 className="text-sm font-bold text-white truncate group-hover:text-[#97D7FF] transition">
+                      {user.displayName}
+                    </h3>
+                    {user.username && user.username !== user.displayName && (
+                      <span className="text-xs text-[#97D7FF]/80 truncate">
+                        @{user.username}
+                      </span>
+                    )}
+                  </div>
                   {user.isExistingContact ? (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#4D8DBA]/30 text-[#97D7FF] font-medium shrink-0">
                       Chat

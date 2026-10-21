@@ -372,17 +372,21 @@ export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
     uid: string;
   }>();
 
-  // 1. Fetch all profiles from Supabase profiles table without any exclusion
+  // 1. Fetch all profiles from Supabase profiles table
   try {
-    const query = supabaseServer
+    let query = supabaseServer
       .from("profiles")
       .select("id, username, email, full_name, about, avatar_url, updated_at, created_at");
+
+    if (excludeId) {
+      query = query.neq("id", excludeId);
+    }
 
     const { data: profiles, error } = await query;
 
     if (!error && Array.isArray(profiles)) {
       for (const p of profiles) {
-        if (p.id) {
+        if (p.id && (!excludeId || p.id !== excludeId)) {
           usersMap.set(p.id, {
             id: p.id,
             username: p.username || `user_${p.id.slice(0, 4)}`,
@@ -402,7 +406,7 @@ export async function getAllRegisteredUsers(excludeId?: string): Promise<Array<{
 
   // 2. Also populate from server memory users
   for (const cached of memoryUsers.values()) {
-    if (cached?.id && !usersMap.has(cached.id)) {
+    if (cached?.id && (!excludeId || cached.id !== excludeId) && !usersMap.has(cached.id)) {
       usersMap.set(cached.id, {
         id: cached.id,
         username: cached.username,
