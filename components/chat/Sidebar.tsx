@@ -75,8 +75,7 @@ export function Sidebar({
     ? contacts.filter(
         (c) =>
           c.name.toLowerCase().includes(trimmedQuery) ||
-          (c.phone && c.phone.toLowerCase().includes(trimmedQuery)) ||
-          (c.email && (c.email as string).toLowerCase().includes(trimmedQuery))
+          (c.phone && c.phone.toLowerCase().includes(trimmedQuery))
       )
     : contacts;
 
