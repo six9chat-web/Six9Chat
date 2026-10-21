@@ -6,7 +6,6 @@ import { Sidebar } from "@/components/chat/Sidebar";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { CallModal } from "@/components/chat/CallModal";
 import { StoriesViewer } from "@/components/chat/StoriesViewer";
-import { NewChatModal } from "@/components/chat/NewChatModal";
 import { NewGroupModal } from "@/components/chat/NewGroupModal";
 import { CommunityModal } from "@/components/chat/CommunityModal";
 import { ProfileModal } from "@/components/chat/ProfileModal";
@@ -62,7 +61,6 @@ export function ChatWorkspace() {
 
   // Mobile viewport navigation state: 'sidebar' | 'chat'
   const [mobileView, setMobileView] = useState<"sidebar" | "chat">("sidebar");
-  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isNewGroupOpen, setIsNewGroupOpen] = useState(false);
   const [isCommunityOpen, setIsCommunityOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -98,7 +96,6 @@ export function ChatWorkspace() {
   ) => {
     const newId = addNewContact(name, phone, avatar, targetUserId);
     selectContact(newId);
-    setIsNewChatOpen(false);
     setMobileView("chat");
   };
 
@@ -157,7 +154,6 @@ export function ChatWorkspace() {
             onFilterChange={setActiveFilter}
             stories={stories}
             onOpenStories={() => openStory(stories[0])}
-            onOpenNewChat={() => setIsNewChatOpen(true)}
             onAddNewContact={handleAddNewContact}
             onOpenNewGroup={() => setIsNewGroupOpen(true)}
             onOpenCommunity={() => setIsCommunityOpen(true)}
@@ -232,21 +228,6 @@ export function ChatWorkspace() {
         stories={stories}
         activeStory={activeStory}
         onClose={closeStory}
-      />
-
-      {/* New Conversation Modal */}
-      <NewChatModal
-        isOpen={isNewChatOpen}
-        contacts={allContacts}
-        currentUserId={activeUser?.id}
-        onClose={() => setIsNewChatOpen(false)}
-        onSelectContact={(id) => {
-          selectContact(id);
-          setMobileView("chat");
-        }}
-        onCreateGroup={handleCreateNewGroup}
-        onSendRequest={sendChatRequest}
-        onAddNewContact={handleAddNewContact}
       />
 
       {/* New Group Modal */}

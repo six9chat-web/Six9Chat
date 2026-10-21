@@ -25,7 +25,7 @@ interface SidebarProps {
   onFilterChange: (filter: ChatFilterType) => void;
   stories: StoryItem[];
   onOpenStories: () => void;
-  onOpenNewChat: () => void;
+  onOpenNewChat?: () => void;
   onOpenNewGroup?: () => void;
   onOpenCommunity?: () => void;
   onAddNewContact?: (name: string, phoneOrUid: string, avatarUrl?: string, targetUserId?: string) => void;
