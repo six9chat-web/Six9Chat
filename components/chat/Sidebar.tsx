@@ -49,7 +49,6 @@ export function Sidebar({
   activeFilter,
   onFilterChange,
   onOpenNewChat,
-  onAddNewContact,
   onOpenProfile,
   chatRequests = [],
   onAcceptChatRequest,

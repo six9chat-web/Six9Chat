@@ -56,7 +56,6 @@ export function ChatWorkspace() {
     chatRequests,
     acceptChatRequest,
     rejectChatRequest,
-    sendChatRequest,
   } = useRealtimeChat();
 
   // Mobile viewport navigation state: 'sidebar' | 'chat'

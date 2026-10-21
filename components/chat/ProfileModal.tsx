@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -108,14 +108,18 @@ export function ProfileModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dpMenuRef = useRef<HTMLDivElement>(null);
 
-  // Synchronize internal state when currentUser changes
-  useEffect(() => {
+  // Synchronize internal state when currentUser changes (adjust state during render)
+  const [prevUserKey, setPrevUserKey] = useState(
+    `${currentUser?.id}_${currentUsername}_${initialAbout}`
+  );
+  if (prevUserKey !== `${currentUser?.id}_${currentUsername}_${initialAbout}`) {
+    setPrevUserKey(`${currentUser?.id}_${currentUsername}_${initialAbout}`);
     setNameDisplay(currentUser.name || currentUsername);
     setUsernameDisplay(currentUsername.replace(/^@/, ""));
     setAboutDisplay(initialAbout);
     setEditUsernameInput(currentUsername.replace(/^@/, ""));
     setEditAboutInput(initialAbout);
-  }, [currentUser, currentUsername, initialAbout]);
+  }
 
   // Close DP menu when clicking outside
   useEffect(() => {
@@ -311,8 +315,6 @@ export function ProfileModal({
     setUploadError(null);
     setPreviewAvatar(null);
     setIsDpMenuOpen(false);
-
-    const defaultInitials = (nameDisplay || "ME").slice(0, 2).toUpperCase();
 
     try {
       await fetch("/api/user/update-profile", {
