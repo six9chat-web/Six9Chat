@@ -59,7 +59,17 @@ export function ChatWorkspace() {
   } = useRealtimeChat();
 
   // Mobile viewport navigation state: 'sidebar' | 'chat'
-  const [mobileView, setMobileView] = useState<"sidebar" | "chat">("sidebar");
+  const [mobileView, setMobileView] = useState<"sidebar" | "chat">(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const urlId = new URLSearchParams(window.location.search).get("c");
+        if (urlId) return "chat";
+        const saved = localStorage.getItem("six9chat_active_chat");
+        if (saved) return "chat";
+      } catch {}
+    }
+    return "sidebar";
+  });
   const [isNewGroupOpen, setIsNewGroupOpen] = useState(false);
   const [isCommunityOpen, setIsCommunityOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);

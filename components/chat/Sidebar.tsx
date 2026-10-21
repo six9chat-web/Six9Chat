@@ -78,15 +78,24 @@ export function Sidebar({
     { id: "groups", label: "Groups" },
   ];
 
-  // Pure local filter — NO global DB calls from sidebar search
+  // Pure local filter — strictly excludes current logged-in user
   const trimmedQuery = searchQuery.trim().toLowerCase();
+  const isSelfContact = (c: any) => {
+    if (!currentUser) return false;
+    if (currentUser.id && c.id === currentUser.id) return true;
+    if (currentUser.name && c.name === currentUser.name && currentUser.name !== "You") return true;
+    if (currentUser.username && (c.name?.toLowerCase().replace(/^@+/, "") === currentUser.username.toLowerCase().replace(/^@+/, ""))) return true;
+    return false;
+  };
+
   const filteredContacts = trimmedQuery
     ? contacts.filter(
         (c) =>
-          c.name.toLowerCase().includes(trimmedQuery) ||
-          (c.phone && c.phone.toLowerCase().includes(trimmedQuery))
+          !isSelfContact(c) &&
+          (c.name.toLowerCase().includes(trimmedQuery) ||
+          (c.phone && c.phone.toLowerCase().includes(trimmedQuery)))
       )
-    : contacts;
+    : contacts.filter((c) => !isSelfContact(c));
 
   return (
     <aside className="w-full h-full min-h-0 flex flex-col bg-[#053b53] border-r border-[#4D8DBA]/30 z-20 shrink-0 select-none overflow-hidden relative">

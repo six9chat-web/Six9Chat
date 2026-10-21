@@ -45,7 +45,16 @@ export default function UserSearchDirectory() {
       );
     }
 
-    const { data, error: dbError } = await query.limit(20);
+    const { data, error: dbError } = await query.limit(30);
+
+    const filterOutSelf = (list: any[]) => {
+      const myId = currentUserIdRef.current;
+      return list.filter((p: any) => {
+        if (!p) return false;
+        if (myId && (p.id === myId || String(p.id).toLowerCase() === String(myId).toLowerCase())) return false;
+        return true;
+      });
+    };
 
     if (dbError) {
       // Fallback to server-side API search route
@@ -57,7 +66,7 @@ export default function UserSearchDirectory() {
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json.users)) {
-            setProfiles(json.users);
+            setProfiles(filterOutSelf(json.users));
             setLoading(false);
             return;
           }
@@ -68,7 +77,7 @@ export default function UserSearchDirectory() {
       setError('Could not load users. Please try again.');
       setProfiles([]);
     } else {
-      setProfiles(data ?? []);
+      setProfiles(filterOutSelf(data ?? []));
     }
 
     setLoading(false);

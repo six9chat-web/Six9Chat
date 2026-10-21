@@ -46,7 +46,17 @@ export type ChatFilterType =
 export function useRealtimeChat() {
   const [currentUser, setCurrentUser] = useState<UserProfile>(CURRENT_USER);
   const [contacts, setContacts] = useState<ChatContact[]>(INITIAL_CONTACTS);
-  const [activeContactId, setActiveContactId] = useState<string>("");
+  const [activeContactId, setActiveContactId] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const urlId = new URLSearchParams(window.location.search).get("c");
+        if (urlId) return urlId;
+        const saved = localStorage.getItem("six9chat_active_chat");
+        if (saved) return saved;
+      } catch {}
+    }
+    return "";
+  });
   const [messagesMap, setMessagesMap] = useState<Record<string, ChatMessage[]>>(
     INITIAL_MESSAGES_BY_CONTACT
   );
@@ -129,6 +139,28 @@ export function useRealtimeChat() {
       prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
     );
   }, []);
+
+  // Persist active chat session across page refreshes via URL and LocalStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (activeContactId) {
+        localStorage.setItem("six9chat_active_chat", activeContactId);
+        const url = new URL(window.location.href);
+        if (url.searchParams.get("c") !== activeContactId) {
+          url.searchParams.set("c", activeContactId);
+          window.history.replaceState({}, "", url.toString());
+        }
+      } else {
+        localStorage.removeItem("six9chat_active_chat");
+        const url = new URL(window.location.href);
+        if (url.searchParams.has("c")) {
+          url.searchParams.delete("c");
+          window.history.replaceState({}, "", url.toString());
+        }
+      }
+    } catch {}
+  }, [activeContactId]);
 
   // Supabase Realtime channel setup
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -1005,20 +1037,62 @@ export function useRealtimeChat() {
           try {
             const convRes = await fetch(`/api/chat/conversations?userId=${user.id}`);
             const convData = await convRes.json();
-            if (convData.success && Array.isArray(convData.contacts)) {
-              setContacts(convData.contacts);
-              if (convData.contacts.length > 0) {
-                setActiveContactId(convData.contacts[0].id);
-              } else {
-                setActiveContactId("");
-              }
+            const serverContacts: ChatContact[] =
+              convData.success && Array.isArray(convData.contacts) ? convData.contacts : [];
+
+            // Check if there was an active contact ID stored in URL search param or localStorage
+            let savedTargetId = "";
+            if (typeof window !== "undefined") {
+              try {
+                savedTargetId =
+                  new URLSearchParams(window.location.search).get("c") ||
+                  localStorage.getItem("six9chat_active_chat") ||
+                  "";
+              } catch {}
+            }
+
+            if (savedTargetId && !serverContacts.some((c) => c.id === savedTargetId)) {
+              // Target is not in the existing conversation list, fetch profile from Supabase directly to restore chat
+              try {
+                const { data: partnerProfile } = await supabase
+                  .from("profiles")
+                  .select("id, full_name, username, avatar_url")
+                  .eq("id", savedTargetId)
+                  .single();
+
+                if (partnerProfile && partnerProfile.id !== user.id) {
+                  const restoredContact: ChatContact = {
+                    id: partnerProfile.id,
+                    name:
+                      partnerProfile.full_name ||
+                      (partnerProfile.username
+                        ? `@${partnerProfile.username.replace(/^@/, "")}`
+                        : "User"),
+                    avatar: partnerProfile.avatar_url || "",
+                    avatarColor: "from-[#086288] to-[#4D8DBA]",
+                    status: "online",
+                    lastSeen: "Online now",
+                    about: "Connected on Six9Chat",
+                    unreadCount: 0,
+                  };
+                  serverContacts.unshift(restoredContact);
+                }
+              } catch {}
+            }
+
+            setContacts(serverContacts);
+
+            if (savedTargetId && serverContacts.some((c) => c.id === savedTargetId)) {
+              setActiveContactId(savedTargetId);
+            } else if (serverContacts.length > 0) {
+              setActiveContactId(serverContacts[0].id);
             } else {
-              setContacts([]);
               setActiveContactId("");
             }
           } catch (e) {
             console.warn("Could not load conversations from API:", e);
             setContacts([]);
+            setActiveContactId("");
           }
 
           // 2. Fetch pending chat requests from Supabase
@@ -1096,7 +1170,7 @@ export function useRealtimeChat() {
           `/api/chat/messages?conversationId=${activeContactId}&userA=${currentUser.id}&userB=${activeContactId}`
         );
         const data = await res.json();
-        if (isMounted && data.success && Array.isArray(data.messages) && data.messages.length > 0) {
+        if (isMounted && data.success && Array.isArray(data.messages)) {
           setMessagesMap((prev) => ({
             ...prev,
             [activeContactId]: data.messages,

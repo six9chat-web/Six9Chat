@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserConnectedContacts, getOrCreateConversation } from "@/lib/chatService";
+import { ensureDatabaseTablesExist } from "@/lib/dbInit";
 
 export async function GET(req: NextRequest) {
   try {
+    ensureDatabaseTablesExist().catch(() => {});
     const userId = req.nextUrl.searchParams.get("userId");
 
     if (!userId) {

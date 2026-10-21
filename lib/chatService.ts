@@ -235,7 +235,7 @@ export async function getConversationMessages(
             receiver_id: row.receiver_id,
             sender_name: row.sender_name,
             sender_avatar: row.sender_avatar,
-            text: row.text,
+            text: row.content || row.text || "",
             media_type: row.media_type,
             media_url: row.media_url,
             media_meta: row.media_meta,

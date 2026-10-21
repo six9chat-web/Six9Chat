@@ -136,6 +136,16 @@ export function NewChatPanel({
 
   // Combine contacts and registered users, deduplicated by ID
   const displayedUsers = useMemo(() => {
+    const isSelfUser = (userId?: string, uname?: string, email?: string, fname?: string) => {
+      if (!currentUser) return false;
+      if (currentUser.id && userId && String(userId).toLowerCase() === String(currentUser.id).toLowerCase()) return true;
+      if (currentUser.username && uname && uname.toLowerCase().replace(/^@+/, "") === currentUser.username.toLowerCase().replace(/^@+/, "")) return true;
+      if (currentUser.name && fname && fname.toLowerCase() === currentUser.name.toLowerCase() && currentUser.name !== "You") return true;
+      if (currentUser.name && uname && uname.toLowerCase() === currentUser.name.toLowerCase() && currentUser.name !== "You") return true;
+      if (currentUser.email && email && email.toLowerCase() === currentUser.email.toLowerCase()) return true;
+      return false;
+    };
+
     const map = new Map<
       string,
       {
@@ -150,7 +160,7 @@ export function NewChatPanel({
 
     // 1. Existing contacts in current conversation list
     contacts.forEach((c) => {
-      if (c.id === currentUser?.id) return;
+      if (isSelfUser(c.id, c.name, c.phone, c.name)) return;
       const cleanUsername = c.name.startsWith("@") ? c.name.slice(1) : c.name;
       map.set(c.id, {
         id: c.id,
@@ -164,7 +174,7 @@ export function NewChatPanel({
 
     // 2. Supabase registered users
     registeredUsers.forEach((u) => {
-      if (u.id === currentUser?.id) return;
+      if (isSelfUser(u.id, u.username, (u as any).email, u.fullName)) return;
       const cleanUsername = (u.username || "").replace(/^@/, "");
       const existing = map.get(u.id);
       if (existing) {
@@ -187,16 +197,17 @@ export function NewChatPanel({
       }
     });
 
-    const list = Array.from(map.values());
+    const list = Array.from(map.values()).filter((u) => !isSelfUser(u.id, u.username));
     const q = searchQuery.trim().toLowerCase().replace(/^@/, "");
     if (!q) return list;
 
     return list.filter(
       (u) =>
-        u.displayName.toLowerCase().includes(q) ||
-        u.username.toLowerCase().includes(q)
+        !isSelfUser(u.id, u.username) &&
+        (u.displayName.toLowerCase().includes(q) ||
+        u.username.toLowerCase().includes(q))
     );
-  }, [contacts, registeredUsers, currentUser?.id, searchQuery]);
+  }, [contacts, registeredUsers, currentUser, searchQuery]);
 
   // Instant Conversation Trigger: Check/create conversation in DB, activate, and close panel
   const handleSelectUser = useCallback(
