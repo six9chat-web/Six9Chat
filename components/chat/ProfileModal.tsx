@@ -502,7 +502,7 @@ export function ProfileModal({
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-1.5 font-mono">
-                  @{usernameDisplay}
+                  {usernameDisplay}
                 </h2>
               </div>
 
