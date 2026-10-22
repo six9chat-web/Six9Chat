@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { MediaType, MediaMeta } from "@/types/chat";
 import { EmojiPicker } from "./EmojiPicker";
+import { useTranslation } from "@/lib/LanguageContext";
 
 interface ChatInputProps {
   onSendMessage: (
@@ -30,6 +31,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
+  const { t } = useTranslation();
   const [text, setText] = useState("");
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -374,7 +376,7 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={handleKeyDown}
                 disabled={disabled}
-                placeholder="Type a message"
+                placeholder={t("typeMessage", "Type a message...")}
                 className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-400 outline-none resize-none max-h-32 leading-relaxed my-0.5"
               />
             </div>

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { ChatRequest } from "@/types/chat";
 import { Avatar } from "@/components/ui/Avatar";
+import { useTranslation } from "@/lib/LanguageContext";
 import { cn } from "@/lib/utils";
 
 interface NotificationBellProps {
@@ -25,6 +26,7 @@ export function NotificationBell({
   onAccept,
   onReject,
 }: NotificationBellProps) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -98,7 +100,7 @@ export function NotificationBell({
             ? "bg-[#97D7FF] text-[#086288] shadow-md shadow-[#086288]/40"
             : "bg-[#053b53] hover:bg-[#4D8DBA]/40 text-slate-200 hover:text-white border border-[#4D8DBA]/35"
         )}
-        title="Chat Notifications & Requests"
+        title={t("chatRequests", "Chat Requests")}
         aria-label="Chat notifications"
       >
         <Bell className="w-5 h-5" />
@@ -139,7 +141,7 @@ export function NotificationBell({
                   </div>
                   <div>
                     <h3 className="text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
-                      <span>Chat Requests</span>
+                      <span>{t("chatRequests", "Chat Requests")}</span>
                       {pendingCount > 0 && (
                         <span className="px-2 py-0.5 rounded-full bg-[#FFEFC4] text-[#086288] font-black text-[10px]">
                           {pendingCount} new
@@ -180,9 +182,9 @@ export function NotificationBell({
                     <div className="w-12 h-12 rounded-full bg-[#053b53] border border-[#4D8DBA]/40 flex items-center justify-center mb-2.5 text-[#97D7FF]">
                       <Sparkles className="w-6 h-6" />
                     </div>
-                    <p className="text-xs font-bold text-white">No pending requests</p>
+                    <p className="text-xs font-bold text-white">{t("noPendingRequests", "No pending requests")}</p>
                     <p className="text-[11px] text-[#97D7FF]/80 mt-1 max-w-[220px] leading-relaxed">
-                      When someone sends you a chat invitation, it will appear here in real-time.
+                      {t("noPendingRequestsDesc", "When someone sends you a chat invitation, it will appear here in real-time.")}
                     </p>
                   </div>
                 ) : (
@@ -238,7 +240,7 @@ export function NotificationBell({
                             className="flex-1 py-1.5 px-3 rounded-lg bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] hover:brightness-105 active:scale-95 text-[#086288] font-black text-xs flex items-center justify-center gap-1.5 shadow-md shadow-[#086288]/40 transition disabled:opacity-50 cursor-pointer"
                           >
                             <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            <span>Accept</span>
+                            <span>{t("accept", "Accept")}</span>
                           </button>
 
                           <button
@@ -248,7 +250,7 @@ export function NotificationBell({
                             className="flex-1 py-1.5 px-3 rounded-lg bg-[#032433] hover:bg-rose-500/20 text-slate-300 hover:text-rose-200 border border-[#4D8DBA]/40 active:scale-95 font-semibold text-xs flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
                           >
                             <X className="w-3.5 h-3.5" />
-                            <span>Decline</span>
+                            <span>{t("decline", "Decline")}</span>
                           </button>
                         </div>
                       </motion.div>

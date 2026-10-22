@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { ChatContact } from "@/types/chat";
 import { Avatar } from "@/components/ui/Avatar";
+import { useTranslation } from "@/lib/LanguageContext";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -38,6 +39,7 @@ export function ChatHeader({
   onSearchChange,
   onOpenContactInfo,
 }: ChatHeaderProps) {
+  const { t } = useTranslation();
   return (
     <header className="h-16 px-3 sm:px-5 bg-[#086288] border-b border-[#4D8DBA]/35 backdrop-blur-xl flex items-center justify-between z-20 shrink-0 select-none">
       {/* Left: Contact Info (Back button on mobile + DP + Name + "click here for contact info") */}
@@ -83,10 +85,10 @@ export function ChatHeader({
           <p className="text-[11px] sm:text-xs text-slate-300 group-hover:text-[#97D7FF] truncate transition-colors leading-tight">
             {isTyping ? (
               <span className="text-[#97D7FF] font-medium animate-pulse">
-                typing...
+                {t("typing", "typing...")}
               </span>
             ) : (
-              "click here for contact info"
+              t("clickForContactInfo", "click here for contact info")
             )}
           </p>
         </div>
@@ -107,7 +109,7 @@ export function ChatHeader({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange?.(e.target.value)}
-                placeholder="Search in chat..."
+                placeholder={t("searchInChat", "Search in chat...")}
                 className="w-full h-8 pl-3 pr-7 rounded-full bg-[#053b53] border border-[#4D8DBA]/50 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF]"
                 autoFocus
               />
@@ -129,7 +131,7 @@ export function ChatHeader({
           type="button"
           onClick={onVideoCall}
           className="p-1.5 sm:p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-slate-200 active:scale-95"
-          title="Video call"
+          title={t("videoCall", "Video call")}
         >
           <Video className="w-5 h-5" />
         </button>
@@ -139,7 +141,7 @@ export function ChatHeader({
           type="button"
           onClick={onVoiceCall}
           className="p-1.5 sm:p-2.5 rounded-xl hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer text-slate-200 active:scale-95"
-          title="Voice call"
+          title={t("voiceCall", "Voice call")}
         >
           <Phone className="w-5 h-5" />
         </button>
@@ -157,7 +159,7 @@ export function ChatHeader({
               ? "bg-[#4D8DBA]/40 text-[#97D7FF]"
               : "text-slate-200 hover:text-white hover:bg-[#4D8DBA]/25"
           )}
-          title="Search messages"
+          title={t("searchInChat", "Search in chat")}
         >
           <Search className="w-5 h-5" />
         </button>

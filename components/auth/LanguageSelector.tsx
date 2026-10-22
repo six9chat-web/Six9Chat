@@ -1,21 +1,38 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { ChevronDown, Check, Search } from "lucide-react";
 import { LANGUAGES, Language, getCountryCodeFromFlag } from "@/lib/languages";
+import { useLanguage } from "@/lib/LanguageContext";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface LanguageSelectorProps {
-  selectedLanguage: Language;
-  onSelect: (language: Language) => void;
+  selectedLanguage?: Language;
+  onSelect?: (language: Language) => void;
   disabled?: boolean;
+  compact?: boolean;
+  className?: string;
 }
 
 export function LanguageSelector({
-  selectedLanguage,
-  onSelect,
+  selectedLanguage: propSelectedLanguage,
+  onSelect: propOnSelect,
   disabled = false,
+  compact = false,
+  className = "",
 }: LanguageSelectorProps) {
+  const { language: contextLanguage, setLanguage: contextSetLanguage } = useLanguage();
+
+  const currentSelected = propSelectedLanguage || contextLanguage;
+  const handleSelect = (lang: Language) => {
+    if (propOnSelect) {
+      propOnSelect(lang);
+    }
+    contextSetLanguage(lang);
+    setIsOpen(false);
+    setSearch("");
+  };
+
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -24,15 +41,23 @@ export function LanguageSelector({
   // Close when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     }
+
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         searchInputRef.current?.focus();
-      }, 50);
+      }, 60);
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
     }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
@@ -46,22 +71,36 @@ export function LanguageSelector({
       lang.code.toLowerCase().includes(search.toLowerCase())
   );
 
-  const selectedCountryCode = getCountryCodeFromFlag(selectedLanguage.flag);
+  const selectedCountryCode = getCountryCodeFromFlag(currentSelected.flag);
 
   return (
-    <div className="relative w-full" ref={dropdownRef}>
+    <div
+      className={`relative ${compact ? "w-auto" : "w-full"} ${className}`}
+      ref={dropdownRef}
+      onMouseDown={(e) => {
+        // Prevent outside click handler from firing when interacting inside selector
+        e.stopPropagation();
+      }}
+    >
       {/* Trigger Button */}
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="w-full h-12 px-4 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 hover:border-[#97D7FF] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] flex items-center justify-between text-sm text-slate-100 transition outline-none disabled:opacity-50"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen((prev) => !prev);
+        }}
+        className={`rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 hover:border-[#97D7FF] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] flex items-center justify-between text-slate-100 transition outline-none disabled:opacity-50 cursor-pointer shadow-sm select-none ${
+          compact
+            ? "h-10 px-3 gap-2 text-xs"
+            : "w-full h-12 px-4 gap-3 text-sm"
+        }`}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="inline-flex items-center justify-center w-7 h-4.5 overflow-hidden rounded-[3px] border border-white/20 shadow-xs bg-[#086288] shrink-0 select-none">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="inline-flex items-center justify-center w-6 h-4 overflow-hidden rounded-[3px] border border-white/20 shadow-xs bg-[#086288] shrink-0 select-none">
             <img
               src={`https://flagcdn.com/w40/${selectedCountryCode}.png`}
-              alt={selectedLanguage.name}
+              alt={currentSelected.name}
               className="w-full h-full object-cover"
               loading="lazy"
               onError={(e) => {
@@ -69,8 +108,14 @@ export function LanguageSelector({
               }}
             />
           </span>
-          <span className="font-semibold text-white text-sm truncate">{selectedLanguage.name}</span>
-          <span className="text-xs text-[#97D7FF]/90 font-medium shrink-0">({selectedLanguage.nativeName})</span>
+          <span className="font-semibold text-white truncate max-w-[140px] text-left">
+            {currentSelected.name}
+          </span>
+          {!compact && (
+            <span className="text-xs text-[#97D7FF]/90 font-medium shrink-0">
+              ({currentSelected.nativeName})
+            </span>
+          )}
         </div>
         <ChevronDown
           className={`w-4 h-4 text-slate-300 transition-transform duration-200 shrink-0 ${
@@ -83,11 +128,14 @@ export function LanguageSelector({
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute top-full left-0 right-0 mt-2 z-50 bg-[#086288] border border-[#4D8DBA]/70 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-2xl"
+            onMouseDown={(e) => e.stopPropagation()}
+            className={`absolute top-full mt-2 z-50 bg-[#086288] border border-[#4D8DBA]/70 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-2xl ring-1 ring-[#97D7FF]/35 ${
+              compact ? "right-0 w-72" : "left-0 right-0"
+            }`}
           >
             {/* Search Input */}
             <div className="p-3 border-b border-[#4D8DBA]/35 bg-[#086288]">
@@ -98,6 +146,7 @@ export function LanguageSelector({
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  onMouseDown={(e) => e.stopPropagation()}
                   placeholder="Search among 70+ languages..."
                   className="w-full bg-transparent text-xs text-white placeholder-slate-300 outline-none"
                 />
@@ -112,20 +161,25 @@ export function LanguageSelector({
                 </div>
               ) : (
                 filteredLanguages.map((lang) => {
-                  const isSelected = lang.code === selectedLanguage.code;
+                  const isSelected = lang.code === currentSelected.code;
                   const langCountryCode = getCountryCodeFromFlag(lang.flag);
                   return (
                     <button
                       key={lang.code}
                       type="button"
-                      onClick={() => {
-                        onSelect(lang);
-                        setIsOpen(false);
-                        setSearch("");
+                      onMouseDown={(e) => {
+                        // Prevent blur and outside-click dismissal
+                        e.preventDefault();
+                        e.stopPropagation();
                       }}
-                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs transition ${
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSelect(lang);
+                      }}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs transition cursor-pointer select-none text-left ${
                         isSelected
-                          ? "bg-[#97D7FF]/25 text-[#FFEFC4] font-bold"
+                          ? "bg-[#97D7FF]/25 text-[#FFEFC4] font-bold ring-1 ring-[#97D7FF]/40"
                           : "text-slate-200 hover:bg-[#4D8DBA]/30 hover:text-white"
                       }`}
                     >
@@ -141,10 +195,16 @@ export function LanguageSelector({
                             }}
                           />
                         </span>
-                        <span className="font-medium text-white truncate">{lang.name}</span>
-                        <span className="text-slate-300 text-[11px] shrink-0">({lang.nativeName})</span>
+                        <span className="font-medium text-white truncate">
+                          {lang.name}
+                        </span>
+                        <span className="text-slate-300 text-[11px] shrink-0">
+                          ({lang.nativeName})
+                        </span>
                       </div>
-                      {isSelected && <Check className="w-4 h-4 text-[#FFEFC4] shrink-0" />}
+                      {isSelected && (
+                        <Check className="w-4 h-4 text-[#FFEFC4] shrink-0 ml-2" />
+                      )}
                     </button>
                   );
                 })

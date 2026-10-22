@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Avatar } from '@/components/ui/Avatar';
+import { useTranslation } from '@/lib/LanguageContext';
 
 // Create supabase client ONCE outside component to prevent infinite re-renders
 const supabase = createBrowserClient(
@@ -11,6 +12,7 @@ const supabase = createBrowserClient(
 );
 
 export default function UserSearchDirectory() {
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -173,18 +175,18 @@ export default function UserSearchDirectory() {
         type="text"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Search users by name or username..."
+        placeholder={t("searchUsers", "Search users by name or username...")}
         className="w-full px-4 py-2 border rounded-lg bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
 
       <div className="mt-4">
         {loading ? (
-          <div className="text-center py-2 text-gray-400">Searching...</div>
+          <div className="text-center py-2 text-gray-400">{t("searching", "Searching...")}</div>
         ) : error ? (
           <div className="text-center py-2 text-red-400">{error}</div>
         ) : profiles.length === 0 ? (
           <div className="text-center py-2 text-gray-400">
-            {searchTerm ? `No user found for "${searchTerm}"` : 'No other users found.'}
+            {searchTerm ? `No user found for "${searchTerm}"` : t("noUsersFound", "No other users found.")}
           </div>
         ) : (
           <ul className="space-y-2">
@@ -212,7 +214,7 @@ export default function UserSearchDirectory() {
                         : 'bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] text-[#086288] hover:brightness-105 active:scale-95 cursor-pointer'
                     }`}
                   >
-                    {profile.isRequested ? 'Pending' : '+ Request'}
+                    {profile.isRequested ? t("pending", "Pending") : `+ ${t("request", "Request")}`}
                   </button>
                   <button
                     onClick={() => {
@@ -221,7 +223,7 @@ export default function UserSearchDirectory() {
                     className="px-2 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 font-semibold rounded-md text-sm shrink-0 transition"
                     title="Delete / Remove user"
                   >
-                    Delete
+                    {t("delete", "Delete")}
                   </button>
                 </div>
               </li>

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { ChatContact } from "@/types/chat";
 import { Avatar } from "@/components/ui/Avatar";
+import { useTranslation } from "@/lib/LanguageContext";
 import { cn } from "@/lib/utils";
 
 interface NewGroupModalProps {
@@ -38,6 +39,7 @@ export function NewGroupModal({
   onClose,
   onCreateGroup,
 }: NewGroupModalProps) {
+  const { t } = useTranslation();
   // Step 1: Member Selection | Step 2: Group Info
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);

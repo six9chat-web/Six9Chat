@@ -16,6 +16,7 @@ import {
 import { Avatar } from "@/components/ui/Avatar";
 import { ChatContact, UserProfile } from "@/types/chat";
 import { supabase } from "@/lib/supabaseClient";
+import { useTranslation } from "@/lib/LanguageContext";
 
 export interface DirectoryUserItem {
   id: string;
@@ -53,6 +54,7 @@ export function NewChatPanel({
   onSendChatRequest,
   onDeleteContact,
 }: NewChatPanelProps) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [registeredUsers, setRegisteredUsers] = useState<DirectoryUserItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -337,7 +339,7 @@ export function NewChatPanel({
           <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
         </button>
 
-        <h2 className="text-lg font-bold text-white tracking-tight">New chat</h2>
+        <h2 className="text-lg font-bold text-white tracking-tight">{t("newChat", "New chat")}</h2>
       </div>
 
       {/* 2. Search Bar: Clean input, no email reference, disabled autocomplete */}
@@ -348,7 +350,7 @@ export function NewChatPanel({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search name or username..."
+            placeholder={t("searchNameOrUsername", "Search name or username...")}
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
@@ -383,10 +385,10 @@ export function NewChatPanel({
             </div>
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-semibold text-white tracking-tight group-hover:text-[#97D7FF] transition">
-                New group
+                {t("newGroup", "New group")}
               </span>
               <span className="text-[11px] text-slate-300 truncate">
-                Create a group chat with friends
+                {t("createGroupDesc", "Create a group chat with friends")}
               </span>
             </div>
           </button>
@@ -395,7 +397,7 @@ export function NewChatPanel({
 
       {/* 4. Section Divider */}
       <div className="px-4 py-2 text-[11px] font-bold text-[#97D7FF] uppercase tracking-wider bg-[#032433]/50 border-b border-[#4D8DBA]/20 shrink-0 flex items-center justify-between">
-        <span>Contacts on Six9Chat</span>
+        <span>{t("contactsOnSix9Chat", "Contacts on Six9Chat")}</span>
         {isLoading && <Loader2 className="w-3.5 h-3.5 text-[#97D7FF] animate-spin" />}
       </div>
 
@@ -404,7 +406,7 @@ export function NewChatPanel({
         {isLoading && visibleUsers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center select-none">
             <Loader2 className="w-7 h-7 text-[#97D7FF] animate-spin mb-3" />
-            <p className="text-xs text-slate-300">Loading contacts...</p>
+            <p className="text-xs text-slate-300">{t("searching", "Searching...")}</p>
           </div>
         ) : visibleUsers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center select-none">
@@ -412,11 +414,11 @@ export function NewChatPanel({
               <MessageSquare className="w-5 h-5 text-[#4D8DBA]" />
             </div>
             <p className="text-sm font-bold text-white mb-1">
-              {searchQuery ? "No matching contacts" : "No registered users found"}
+              {searchQuery ? t("noMatchingContacts", "No matching contacts") : t("noUsersFound", "No registered users found")}
             </p>
             <p className="text-[11px] text-slate-400 max-w-[220px] leading-relaxed">
               {searchQuery
-                ? `No user matches "${searchQuery.trim()}". Try searching for another username.`
+                ? t("noMatchingContactsDesc", `No user matches "${searchQuery.trim()}". Try searching for another username.`)
                 : "Other registered users on Six9Chat will appear here."}
             </p>
           </div>
@@ -457,12 +459,12 @@ export function NewChatPanel({
                     onClick={() => handleSelectUser(user)}
                     className="px-2.5 py-1 rounded-lg bg-[#4D8DBA]/30 hover:bg-[#4D8DBA]/60 text-[#97D7FF] text-xs font-semibold transition cursor-pointer"
                   >
-                    Chat
+                    {t("chat", "Chat")}
                   </button>
                 ) : sentRequests.has(user.id) ? (
                   <span className="text-[11px] px-2.5 py-1 rounded-lg bg-[#4D8DBA]/20 text-[#97D7FF] font-medium flex items-center gap-1">
                     <Check className="w-3 h-3" />
-                    <span>Pending</span>
+                    <span>{t("pending", "Pending")}</span>
                   </span>
                 ) : (
                   <button
@@ -477,7 +479,7 @@ export function NewChatPanel({
                     ) : (
                       <>
                         <UserPlus className="w-3.5 h-3.5" />
-                        <span>+ Request</span>
+                        <span>+ {t("request", "Request")}</span>
                       </>
                     )}
                   </button>

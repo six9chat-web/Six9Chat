@@ -20,10 +20,13 @@ import {
   Upload,
   MessageSquare,
   AlertCircle,
+  Globe,
 } from "lucide-react";
 import { UserProfile, ChatContact } from "@/types/chat";
 import { uploadAvatar, checkUsername } from "@/lib/auth";
 import { Avatar, DefaultAvatarSilhouette } from "@/components/ui/Avatar";
+import { LanguageSelector } from "@/components/auth/LanguageSelector";
+import { useTranslation } from "@/lib/LanguageContext";
 import { cn } from "@/lib/utils";
 
 interface ProfileModalProps {
@@ -52,6 +55,7 @@ export function ProfileModal({
   onVoiceCall,
   onVideoCall,
 }: ProfileModalProps) {
+  const { t } = useTranslation();
   // Avatar & upload states
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -530,7 +534,7 @@ export function ProfileModal({
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-slate-300 font-medium flex items-center gap-1.5">
                     <MessageSquare className="w-3.5 h-3.5 text-[#97D7FF]" />
-                    <span>About / Status</span>
+                    <span>{t("statusAbout", "About / Status")}</span>
                   </span>
                   {isOwnProfile && (
                     <button
@@ -557,12 +561,23 @@ export function ProfileModal({
                 <div className="flex items-center justify-between">
                   <span className="text-slate-300 font-medium flex items-center gap-1.5 text-xs">
                     <Mail className="w-3.5 h-3.5 text-[#97D7FF]" />
-                    <span>Email Address</span>
+                    <span>{t("email", "Email Address")}</span>
                   </span>
                 </div>
                 <p className="text-sm font-mono text-slate-100 pt-1 select-all truncate">
                   {userEmail}
                 </p>
+              </div>
+
+              {/* Language Selection Box */}
+              <div className="bg-[#053b53] p-3.5 rounded-2xl border border-[#4D8DBA]/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-300 font-medium flex items-center gap-1.5 text-xs">
+                    <Globe className="w-3.5 h-3.5 text-[#97D7FF]" />
+                    <span>{t("language", "Language")}</span>
+                  </span>
+                </div>
+                <LanguageSelector />
               </div>
             </div>
 
@@ -576,7 +591,7 @@ export function ProfileModal({
                     className="w-full py-3 rounded-2xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 hover:border-red-500/60 text-red-200 hover:text-white text-sm font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-[0.99]"
                   >
                     <LogOut className="w-4 h-4 text-red-300" />
-                    <span>Log Out</span>
+                    <span>{t("signOut", "Log Out")}</span>
                   </button>
                 )
               ) : (

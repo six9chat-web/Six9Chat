@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { LanguageSelector } from "@/components/auth/LanguageSelector";
-import { Language, DEFAULT_LANGUAGE } from "@/lib/languages";
+import { useTranslation } from "@/lib/LanguageContext";
 import {
   checkUsername,
   registerWithCredentials,
@@ -46,10 +46,10 @@ function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get("redirect") || "/chat";
+  const { language, setLanguage, t, dir, isRTL } = useTranslation();
 
   // Mode: "login" | "signup"
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [selectedLanguage, setSelectedLanguage] = useState<Language>(DEFAULT_LANGUAGE);
 
   // Feedback State
   const [isLoading, setIsLoading] = useState(false);
@@ -298,7 +298,7 @@ function AuthContent() {
 
   return (
     <div
-      dir={selectedLanguage.direction || "ltr"}
+      dir={dir}
       className="relative min-h-screen w-screen bg-[#053b53] text-slate-100 flex flex-col font-sans overflow-x-hidden selection:bg-[#97D7FF] selection:text-[#086288]"
     >
       {/* Ambient Glow Elements */}
@@ -314,10 +314,7 @@ function AuthContent() {
         </div>
 
         <div className="flex items-center gap-2">
-          <LanguageSelector
-            selectedLanguage={selectedLanguage}
-            onSelect={setSelectedLanguage}
-          />
+          <LanguageSelector compact />
         </div>
       </header>
 
@@ -332,12 +329,12 @@ function AuthContent() {
           {/* Card Header Title */}
           <div className="text-center mb-6">
             <h1 className="text-2xl font-black text-white tracking-tight">
-              {mode === "login" ? "Welcome to Six9Chat" : "Create Your Account"}
+              {mode === "login" ? t("welcome") : t("createAccount")}
             </h1>
             <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
               {mode === "login"
-                ? "Sign in with your username or email address"
-                : "Enter your details below to get started with Six9Chat"}
+                ? t("signInSubtitle")
+                : t("signUpSubtitle")}
             </p>
           </div>
 
@@ -381,7 +378,7 @@ function AuthContent() {
                     htmlFor="signup-username"
                     className="block text-xs font-semibold text-slate-200 mb-1"
                   >
-                    Username
+                    {t("username")}
                   </label>
                   <div className="relative flex items-center">
                     <AtSign className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
@@ -392,7 +389,7 @@ function AuthContent() {
                       autoComplete="username"
                       value={signupUsername}
                       onChange={(e) => handleUsernameChange(e.target.value)}
-                      placeholder="e.g. alexrivers"
+                      placeholder={t("usernamePlaceholder")}
                       disabled={isLoading}
                       className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
                     />
@@ -452,7 +449,7 @@ function AuthContent() {
                     htmlFor="signup-email"
                     className="block text-xs font-semibold text-slate-200 mb-1"
                   >
-                    Email Address
+                    {t("email")}
                   </label>
                   <div className="relative flex items-center">
                     <Mail className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
@@ -463,7 +460,7 @@ function AuthContent() {
                       autoComplete="email"
                       value={signupEmail}
                       onChange={(e) => setSignupEmail(e.target.value)}
-                      placeholder="name@gmail.com"
+                      placeholder={t("emailPlaceholder")}
                       disabled={isLoading}
                       className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
                     />
@@ -476,7 +473,7 @@ function AuthContent() {
                     htmlFor="signup-password"
                     className="block text-xs font-semibold text-slate-200 mb-1"
                   >
-                    Password
+                    {t("passcode")}
                   </label>
                   <div className="relative flex items-center">
                     <Lock className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
@@ -487,7 +484,7 @@ function AuthContent() {
                       autoComplete="new-password"
                       value={signupPassword}
                       onChange={(e) => setSignupPassword(e.target.value)}
-                      placeholder="••••••••"
+                      placeholder={t("passcodePlaceholder")}
                       disabled={isLoading}
                       className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
                     />
@@ -512,7 +509,7 @@ function AuthContent() {
                     htmlFor="signup-confirm-password"
                     className="block text-xs font-semibold text-slate-200 mb-1"
                   >
-                    Confirm Password
+                    {t("passcode")} (Confirm)
                   </label>
                   <div className="relative flex items-center">
                     <Lock className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
@@ -523,7 +520,7 @@ function AuthContent() {
                       autoComplete="new-password"
                       value={signupConfirmPassword}
                       onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
+                      placeholder={t("passcodePlaceholder")}
                       disabled={isLoading}
                       className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
                     />
@@ -553,7 +550,7 @@ function AuthContent() {
                     htmlFor="login-identifier"
                     className="block text-xs font-semibold text-slate-200 mb-1"
                   >
-                    Username or Email Address
+                    {t("username")} / {t("email")}
                   </label>
                   <div className="relative flex items-center">
                     <User className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
@@ -565,7 +562,7 @@ function AuthContent() {
                       autoComplete="username"
                       value={loginIdentifier}
                       onChange={(e) => setLoginIdentifier(e.target.value)}
-                      placeholder="Username or name@gmail.com"
+                      placeholder={t("usernamePlaceholder")}
                       disabled={isLoading}
                       className="w-full h-12 pl-10 pr-4 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
                     />
@@ -578,7 +575,7 @@ function AuthContent() {
                     htmlFor="login-password"
                     className="block text-xs font-semibold text-slate-200 mb-1"
                   >
-                    Password
+                    {t("passcode")}
                   </label>
                   <div className="relative flex items-center">
                     <Lock className="w-4 h-4 text-[#97D7FF] absolute left-3.5 pointer-events-none" />
@@ -590,7 +587,7 @@ function AuthContent() {
                       autoComplete="current-password"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      placeholder="••••••••"
+                      placeholder={t("passcodePlaceholder")}
                       disabled={isLoading}
                       className="w-full h-12 pl-10 pr-10 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
                     />
@@ -621,17 +618,17 @@ function AuthContent() {
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-[#086288]" />
                   <span>
-                    {mode === "login" ? "Signing In..." : "Creating Account..."}
+                    {mode === "login" ? t("signIn") : t("signUp")}...
                   </span>
                 </>
               ) : (
                 <>
                   <span>
                     {mode === "login"
-                      ? "Sign In & Enter Chat"
-                      : "Create Account & Enter Chat"}
+                      ? `${t("signIn")}`
+                      : `${t("signUp")}`}
                   </span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className={`w-4 h-4 ${isRTL ? "rotate-180" : ""}`} />
                 </>
               )}
             </button>
@@ -641,24 +638,24 @@ function AuthContent() {
           <div className="mt-5 pt-4 text-center border-t border-[#4D8DBA]/25">
             {mode === "login" ? (
               <p className="text-xs text-slate-300">
-                Need an account?{" "}
+                {t("needAccount")}{" "}
                 <button
                   type="button"
                   onClick={() => switchMode("signup")}
                   className="font-bold text-[#97D7FF] hover:underline cursor-pointer ml-1"
                 >
-                  Sign Up
+                  {t("signUp")}
                 </button>
               </p>
             ) : (
               <p className="text-xs text-slate-300">
-                Already have an account?{" "}
+                {t("alreadyHaveAccount")}{" "}
                 <button
                   type="button"
                   onClick={() => switchMode("login")}
                   className="font-bold text-[#97D7FF] hover:underline cursor-pointer ml-1"
                 >
-                  Sign In
+                  {t("signIn")}
                 </button>
               </p>
             )}

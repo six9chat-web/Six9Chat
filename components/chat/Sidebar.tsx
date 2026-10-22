@@ -14,6 +14,7 @@ import { ChatFilterType } from "@/hooks/useRealtimeChat";
 import { Avatar } from "@/components/ui/Avatar";
 import { NotificationBell } from "@/components/chat/NotificationBell";
 import { NewChatPanel } from "@/components/chat/NewChatPanel";
+import { useTranslation } from "@/lib/LanguageContext";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
@@ -67,6 +68,7 @@ export function Sidebar({
   onSendChatRequest,
   onDeleteContact,
 }: SidebarProps) {
+  const { t } = useTranslation();
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const userRecord = currentUser as unknown as Record<string, unknown>;
   const currentUsername =
@@ -77,10 +79,10 @@ export function Sidebar({
     "User";
 
   const filterTabs: { id: ChatFilterType; label: string }[] = [
-    { id: "all", label: "All" },
-    { id: "unread", label: "Unread" },
-    { id: "pinned", label: "Pinned" },
-    { id: "groups", label: "Groups" },
+    { id: "all", label: t("all", "All") },
+    { id: "unread", label: t("unread", "Unread") },
+    { id: "pinned", label: t("pinned", "Pinned") },
+    { id: "groups", label: t("groups", "Groups") },
   ];
 
   // Pure local filter — strictly excludes current logged-in user
@@ -113,7 +115,7 @@ export function Sidebar({
             type="button"
             onClick={onOpenProfile}
             className="w-10 h-10 rounded-full hover:scale-105 transition cursor-pointer shrink-0 ring-2 ring-[#97D7FF]/40 overflow-hidden shadow-md flex items-center justify-center bg-gradient-to-tr from-[#086288] to-[#4D8DBA]"
-            title={currentUser?.name ? `${currentUser.name} (Settings)` : "Profile & Settings"}
+            title={currentUser?.name ? `${currentUser.name} (Settings)` : t("profileSettings", "Profile & Settings")}
           >
             <Avatar
               src={currentUser?.avatar}
@@ -124,7 +126,7 @@ export function Sidebar({
           <div
             onClick={onOpenProfile}
             className="flex flex-col min-w-0 cursor-pointer group justify-center"
-            title="View Profile & Settings"
+            title={t("profileSettings", "Profile & Settings")}
           >
             <h1 className="text-base sm:text-lg font-bold text-white tracking-tight leading-tight group-hover:text-[#97D7FF] transition truncate">
               {currentUser?.username || currentUsername}
@@ -148,7 +150,7 @@ export function Sidebar({
               onOpenNewChat?.();
             }}
             className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-[#4D8DBA] hover:bg-[#97D7FF] text-white hover:text-[#086288] font-bold text-xs flex items-center gap-1.5 shadow-md shadow-[#086288]/40 transition active:scale-95 cursor-pointer"
-            title="New Chat (+)"
+            title={t("newChat", "New Chat")}
           >
             <MessageSquarePlus className="w-5 h-5" />
           </button>
@@ -163,7 +165,7 @@ export function Sidebar({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search name or username..."
+            placeholder={t("searchNameOrUsername", "Search name or username...")}
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
@@ -209,20 +211,9 @@ export function Sidebar({
           <div className="w-12 h-12 rounded-2xl bg-[#032433] border border-[#4D8DBA]/40 flex items-center justify-center mb-3 shadow-lg">
             <MessageSquare className="w-5 h-5 text-[#4D8DBA]" />
           </div>
-          <p className="text-sm font-bold text-white mb-1">No active chats found</p>
+          <p className="text-sm font-bold text-white mb-1">{t("noActiveChats", "No active chats yet")}</p>
           <p className="text-[11px] text-slate-400 max-w-[200px] leading-relaxed">
-            No conversation matches &ldquo;{searchQuery.trim()}&rdquo;. Use&nbsp;
-            <button
-              type="button"
-              onClick={() => {
-                setIsNewChatOpen(true);
-                onOpenNewChat?.();
-              }}
-              className="text-[#97D7FF] underline underline-offset-2 cursor-pointer hover:text-white transition"
-            >
-              New Chat
-            </button>{" "}
-            to find new people.
+            {t("noActiveChatsDesc", "Search a user by username to start messaging.")}
           </p>
         </div>
       ) : (
