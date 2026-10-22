@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, Check, Search } from "lucide-react";
 import { LANGUAGES, Language, getCountryCodeFromFlag } from "@/lib/languages";
 import { useLanguage } from "@/lib/LanguageContext";
@@ -24,19 +24,21 @@ export function LanguageSelector({
   const { language: contextLanguage, setLanguage: contextSetLanguage } = useLanguage();
 
   const currentSelected = propSelectedLanguage || contextLanguage;
-  const handleSelect = (lang: Language) => {
-    if (propOnSelect) {
-      propOnSelect(lang);
-    }
-    contextSetLanguage(lang);
-    setIsOpen(false);
-    setSearch("");
-  };
 
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSelect = (lang: Language) => {
+    // Immediate state updates for instant response
+    setIsOpen(false);
+    setSearch("");
+    if (propOnSelect) {
+      propOnSelect(lang);
+    }
+    contextSetLanguage(lang);
+  };
 
   // Close when clicking outside
   useEffect(() => {
@@ -53,7 +55,7 @@ export function LanguageSelector({
       document.addEventListener("mousedown", handleClickOutside);
       const timer = setTimeout(() => {
         searchInputRef.current?.focus();
-      }, 60);
+      }, 50);
       return () => {
         clearTimeout(timer);
         document.removeEventListener("mousedown", handleClickOutside);
@@ -76,9 +78,10 @@ export function LanguageSelector({
   return (
     <div
       className={`relative ${compact ? "w-auto" : "w-full"} ${className}`}
+      style={{ zIndex: isOpen ? 9999 : 30 }}
       ref={dropdownRef}
       onMouseDown={(e) => {
-        // Prevent outside click handler from firing when interacting inside selector
+        // Stop bubbling so outside-click doesn't prematurely dismiss
         e.stopPropagation();
       }}
     >
@@ -118,22 +121,23 @@ export function LanguageSelector({
           )}
         </div>
         <ChevronDown
-          className={`w-4 h-4 text-slate-300 transition-transform duration-200 shrink-0 ${
+          className={`w-4 h-4 text-slate-300 transition-transform duration-150 shrink-0 ${
             isOpen ? "rotate-180 text-[#97D7FF]" : ""
           }`}
         />
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Dropdown Menu with absolute highest z-index 9999 */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.1, ease: "easeOut" }}
+            style={{ zIndex: 9999 }}
             onMouseDown={(e) => e.stopPropagation()}
-            className={`absolute top-full mt-2 z-50 bg-[#086288] border border-[#4D8DBA]/70 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-2xl ring-1 ring-[#97D7FF]/35 ${
+            className={`absolute top-full mt-2 bg-[#086288] border border-[#4D8DBA]/70 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden backdrop-blur-2xl ring-1 ring-[#97D7FF]/40 ${
               compact ? "right-0 w-72" : "left-0 right-0"
             }`}
           >
@@ -167,20 +171,14 @@ export function LanguageSelector({
                     <button
                       key={lang.code}
                       type="button"
-                      onMouseDown={(e) => {
-                        // Prevent blur and outside-click dismissal
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
                       onClick={(e) => {
-                        e.preventDefault();
                         e.stopPropagation();
                         handleSelect(lang);
                       }}
-                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs transition cursor-pointer select-none text-left ${
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs transition cursor-pointer select-none text-left active:scale-[0.99] ${
                         isSelected
                           ? "bg-[#97D7FF]/25 text-[#FFEFC4] font-bold ring-1 ring-[#97D7FF]/40"
-                          : "text-slate-200 hover:bg-[#4D8DBA]/30 hover:text-white"
+                          : "text-slate-200 hover:bg-[#4D8DBA]/35 hover:text-white"
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">

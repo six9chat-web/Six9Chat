@@ -307,8 +307,8 @@ function AuthContent() {
       <div className="pointer-events-none absolute top-1/4 -right-32 w-[600px] h-[600px] rounded-full bg-[#4D8DBA]/25 blur-[160px]" />
       <div className="pointer-events-none absolute -bottom-32 left-1/3 w-[520px] h-[520px] rounded-full bg-[#97D7FF]/20 blur-[150px]" />
 
-      {/* Top Header */}
-      <header className="relative z-20 w-full max-w-5xl mx-auto px-6 pt-7 pb-4 flex items-center justify-between">
+      {/* Top Header with high z-index to ensure language dropdown stays above main card */}
+      <header className="relative z-[9999] w-full max-w-5xl mx-auto px-6 pt-7 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Logo size={42} showText={true} />
         </div>
@@ -319,7 +319,7 @@ function AuthContent() {
       </header>
 
       {/* Main Container */}
-      <main className="relative z-20 flex-1 flex flex-col items-center justify-center p-4 sm:p-6 my-auto">
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center p-4 sm:p-6 my-auto">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
