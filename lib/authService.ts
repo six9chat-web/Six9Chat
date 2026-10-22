@@ -204,10 +204,58 @@ export async function registerNewUser(params: {
 
   // Generate next sequential UID (S9-01, S9-02, S9-03...)
   const assignedUid = await getNextSequentialUid();
-  const safePrefix = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
-  const userId = `usr_${safePrefix}_${Date.now().toString().slice(-4)}`;
   const passwordHash = hashPassword(password);
   const fullName = cleanUsername.charAt(0).toUpperCase() + cleanUsername.slice(1);
+
+  let userId = "";
+
+  // 1. Create user in Supabase auth.users using Admin API
+  try {
+    const { data: authUser, error: authErr } = await supabaseServer.auth.admin.createUser({
+      email: cleanEmail,
+      password: password,
+      email_confirm: true,
+      user_metadata: {
+        username: cleanUsername,
+        full_name: fullName,
+        uid: assignedUid,
+        about: "Building with Six9Chat 🚀",
+        status: "Hey there! I am using Six9Chat 🚀",
+      },
+    });
+
+    if (!authErr && authUser?.user?.id) {
+      userId = authUser.user.id;
+    } else if (authErr) {
+      console.warn("[AuthService] admin.createUser notice:", authErr);
+    }
+  } catch (err) {
+    console.warn("[AuthService] admin.createUser exception:", err);
+  }
+
+  // Fallback to crypto.randomUUID if admin API was unavailable
+  if (!userId) {
+    userId = crypto.randomUUID();
+  }
+
+  // 2. Persist to Supabase profiles table
+  try {
+    await supabaseServer.from("profiles").upsert(
+      {
+        id: userId,
+        username: cleanUsername,
+        email: cleanEmail,
+        full_name: fullName,
+        about: "Building with Six9Chat 🚀",
+        status: "Hey there! I am using Six9Chat 🚀",
+        uid: assignedUid,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    );
+  } catch (err) {
+    console.warn("[AuthService] profile registration db upsert note:", err);
+  }
 
   const newUser: CachedUser = {
     id: userId,
@@ -221,23 +269,6 @@ export async function registerNewUser(params: {
   // Cache in memory
   memoryUsers.set(cleanUsername, newUser);
   memoryUsersByEmail.set(cleanEmail, newUser);
-
-  // Persist to Supabase profiles table
-  try {
-    await supabaseServer.from("profiles").upsert(
-      {
-        id: userId,
-        username: cleanUsername,
-        email: cleanEmail,
-        full_name: fullName,
-        about: "Building with Six9Chat 🚀",
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
-    );
-  } catch (err) {
-    console.warn("[AuthService] profile registration db upsert note:", err);
-  }
 
   return {
     success: true,

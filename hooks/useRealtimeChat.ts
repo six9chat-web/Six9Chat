@@ -11,6 +11,7 @@ import {
   ChatRequest,
   MessageReaction,
   MessageStatus,
+  generateUUID,
 } from "@/types/chat";
 import {
   INITIAL_CONTACTS,
@@ -349,7 +350,7 @@ export function useRealtimeChat() {
         if (msg && msg.receiverId === currentUser.id) {
           const conversationKey = msg.senderId;
           const formatted: ChatMessage = {
-            id: msg.id || `msg-${Date.now()}`,
+            id: msg.id || generateUUID(),
             conversationId: conversationKey,
             senderId: msg.senderId,
             senderName: msg.senderName || "Contact",
@@ -775,7 +776,7 @@ export function useRealtimeChat() {
 
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      const msgId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const msgId = generateUUID();
 
       const newMsg: ChatMessage = {
         id: msgId,
@@ -858,21 +859,40 @@ export function useRealtimeChat() {
         });
 
         // Direct client Supabase fallback write
-        await supabase.from("messages").upsert(
-          {
-            id: newMsg.id,
-            conversation_id: activeContactId,
-            sender_id: currentUser.id,
-            receiver_id: activeContactId,
-            content: newMsg.text,
-            text: newMsg.text,
-            media_type: newMsg.mediaType || "text",
-            media_url: newMsg.mediaUrl || null,
-            status: "delivered",
-            created_at: now.toISOString(),
-          },
-          { onConflict: "id" }
-        );
+        try {
+          const [u1, u2] = [currentUser.id, activeContactId].sort();
+          const { data: convRow } = await supabase
+            .from("conversations")
+            .upsert(
+              {
+                user1_id: u1,
+                user2_id: u2,
+                last_message: newMsg.text,
+                updated_at: now.toISOString(),
+              },
+              { onConflict: "user1_id,user2_id" }
+            )
+            .select("id")
+            .maybeSingle();
+
+          if (convRow?.id) {
+            await supabase.from("messages").upsert(
+              {
+                id: newMsg.id,
+                conversation_id: convRow.id,
+                sender_id: currentUser.id,
+                receiver_id: activeContactId,
+                content: newMsg.text,
+                text: newMsg.text,
+                media_type: newMsg.mediaType || "text",
+                media_url: newMsg.mediaUrl || null,
+                status: "delivered",
+                created_at: now.toISOString(),
+              },
+              { onConflict: "id" }
+            );
+          }
+        } catch {}
 
         setMessagesMap((prev) => ({
           ...prev,
@@ -1484,7 +1504,7 @@ export function useRealtimeChat() {
           type: "broadcast",
           event: "chat_request",
           payload: {
-            id: `req-${Date.now()}`,
+            id: generateUUID(),
             senderId: currentUser.id,
             senderName: currentUser.name,
             senderUsername: currentUser.username,

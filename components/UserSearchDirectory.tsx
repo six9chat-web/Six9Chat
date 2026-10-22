@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Avatar } from '@/components/ui/Avatar';
 import { useTranslation } from '@/lib/LanguageContext';
+import { generateUUID } from '@/types/chat';
 
 // Create supabase client ONCE outside component to prevent infinite re-renders
 const supabase = createBrowserClient(
@@ -163,7 +164,7 @@ export default function UserSearchDirectory() {
     // Broadcast realtime event
     try {
       const channel = supabase.channel('public:messages');
-      const reqId = `req-${Date.now()}`;
+      const reqId = generateUUID();
       await channel.send({
         type: 'broadcast',
         event: 'chat_request',

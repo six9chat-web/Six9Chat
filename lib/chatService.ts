@@ -1,5 +1,5 @@
 import { supabaseServer } from "@/lib/authService";
-import { ChatContact, ChatMessage, MediaMeta, MediaType, MessageReaction, MessageStatus } from "@/types/chat";
+import { ChatContact, ChatMessage, MediaMeta, MediaType, MessageReaction, MessageStatus, generateUUID } from "@/types/chat";
 
 export interface DBMessage {
   id: string;
@@ -44,7 +44,7 @@ export async function getOrCreateConversation(userA: string, userB: string): Pro
 }> {
   const [user1_id, user2_id] = [userA, userB].sort();
 
-  // 1. Try finding existing conversation in Supabase
+  // Try finding existing or upserting conversation in Supabase
   try {
     const { data: existing, error } = await supabaseServer
       .from("conversations")
@@ -56,31 +56,28 @@ export async function getOrCreateConversation(userA: string, userB: string): Pro
     if (!error && existing) {
       return existing;
     }
-  } catch (err) {
-    console.warn("[ChatService] getOrCreateConversation select note:", err);
-  }
 
-  // 2. Insert new conversation row
-  try {
-    const { data: newRow, error: insertErr } = await supabaseServer
+    const { data: upsertedRow, error: insertErr } = await supabaseServer
       .from("conversations")
-      .insert({
-        user1_id,
-        user2_id,
-        last_message: "",
-        updated_at: new Date().toISOString(),
-      })
+      .upsert(
+        {
+          user1_id,
+          user2_id,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user1_id,user2_id" }
+      )
       .select("id, user1_id, user2_id, last_message, updated_at")
       .maybeSingle();
 
-    if (!insertErr && newRow) {
-      return newRow;
+    if (!insertErr && upsertedRow) {
+      return upsertedRow;
     }
   } catch (err) {
-    console.warn("[ChatService] getOrCreateConversation insert note:", err);
+    console.warn("[ChatService] getOrCreateConversation note:", err);
   }
 
-  // 3. Fallback canonical conversation ID
+  // Fallback canonical conversation ID
   return {
     id: getCanonicalConversationId(user1_id, user2_id),
     user1_id,
@@ -112,8 +109,12 @@ export async function saveMessage(msg: {
     ? getCanonicalConversationId(msg.senderId, msg.receiverId)
     : msg.conversationId;
 
+  // Validate or assign a valid UUID for message ID
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const validMsgId = uuidRegex.test(msg.id) ? msg.id : generateUUID();
+
   const record: DBMessage = {
-    id: msg.id,
+    id: validMsgId,
     conversation_id: canonicalId,
     sender_id: msg.senderId,
     receiver_id: msg.receiverId,
@@ -145,12 +146,29 @@ export async function saveMessage(msg: {
     }
   }
 
-  // 2. Persist to Supabase messages table
+  // 2. Persist to Supabase messages table and update conversations
   try {
+    let targetConvId = record.conversation_id;
+
+    if (record.receiver_id && record.sender_id && !record.conversation_id.startsWith("group-")) {
+      const conv = await getOrCreateConversation(record.sender_id, record.receiver_id);
+      if (conv && conv.id) {
+        targetConvId = conv.id;
+        // Update last_message on conversation
+        await supabaseServer
+          .from("conversations")
+          .update({
+            last_message: record.text,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conv.id);
+      }
+    }
+
     await supabaseServer.from("messages").upsert(
       {
         id: record.id,
-        conversation_id: record.conversation_id,
+        conversation_id: targetConvId,
         sender_id: record.sender_id,
         receiver_id: record.receiver_id,
         content: record.text,
@@ -169,24 +187,6 @@ export async function saveMessage(msg: {
     );
   } catch (err) {
     console.warn("[ChatService] saveMessage db notice:", err);
-  }
-
-  // 3. Ensure conversation record exists and update last_message and updated_at
-  if (record.receiver_id && record.sender_id && !record.conversation_id.startsWith("group-")) {
-    try {
-      const conv = await getOrCreateConversation(record.sender_id, record.receiver_id);
-      if (conv && conv.id) {
-        await supabaseServer
-          .from("conversations")
-          .update({
-            last_message: record.text,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", conv.id);
-      }
-    } catch (convErr) {
-      console.warn("[ChatService] saveMessage conversation update notice:", convErr);
-    }
   }
 
   return record;

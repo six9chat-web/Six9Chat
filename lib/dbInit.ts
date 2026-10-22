@@ -60,10 +60,10 @@ export async function ensureDatabaseTablesExist() {
         );
 
         CREATE TABLE IF NOT EXISTS public.messages (
-          id TEXT PRIMARY KEY,
-          conversation_id TEXT NOT NULL,
-          sender_id TEXT NOT NULL,
-          receiver_id TEXT,
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          conversation_id UUID NOT NULL,
+          sender_id UUID NOT NULL,
+          receiver_id UUID,
           content TEXT DEFAULT '',
           text TEXT DEFAULT '',
           sender_name TEXT,
@@ -85,7 +85,7 @@ export async function ensureDatabaseTablesExist() {
           message TEXT DEFAULT 'wants to start a conversation with you',
           created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
           updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
-          CONSTRAINT unique_sender_receiver UNIQUE (sender_id, receiver_id)
+          CONSTRAINT chat_requests_sender_receiver_key UNIQUE (sender_id, receiver_id)
         );
       `);
       isInitialized = true;
