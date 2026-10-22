@@ -59,7 +59,6 @@ export function NewChatPanel({
   const [registeredUsers, setRegisteredUsers] = useState<DirectoryUserItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [isStartingChat, setIsStartingChat] = useState<string | null>(null);
   const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
   const [removedUserIds, setRemovedUserIds] = useState<Set<string>>(new Set());
   const [requestingUserId, setRequestingUserId] = useState<string | null>(null);
@@ -72,14 +71,14 @@ export function NewChatPanel({
       .select("receiver_id")
       .eq("sender_id", currentUser.id)
       .eq("status", "pending")
-      .then((res: any) => {
+      .then((res: { data: Array<{ receiver_id: string }> | null }) => {
         if (res?.data) {
-          setSentRequests(new Set(res.data.map((r: any) => r.receiver_id)));
+          setSentRequests(new Set(res.data.map((r: { receiver_id: string }) => r.receiver_id)));
         }
       });
   }, [isOpen, currentUser?.id]);
 
-  const handleSendRequest = async (e: React.MouseEvent, user: any) => {
+  const handleSendRequest = async (e: React.MouseEvent, user: { id: string }) => {
     e.stopPropagation();
     try {
       setRequestingUserId(user.id);
@@ -144,7 +143,7 @@ export function NewChatPanel({
         if (!error && Array.isArray(profiles)) {
           if (isMounted) {
             setRegisteredUsers(
-              profiles.map((p: any) => ({
+              profiles.map((p: { id: string; username?: string; full_name?: string; avatar_url?: string; about?: string }) => ({
                 id: p.id,
                 username: p.username || "User",
                 fullName: p.username || "",
@@ -232,7 +231,7 @@ export function NewChatPanel({
 
     // 2. Supabase registered users
     registeredUsers.forEach((u) => {
-      if (isSelfUser(u.id, u.username, (u as any).email, u.fullName)) return;
+      if (isSelfUser(u.id, u.username, undefined, u.fullName)) return;
       const exactUsername = u.username || "User";
       const existing = map.get(u.id);
       if (existing) {
@@ -280,7 +279,6 @@ export function NewChatPanel({
       avatar: string;
       isExistingContact: boolean;
     }) => {
-      setIsStartingChat(user.id);
       try {
         if (currentUser?.id && user.id) {
           // Check/create 1-on-1 row in conversations table
@@ -310,7 +308,6 @@ export function NewChatPanel({
         console.warn("[NewChatPanel] handleSelectUser notice:", err);
         onSelectContact(user.id);
       } finally {
-        setIsStartingChat(null);
         onClose();
       }
     },

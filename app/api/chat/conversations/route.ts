@@ -13,8 +13,9 @@ export async function GET(req: NextRequest) {
 
     const contacts = await getUserConnectedContacts(userId);
     return NextResponse.json({ success: true, contacts });
-  } catch (error: any) {
-    if (error?.digest === "NEXT_PRERENDER_INTERRUPTED") {
+  } catch (error: unknown) {
+    const errObj = error as { digest?: string } | null;
+    if (errObj?.digest === "NEXT_PRERENDER_INTERRUPTED") {
       throw error;
     }
     console.error("[Conversations GET error]:", error);
@@ -39,8 +40,9 @@ export async function POST(req: NextRequest) {
 
     const conversation = await getOrCreateConversation(userId, partnerId);
     return NextResponse.json({ success: true, conversation });
-  } catch (error: any) {
-    if (error?.digest === "NEXT_PRERENDER_INTERRUPTED") {
+  } catch (error: unknown) {
+    const errObj = error as { digest?: string } | null;
+    if (errObj?.digest === "NEXT_PRERENDER_INTERRUPTED") {
       throw error;
     }
     console.error("[Conversations POST error]:", error);

@@ -87,7 +87,7 @@ export function Sidebar({
 
   // Pure local filter — strictly excludes current logged-in user
   const trimmedQuery = searchQuery.trim().toLowerCase();
-  const isSelfContact = (c: any) => {
+  const isSelfContact = (c: ChatContact) => {
     if (!currentUser) return false;
     if (currentUser.id && c.id === currentUser.id) return true;
     if (currentUser.name && c.name === currentUser.name && currentUser.name !== "You") return true;

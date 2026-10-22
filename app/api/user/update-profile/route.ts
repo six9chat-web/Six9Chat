@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { supabaseServer, checkUsernameAvailability } from "@/lib/authService";
+import { supabaseServer } from "@/lib/authService";
 
 export async function POST(request: Request) {
   try {
@@ -9,7 +9,7 @@ export async function POST(request: Request) {
 
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get("six9_mock_session");
-    let currentSession: any = null;
+    let currentSession: { userId?: string } | null = null;
     if (sessionCookie?.value) {
       try {
         currentSession = JSON.parse(sessionCookie.value);
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const updates: Record<string, any> = {
+    const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
 
@@ -87,13 +87,14 @@ export async function POST(request: Request) {
 
     // Update session cookie if available
     if (currentSession) {
-      const updatedSession = {
+      const updatedSession: Record<string, unknown> = {
         ...currentSession,
-        ...(updates.username && { username: updates.username }),
-        ...(updates.full_name && { fullName: updates.full_name }),
-        ...(updates.about && { statusText: updates.about }),
-        ...(updates.avatar_url !== undefined && { avatarUrl: updates.avatar_url }),
       };
+      if (typeof updates.username === "string") updatedSession.username = updates.username;
+      if (typeof updates.full_name === "string") updatedSession.fullName = updates.full_name;
+      if (typeof updates.about === "string") updatedSession.statusText = updates.about;
+      if (typeof updates.avatar_url === "string") updatedSession.avatarUrl = updates.avatar_url;
+
       cookieStore.set("six9_mock_session", JSON.stringify(updatedSession), {
         path: "/",
         maxAge: 60 * 60 * 24 * 7,

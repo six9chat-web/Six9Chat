@@ -14,8 +14,9 @@ export async function GET(req: NextRequest) {
 
     const messages = await getConversationMessages(conversationId, userA, userB);
     return NextResponse.json({ success: true, messages });
-  } catch (error: any) {
-    if (error?.digest === "NEXT_PRERENDER_INTERRUPTED") {
+  } catch (error: unknown) {
+    const errObj = error as { digest?: string } | null;
+    if (errObj?.digest === "NEXT_PRERENDER_INTERRUPTED") {
       throw error;
     }
     console.error("[Messages GET error]:", error);

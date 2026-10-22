@@ -11,10 +11,19 @@ const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+export interface SearchProfile {
+  id: string;
+  username?: string;
+  full_name?: string;
+  avatar_url?: string;
+  avatarUrl?: string;
+  isRequested?: boolean;
+}
+
 export default function UserSearchDirectory() {
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
-  const [profiles, setProfiles] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<SearchProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
@@ -49,9 +58,9 @@ export default function UserSearchDirectory() {
 
     const { data, error: dbError } = await query.limit(30);
 
-    const filterOutSelf = (list: any[]) => {
+    const filterOutSelf = (list: SearchProfile[]) => {
       const myId = currentUserIdRef.current;
-      return list.filter((p: any) => {
+      return list.filter((p: SearchProfile) => {
         if (!p) return false;
         if (myId && (p.id === myId || String(p.id).toLowerCase() === String(myId).toLowerCase())) return false;
         return true;
@@ -59,7 +68,7 @@ export default function UserSearchDirectory() {
     };
 
     // Check existing chat_requests sent by current user
-    let pendingReceiverIds = new Set<string>();
+    const pendingReceiverIds = new Set<string>();
     if (currentUserIdRef.current) {
       try {
         const { data: existingReqs } = await supabase
@@ -68,13 +77,13 @@ export default function UserSearchDirectory() {
           .eq('sender_id', currentUserIdRef.current)
           .eq('status', 'pending');
         if (existingReqs) {
-          existingReqs.forEach((r) => pendingReceiverIds.add(r.receiver_id));
+          existingReqs.forEach((r: { receiver_id: string }) => pendingReceiverIds.add(r.receiver_id));
         }
       } catch {}
     }
 
-    const attachRequestState = (list: any[]) => {
-      return filterOutSelf(list).map((p: any) => ({
+    const attachRequestState = (list: SearchProfile[]) => {
+      return filterOutSelf(list).map((p: SearchProfile) => ({
         ...p,
         isRequested: pendingReceiverIds.has(p.id) || p.isRequested,
       }));
@@ -101,7 +110,7 @@ export default function UserSearchDirectory() {
       setError('Could not load users. Please try again.');
       setProfiles([]);
     } else {
-      setProfiles(attachRequestState(data ?? []));
+      setProfiles(attachRequestState((data as SearchProfile[]) ?? []));
     }
 
     setLoading(false);
@@ -116,7 +125,7 @@ export default function UserSearchDirectory() {
     return () => clearTimeout(timer);
   }, [searchTerm, fetchUsers]);
 
-  const handleSendRequest = async (targetUser: any) => {
+  const handleSendRequest = useCallback(async (targetUser: SearchProfile) => {
     const myId = currentUserIdRef.current;
     if (!myId) return;
 
@@ -154,11 +163,12 @@ export default function UserSearchDirectory() {
     // Broadcast realtime event
     try {
       const channel = supabase.channel('public:messages');
+      const reqId = `req-${Date.now()}`;
       await channel.send({
         type: 'broadcast',
         event: 'chat_request',
         payload: {
-          id: `req-${Date.now()}`,
+          id: reqId,
           senderId: myId,
           receiverId: targetUser.id,
           status: 'pending',
@@ -167,7 +177,7 @@ export default function UserSearchDirectory() {
         },
       });
     } catch {}
-  };
+  }, []);
 
   return (
     <div className="w-full max-w-md mx-auto p-4 bg-slate-900 text-white rounded-xl">

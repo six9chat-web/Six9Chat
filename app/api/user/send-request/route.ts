@@ -19,6 +19,7 @@ export async function POST(req: Request) {
           sender_id: senderId,
           receiver_id: receiverId,
           status: "pending",
+          message: message || "wants to start a conversation with you",
         },
         { onConflict: "sender_id,receiver_id" }
       )

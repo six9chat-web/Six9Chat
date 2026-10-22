@@ -5,8 +5,9 @@ export async function GET() {
   try {
     const result = await ensureDatabaseTablesExist();
     return NextResponse.json(result);
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error?.message || "Init failed" }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Init failed";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 
@@ -14,7 +15,8 @@ export async function POST() {
   try {
     const result = await ensureDatabaseTablesExist();
     return NextResponse.json(result);
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error?.message || "Init failed" }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Init failed";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

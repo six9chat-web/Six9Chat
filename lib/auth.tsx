@@ -7,7 +7,7 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import { User, Session, AuthError } from "@supabase/supabase-js";
+import { User, Session, AuthError, AuthChangeEvent } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { UserProfile } from "@/types/chat";
 
@@ -822,7 +822,7 @@ export async function updateUserProfile(
   }
 
   try {
-    const dbPayload: Record<string, any> = { updated_at: new Date().toISOString() };
+    const dbPayload: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (updates.full_name !== undefined) dbPayload.full_name = updates.full_name;
     if (updates.username !== undefined) dbPayload.username = updates.username;
     if (updates.avatar_url !== undefined) dbPayload.avatar_url = updates.avatar_url;
@@ -951,7 +951,7 @@ export function onAuthStateChange(
 ) {
   const {
     data: { subscription },
-  } = supabase.auth.onAuthStateChange((event: any, session: any) => {
+  } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
     callback(event, session);
   });
 
@@ -1120,7 +1120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event: any, newSession: any) => {
+    } = supabase.auth.onAuthStateChange(async (_event: AuthChangeEvent, newSession: Session | null) => {
       if (!mounted) return;
 
       if (newSession?.user) {

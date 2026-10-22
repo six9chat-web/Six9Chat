@@ -11,8 +11,9 @@ export async function GET(request: NextRequest) {
       users,
       count: users.length,
     });
-  } catch (error: any) {
-    if (error?.digest?.startsWith?.("NEXT_")) {
+  } catch (error: unknown) {
+    const errObj = error as { digest?: string } | null;
+    if (errObj?.digest?.startsWith?.("NEXT_")) {
       throw error;
     }
     console.error("Directory API error:", error);

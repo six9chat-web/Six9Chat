@@ -45,6 +45,12 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
             ) ||
             LANGUAGES.find((l) => l.code.startsWith(stored.split("-")[0]));
           if (found) return found;
+        } else if (typeof navigator !== "undefined" && navigator.language) {
+          const browserCode = navigator.language;
+          const matched =
+            LANGUAGES.find((l) => l.code === browserCode) ||
+            LANGUAGES.find((l) => l.code === browserCode.split("-")[0]);
+          if (matched) return matched;
         }
       } catch {
         // ignore
@@ -52,40 +58,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }
     return DEFAULT_LANGUAGE;
   });
-  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Initialize from localStorage or browser language on mount
+  // Keep document attributes and storage in sync with language
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const found =
-          LANGUAGES.find((l) => l.code === stored) ||
-          LANGUAGES.find(
-            (l) => l.code.toLowerCase() === stored.toLowerCase()
-          ) ||
-          LANGUAGES.find((l) => l.code.startsWith(stored.split("-")[0]));
-        if (found) {
-          setCurrentLanguage(found);
-        }
-      } else if (typeof navigator !== "undefined" && navigator.language) {
-        const browserCode = navigator.language;
-        const matched =
-          LANGUAGES.find((l) => l.code === browserCode) ||
-          LANGUAGES.find((l) => l.code === browserCode.split("-")[0]);
-        if (matched) {
-          setCurrentLanguage(matched);
-        }
-      }
+      localStorage.setItem(STORAGE_KEY, currentLanguage.code);
     } catch {
       // localStorage may not be accessible in private browsing
-    } finally {
-      setIsInitialized(true);
     }
-  }, []);
-
-  // Update HTML document lang and dir attributes whenever language changes
-  useEffect(() => {
     if (typeof document !== "undefined") {
       const dir = currentLanguage.direction || "ltr";
       document.documentElement.lang = currentLanguage.code;

@@ -1,5 +1,5 @@
 import { supabaseServer } from "@/lib/authService";
-import { ChatContact, ChatMessage, MessageReaction } from "@/types/chat";
+import { ChatContact, ChatMessage, MediaMeta, MediaType, MessageReaction, MessageStatus } from "@/types/chat";
 
 export interface DBMessage {
   id: string;
@@ -11,8 +11,8 @@ export interface DBMessage {
   text: string;
   media_type?: string;
   media_url?: string;
-  media_meta?: any;
-  reactions?: any[];
+  media_meta?: MediaMeta;
+  reactions?: MessageReaction[];
   status?: string;
   created_at: string;
 }
@@ -103,8 +103,8 @@ export async function saveMessage(msg: {
   text: string;
   mediaType?: string;
   mediaUrl?: string;
-  mediaMeta?: any;
-  reactions?: any[];
+  mediaMeta?: MediaMeta;
+  reactions?: MessageReaction[];
   status?: string;
   createdAt?: string;
 }): Promise<DBMessage> {
@@ -286,8 +286,8 @@ export async function getConversationMessages(
           month: "short",
           day: "numeric",
         }),
-    status: (m.status as any) || "delivered",
-    mediaType: (m.media_type as any) || "text",
+    status: (m.status as MessageStatus) || "delivered",
+    mediaType: (m.media_type as MediaType) || "text",
     mediaUrl: m.media_url || undefined,
     mediaMeta: m.media_meta || undefined,
     reactions: m.reactions || [],
@@ -300,7 +300,7 @@ export async function getConversationMessages(
 export async function toggleMessageReaction(
   messageId: string,
   emoji: string,
-  userId: string
+  _userId: string
 ): Promise<{ success: boolean; reactions: MessageReaction[] }> {
   let target = messageLookup.get(messageId);
 
@@ -369,7 +369,7 @@ export async function toggleMessageReaction(
 export async function getUserConnectedContacts(userId: string): Promise<ChatContact[]> {
   const contactsMap = new Map<string, ChatContact>();
   const contactIds = new Set<string>();
-  const lastMessageMap = new Map<string, { text: string; timestamp: string; isSelf: boolean; status: "sent" | "delivered" | "read" }>();
+  const lastMessageMap = new Map<string, { text: string; timestamp: string; isSelf: boolean; status: MessageStatus }>();
 
   // 0. Fetch contacts from Supabase `conversations` table
   try {
@@ -425,7 +425,7 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
               text: m.text || (m.media_type ? `[${m.media_type.toUpperCase()}]` : "Message"),
               timestamp: timeStr,
               isSelf: m.sender_id === userId,
-              status: (m.status as any) || "delivered",
+              status: (m.status as MessageStatus) || "delivered",
             });
           }
         }

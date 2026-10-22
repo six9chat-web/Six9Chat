@@ -93,8 +93,9 @@ export async function ensureDatabaseTablesExist() {
     } finally {
       client.release();
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
     console.warn("[ensureDatabaseTablesExist]:", err);
-    return { success: false, error: err?.message };
+    return { success: false, error: errorMsg };
   }
 }
