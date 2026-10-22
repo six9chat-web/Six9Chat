@@ -88,7 +88,7 @@ function AuthContent() {
 
   // Debounced realtime username availability check
   const performUsernameCheck = useCallback(async (name: string) => {
-    const clean = name.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+    const clean = name.trim().replace(/[^a-zA-Z0-9_]/g, "");
     if (!clean || clean.length < 3) {
       setUsernameAvailable(null);
       setUsernameSuggestions([]);
@@ -109,7 +109,7 @@ function AuthContent() {
   }, []);
 
   const handleUsernameChange = (val: string) => {
-    const clean = val.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    const clean = val.replace(/[^a-zA-Z0-9_]/g, "");
     setSignupUsername(clean);
     setUsernameAvailable(null);
     setUsernameSuggestions([]);

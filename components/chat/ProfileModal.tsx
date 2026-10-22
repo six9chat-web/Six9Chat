@@ -136,12 +136,12 @@ export function ProfileModal({
 
   // Realtime username check for the edit modal
   const handleUsernameInputChange = (val: string) => {
-    const clean = val.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    const clean = val.replace(/[^a-zA-Z0-9_]/g, "");
     setEditUsernameInput(clean);
     setUsernameError(null);
 
     // If it equals their current username, it's valid
-    if (clean === currentUsername.toLowerCase()) {
+    if (clean.toLowerCase() === currentUsername.toLowerCase()) {
       setUsernameAvailable(true);
       setUsernameSuggestions([]);
       setIsCheckingUsername(false);
@@ -175,7 +175,7 @@ export function ProfileModal({
 
   // Save new username
   const handleSaveUsername = async () => {
-    const clean = editUsernameInput.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+    const clean = editUsernameInput.trim().replace(/[^a-zA-Z0-9_]/g, "");
     if (!clean || clean.length < 3) {
       setUsernameError("Username must be at least 3 characters.");
       return;

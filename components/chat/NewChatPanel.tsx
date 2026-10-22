@@ -62,6 +62,21 @@ export function NewChatPanel({
   const [removedUserIds, setRemovedUserIds] = useState<Set<string>>(new Set());
   const [requestingUserId, setRequestingUserId] = useState<string | null>(null);
 
+  // Load existing pending requests sent by currentUser
+  useEffect(() => {
+    if (!isOpen || !currentUser?.id) return;
+    supabase
+      .from("chat_requests")
+      .select("receiver_id")
+      .eq("sender_id", currentUser.id)
+      .eq("status", "pending")
+      .then((res: any) => {
+        if (res?.data) {
+          setSentRequests(new Set(res.data.map((r: any) => r.receiver_id)));
+        }
+      });
+  }, [isOpen, currentUser?.id]);
+
   const handleSendRequest = async (e: React.MouseEvent, user: any) => {
     e.stopPropagation();
     try {
@@ -216,12 +231,12 @@ export function NewChatPanel({
     // 2. Supabase registered users
     registeredUsers.forEach((u) => {
       if (isSelfUser(u.id, u.username, (u as any).email, u.fullName)) return;
-      const cleanUsername = (u.username || "").replace(/^@/, "");
+      const cleanUsername = (u.username || "").replace(/^@/, "") || u.fullName || "User";
       const existing = map.get(u.id);
       if (existing) {
         map.set(u.id, {
           ...existing,
-          displayName: u.fullName || cleanUsername,
+          displayName: cleanUsername,
           username: cleanUsername,
           avatar: u.avatarUrl || existing.avatar,
           about: u.about || existing.about,
@@ -229,7 +244,7 @@ export function NewChatPanel({
       } else {
         map.set(u.id, {
           id: u.id,
-          displayName: u.fullName || cleanUsername,
+          displayName: cleanUsername,
           username: cleanUsername,
           avatar: u.avatarUrl || "",
           about: u.about || "Hey there! I am using Six9Chat",
@@ -425,16 +440,9 @@ export function NewChatPanel({
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <h3 className="text-sm font-bold text-white truncate group-hover:text-[#97D7FF] transition">
-                      {user.displayName}
-                    </h3>
-                    {user.username && user.username !== user.displayName && (
-                      <span className="text-xs text-[#97D7FF]/80 truncate">
-                        @{user.username}
-                      </span>
-                    )}
-                  </div>
+                  <h3 className="text-sm font-bold text-white truncate group-hover:text-[#97D7FF] transition">
+                    {user.username || user.displayName}
+                  </h3>
                   <p className="text-xs text-slate-300 truncate mt-0.5">
                     {user.about}
                   </p>
@@ -452,9 +460,9 @@ export function NewChatPanel({
                     Chat
                   </button>
                 ) : sentRequests.has(user.id) ? (
-                  <span className="text-[11px] px-2 py-1 rounded-lg bg-[#4D8DBA]/20 text-[#97D7FF] font-medium flex items-center gap-1">
+                  <span className="text-[11px] px-2.5 py-1 rounded-lg bg-[#4D8DBA]/20 text-[#97D7FF] font-medium flex items-center gap-1">
                     <Check className="w-3 h-3" />
-                    <span>Requested</span>
+                    <span>Pending</span>
                   </span>
                 ) : (
                   <button
@@ -469,7 +477,7 @@ export function NewChatPanel({
                     ) : (
                       <>
                         <UserPlus className="w-3.5 h-3.5" />
-                        <span>Request</span>
+                        <span>+ Request</span>
                       </>
                     )}
                   </button>

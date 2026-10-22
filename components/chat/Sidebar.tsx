@@ -71,9 +71,10 @@ export function Sidebar({
   const userRecord = currentUser as unknown as Record<string, unknown>;
   const currentUsername =
     (typeof userRecord?.username === "string" && userRecord.username ? userRecord.username : null) ||
+    (currentUser?.username ? currentUser.username : null) ||
     (currentUser?.name && currentUser.name !== "You" ? currentUser.name : null) ||
     (currentUser?.email ? currentUser.email.split("@")[0] : null) ||
-    "user";
+    "User";
 
   const filterTabs: { id: ChatFilterType; label: string }[] = [
     { id: "all", label: "All" },
@@ -126,7 +127,7 @@ export function Sidebar({
             title="View Profile & Settings"
           >
             <h1 className="text-base sm:text-lg font-bold text-white tracking-tight leading-tight group-hover:text-[#97D7FF] transition truncate">
-              {currentUser?.name || currentUsername}
+              {currentUser?.username || currentUsername}
             </h1>
           </div>
         </div>

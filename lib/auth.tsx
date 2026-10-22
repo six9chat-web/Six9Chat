@@ -1010,9 +1010,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .slice(0, 2)
         : "S9";
 
+      const username =
+        dbProfile?.username ||
+        authUser.user_metadata?.username ||
+        (userEmail ? userEmail.split("@")[0] : null) ||
+        name.replace(/\s+/g, "_");
+
       const loadedProfile: UserProfile = {
         id: authUser.id,
-        name: name,
+        name: dbProfile?.username || name,
+        username: username,
         status: "online",
         statusText:
           dbProfile?.status ||

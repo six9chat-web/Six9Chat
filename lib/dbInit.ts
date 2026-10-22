@@ -54,17 +54,20 @@ export async function ensureDatabaseTablesExist() {
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           user1_id UUID NOT NULL,
           user2_id UUID NOT NULL,
-          last_message TEXT,
+          last_message TEXT DEFAULT '',
+          created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
           updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS public.messages (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          conversation_id UUID,
-          sender_id UUID NOT NULL,
-          receiver_id UUID,
-          content TEXT,
-          text TEXT,
+          id TEXT PRIMARY KEY,
+          conversation_id TEXT NOT NULL,
+          sender_id TEXT NOT NULL,
+          receiver_id TEXT,
+          content TEXT DEFAULT '',
+          text TEXT DEFAULT '',
+          sender_name TEXT,
+          sender_avatar TEXT,
           media_type TEXT DEFAULT 'text',
           media_url TEXT,
           media_meta JSONB,
@@ -78,10 +81,11 @@ export async function ensureDatabaseTablesExist() {
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           sender_id UUID NOT NULL,
           receiver_id UUID NOT NULL,
-          status TEXT DEFAULT 'pending',
-          message TEXT,
+          status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'rejected')),
+          message TEXT DEFAULT 'wants to start a conversation with you',
           created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
-          updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+          updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+          CONSTRAINT unique_sender_receiver UNIQUE (sender_id, receiver_id)
         );
       `);
       isInitialized = true;

@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
     // 1. If username update requested
     if (username !== undefined) {
-      const cleanUsername = String(username).trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+      const cleanUsername = String(username).trim().replace(/[^a-zA-Z0-9_]/g, "");
       if (!cleanUsername || cleanUsername.length < 3) {
         return NextResponse.json(
           { success: false, error: "Username must be at least 3 characters." },
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
         );
       }
 
-      // Check collision with other users
+      // Check collision with other users (case-insensitive check)
       try {
         const { data: collision } = await supabaseServer
           .from("profiles")
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
       updates.username = cleanUsername;
       if (fullName === undefined) {
-        updates.full_name = cleanUsername.charAt(0).toUpperCase() + cleanUsername.slice(1);
+        updates.full_name = cleanUsername;
       }
     }
 

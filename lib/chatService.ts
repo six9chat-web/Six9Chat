@@ -171,17 +171,19 @@ export async function saveMessage(msg: {
     console.warn("[ChatService] saveMessage db notice:", err);
   }
 
-  // 3. Update conversations table last_message and updated_at
+  // 3. Ensure conversation record exists and update last_message and updated_at
   if (record.receiver_id && record.sender_id && !record.conversation_id.startsWith("group-")) {
-    const [u1, u2] = [record.sender_id, record.receiver_id].sort();
     try {
-      await supabaseServer
-        .from("conversations")
-        .update({
-          last_message: record.text,
-          updated_at: new Date().toISOString(),
-        })
-        .or(`and(user1_id.eq.${u1},user2_id.eq.${u2}),and(user1_id.eq.${u2},user2_id.eq.${u1})`);
+      const conv = await getOrCreateConversation(record.sender_id, record.receiver_id);
+      if (conv && conv.id) {
+        await supabaseServer
+          .from("conversations")
+          .update({
+            last_message: record.text,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conv.id);
+      }
     } catch (convErr) {
       console.warn("[ChatService] saveMessage conversation update notice:", convErr);
     }
@@ -433,13 +435,13 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
     console.warn("[ChatService] getUserConnectedContacts messages notice:", msgErr);
   }
 
-  // 2. Fetch contacts from chat_requests (both accepted and pending)
+  // 2. Fetch contacts from chat_requests (strictly accepted requests)
   try {
     const { data: requests, error } = await supabaseServer
       .from("chat_requests")
       .select("id, sender_id, receiver_id, status, updated_at, created_at")
       .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      .in("status", ["accepted", "pending"]);
+      .eq("status", "accepted");
 
     if (!error && Array.isArray(requests)) {
       for (const r of requests) {
@@ -480,7 +482,7 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
 
           contactsMap.set(p.id, {
             id: p.id,
-            name: p.username ? `@${p.username.replace(/^@/, "")}` : (p.full_name || "Contact"),
+            name: p.username ? p.username : (p.full_name || "Contact"),
             avatar: p.avatar_url || "",
             avatarColor: "from-[#086288] to-[#4D8DBA]",
             status: "online",

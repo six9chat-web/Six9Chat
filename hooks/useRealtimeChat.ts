@@ -301,7 +301,7 @@ export function useRealtimeChat() {
         if (data?.status === "accepted" && data?.senderId === currentUser.id) {
           // The other user (receiverId) accepted our chat request!
           const otherName = data.receiverUsername
-            ? `@${data.receiverUsername.replace(/^@/, "")}`
+            ? data.receiverUsername.replace(/^@/, "")
             : data.receiverName || "Contact";
 
           const newContact: ChatContact = {
@@ -417,7 +417,7 @@ export function useRealtimeChat() {
         const p = payload.payload as any;
         if (p && p.status === "accepted" && p.senderId === currentUser.id) {
           const displayName = p.receiverUsername
-            ? `@${p.receiverUsername.replace(/^@/, "")}`
+            ? p.receiverUsername.replace(/^@/, "")
             : p.receiverName || "Contact";
 
           const newContact: ChatContact = {
@@ -597,8 +597,8 @@ export function useRealtimeChat() {
                 .maybeSingle();
 
               if (sp) {
-                senderName = sp.full_name || sp.username || "Six9 User";
-                senderUsername = sp.username || "";
+                senderUsername = sp.username ? sp.username.replace(/^@/, "") : "";
+                senderName = senderUsername || sp.full_name || "User";
                 senderAvatar = sp.avatar_url || "";
               }
             } catch (err) {
@@ -644,7 +644,7 @@ export function useRealtimeChat() {
                   .maybeSingle();
 
                 const displayName = rp?.username
-                  ? `@${rp.username.replace(/^@/, "")}`
+                  ? rp.username.replace(/^@/, "")
                   : rp?.full_name || "Contact";
 
                 const newContact: ChatContact = {
@@ -1012,11 +1012,11 @@ export function useRealtimeChat() {
             profile?.username ||
             (user.user_metadata?.username as string) ||
             (userEmail ? userEmail.split("@")[0] : null) ||
-            displayName.toLowerCase().replace(/\s+/g, "_");
+            displayName.replace(/\s+/g, "_");
 
           setCurrentUser({
             id: user.id,
-            name: displayName,
+            name: username || displayName,
             username: username,
             status: "online",
             statusText:
@@ -1054,28 +1054,37 @@ export function useRealtimeChat() {
             if (savedTargetId && !serverContacts.some((c) => c.id === savedTargetId)) {
               // Target is not in the existing conversation list, fetch profile from Supabase directly to restore chat
               try {
+                let partnerId = savedTargetId;
+                // Check if savedTargetId was a conversation row ID
+                const { data: convRow } = await supabase
+                  .from("conversations")
+                  .select("id, user1_id, user2_id")
+                  .eq("id", savedTargetId)
+                  .maybeSingle();
+
+                if (convRow) {
+                  partnerId = convRow.user1_id === user.id ? convRow.user2_id : convRow.user1_id;
+                }
+
                 const { data: partnerProfile } = await supabase
                   .from("profiles")
-                  .select("id, full_name, username, avatar_url")
-                  .eq("id", savedTargetId)
-                  .single();
+                  .select("id, full_name, username, avatar_url, about")
+                  .eq("id", partnerId)
+                  .maybeSingle();
 
                 if (partnerProfile && partnerProfile.id !== user.id) {
                   const restoredContact: ChatContact = {
                     id: partnerProfile.id,
-                    name:
-                      partnerProfile.full_name ||
-                      (partnerProfile.username
-                        ? `@${partnerProfile.username.replace(/^@/, "")}`
-                        : "User"),
+                    name: partnerProfile.username ? partnerProfile.username.replace(/^@/, "") : (partnerProfile.full_name || "User"),
                     avatar: partnerProfile.avatar_url || "",
                     avatarColor: "from-[#086288] to-[#4D8DBA]",
                     status: "online",
                     lastSeen: "Online now",
-                    about: "Connected on Six9Chat",
+                    about: partnerProfile.about || "Connected on Six9Chat",
                     unreadCount: 0,
                   };
                   serverContacts.unshift(restoredContact);
+                  savedTargetId = partnerProfile.id;
                 }
               } catch {}
             }
@@ -1116,11 +1125,12 @@ export function useRealtimeChat() {
 
               const mapped: ChatRequest[] = dbRequests.map((r: any) => {
                 const sp = profileMap.get(r.sender_id);
+                const senderUsername = sp?.username ? sp.username.replace(/^@/, "") : "";
                 return {
                   id: r.id,
                   senderId: r.sender_id,
-                  senderName: sp?.full_name || sp?.username || "Six9 User",
-                  senderUsername: sp?.username || "",
+                  senderName: senderUsername || sp?.full_name || "User",
+                  senderUsername: senderUsername,
                   senderAvatar: sp?.avatar_url || "",
                   receiverId: r.receiver_id,
                   status: r.status as "pending",
@@ -1254,7 +1264,7 @@ export function useRealtimeChat() {
 
     // 4. Automatically add requester to user's contacts and open chat
     const displayName = req.senderUsername
-      ? `@${req.senderUsername.replace(/^@/, "")}`
+      ? req.senderUsername.replace(/^@/, "")
       : req.senderName || "Contact";
 
     const newContact: ChatContact = {

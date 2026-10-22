@@ -56,6 +56,28 @@ export default function UserSearchDirectory() {
       });
     };
 
+    // Check existing chat_requests sent by current user
+    let pendingReceiverIds = new Set<string>();
+    if (currentUserIdRef.current) {
+      try {
+        const { data: existingReqs } = await supabase
+          .from('chat_requests')
+          .select('receiver_id, status')
+          .eq('sender_id', currentUserIdRef.current)
+          .eq('status', 'pending');
+        if (existingReqs) {
+          existingReqs.forEach((r) => pendingReceiverIds.add(r.receiver_id));
+        }
+      } catch {}
+    }
+
+    const attachRequestState = (list: any[]) => {
+      return filterOutSelf(list).map((p: any) => ({
+        ...p,
+        isRequested: pendingReceiverIds.has(p.id) || p.isRequested,
+      }));
+    };
+
     if (dbError) {
       // Fallback to server-side API search route
       try {
@@ -66,7 +88,7 @@ export default function UserSearchDirectory() {
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json.users)) {
-            setProfiles(filterOutSelf(json.users));
+            setProfiles(attachRequestState(json.users));
             setLoading(false);
             return;
           }
@@ -77,7 +99,7 @@ export default function UserSearchDirectory() {
       setError('Could not load users. Please try again.');
       setProfiles([]);
     } else {
-      setProfiles(filterOutSelf(data ?? []));
+      setProfiles(attachRequestState(data ?? []));
     }
 
     setLoading(false);
@@ -91,6 +113,59 @@ export default function UserSearchDirectory() {
 
     return () => clearTimeout(timer);
   }, [searchTerm, fetchUsers]);
+
+  const handleSendRequest = async (targetUser: any) => {
+    const myId = currentUserIdRef.current;
+    if (!myId) return;
+
+    // 1. Immediately update UI state to "Pending"
+    setProfiles((prev) =>
+      prev.map((p) => (p.id === targetUser.id ? { ...p, isRequested: true } : p))
+    );
+
+    // 2. Persist to chat_requests in Supabase via API route
+    try {
+      await fetch('/api/user/send-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderId: myId,
+          receiverId: targetUser.id,
+          message: 'wants to start a conversation with you',
+        }),
+      });
+    } catch {}
+
+    // Direct client upsert backup
+    try {
+      await supabase.from('chat_requests').upsert(
+        {
+          sender_id: myId,
+          receiver_id: targetUser.id,
+          status: 'pending',
+          message: 'wants to start a conversation with you',
+        },
+        { onConflict: 'sender_id,receiver_id' }
+      );
+    } catch {}
+
+    // Broadcast realtime event
+    try {
+      const channel = supabase.channel('public:messages');
+      await channel.send({
+        type: 'broadcast',
+        event: 'chat_request',
+        payload: {
+          id: `req-${Date.now()}`,
+          senderId: myId,
+          receiverId: targetUser.id,
+          status: 'pending',
+          message: 'wants to start a conversation with you',
+          createdAt: 'Just now',
+        },
+      });
+    } catch {}
+  };
 
   return (
     <div className="w-full max-w-md mx-auto p-4 bg-slate-900 text-white rounded-xl">
@@ -118,35 +193,26 @@ export default function UserSearchDirectory() {
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar
                     src={profile.avatar_url || profile.avatarUrl || ''}
-                    alt={profile.full_name || profile.username || 'User'}
+                    alt={profile.username || profile.full_name || 'User'}
                     className="w-10 h-10 shrink-0"
                   />
                   <div className="min-w-0">
-                    <div className="font-bold truncate">{profile.full_name || profile.username}</div>
-                    {profile.username && (
-                      <div className="text-sm text-gray-400 truncate">@{profile.username}</div>
-                    )}
+                    <div className="font-bold text-white truncate">
+                      {profile.username || profile.full_name || 'User'}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={() => {
-                      if (!currentUserIdRef.current) return;
-                      fetch('/api/user/send-request', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          senderId: currentUserIdRef.current,
-                          receiverId: profile.id,
-                        }),
-                      }).catch(() => {});
-                      setProfiles((prev) =>
-                        prev.map((p) => (p.id === profile.id ? { ...p, isRequested: true } : p))
-                      );
-                    }}
-                    className="px-3 py-1 bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] text-[#086288] font-bold rounded-md hover:brightness-105 text-sm shrink-0 transition"
+                    disabled={profile.isRequested}
+                    onClick={() => handleSendRequest(profile)}
+                    className={`px-3 py-1 font-bold rounded-md text-sm shrink-0 transition ${
+                      profile.isRequested
+                        ? 'bg-[#4D8DBA]/30 text-[#97D7FF] cursor-default'
+                        : 'bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] text-[#086288] hover:brightness-105 active:scale-95 cursor-pointer'
+                    }`}
                   >
-                    {profile.isRequested ? 'Requested' : '+ Request'}
+                    {profile.isRequested ? 'Pending' : '+ Request'}
                   </button>
                   <button
                     onClick={() => {

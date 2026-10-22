@@ -102,7 +102,7 @@ export interface ChatRequest {
   senderUsername?: string;
   senderAvatar?: string;
   receiverId: string;
-  status: "pending" | "accepted" | "rejected";
+  status: "pending" | "accepted" | "declined" | "rejected";
   message?: string;
   createdAt: string;
 }

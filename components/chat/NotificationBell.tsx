@@ -62,8 +62,8 @@ export function NotificationBell({
       setActionInProgress(req.id);
       await onAccept(req);
       const display = req.senderUsername
-        ? `@${req.senderUsername.replace(/^@/, "")}`
-        : req.senderName;
+        ? req.senderUsername.replace(/^@/, "")
+        : req.senderName || "User";
       setToastMessage(`Accepted request from ${display}`);
       setTimeout(() => setToastMessage(null), 3000);
     } catch (err) {
@@ -188,12 +188,10 @@ export function NotificationBell({
                 ) : (
                   pendingRequests.map((req) => {
                     const isBusy = actionInProgress === req.id;
-                    // Clean single username display without duplicate stacked name lines
+                    // Exact single username display without @ or duplicate name lines
                     const cleanUsername = req.senderUsername
-                      ? `@${req.senderUsername.replace(/^@/, "").toLowerCase()}`
-                      : req.senderName
-                      ? `@${req.senderName.toLowerCase().replace(/\s+/g, "")}`
-                      : "@user";
+                      ? req.senderUsername.replace(/^@/, "")
+                      : req.senderName || "User";
 
                     return (
                       <motion.div
@@ -205,7 +203,7 @@ export function NotificationBell({
                         className="p-3 rounded-xl bg-[#053b53] border border-[#4D8DBA]/40 flex flex-col gap-2.5 shadow-sm"
                       >
                         <div className="flex items-center gap-3">
-                          {/* Requester Avatar (actual uploaded profile picture (DP) if available, otherwise WhatsApp neutral silhouette) */}
+                          {/* Requester Avatar */}
                           <Avatar
                             src={req.senderAvatar}
                             alt={cleanUsername}
@@ -216,7 +214,7 @@ export function NotificationBell({
                           {/* Requester Details: Single clean username line with timestamp */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
-                              <span className="text-xs font-bold font-mono text-white truncate">
+                              <span className="text-xs font-bold text-white truncate">
                                 {cleanUsername}
                               </span>
                               <span className="text-[10px] text-slate-300 shrink-0 flex items-center gap-1 font-mono">
