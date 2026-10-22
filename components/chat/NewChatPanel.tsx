@@ -146,8 +146,8 @@ export function NewChatPanel({
             setRegisteredUsers(
               profiles.map((p: any) => ({
                 id: p.id,
-                username: p.username || `user_${p.id.slice(0, 4)}`,
-                fullName: p.full_name || p.username || "",
+                username: p.username || "User",
+                fullName: p.username || "",
                 avatarUrl: p.avatar_url || "",
                 about: p.about || "Hey there! I am using Six9Chat",
               }))
@@ -219,11 +219,11 @@ export function NewChatPanel({
     // 1. Existing contacts in current conversation list
     contacts.forEach((c) => {
       if (isSelfUser(c.id, c.name, c.phone, c.name)) return;
-      const cleanUsername = c.name.startsWith("@") ? c.name.slice(1) : c.name;
+      const exactUsername = c.name;
       map.set(c.id, {
         id: c.id,
-        displayName: cleanUsername,
-        username: cleanUsername,
+        displayName: exactUsername,
+        username: exactUsername,
         avatar: c.avatar || "",
         about: c.about || "Active chat",
         isExistingContact: true,
@@ -233,21 +233,21 @@ export function NewChatPanel({
     // 2. Supabase registered users
     registeredUsers.forEach((u) => {
       if (isSelfUser(u.id, u.username, (u as any).email, u.fullName)) return;
-      const cleanUsername = (u.username || "").replace(/^@/, "") || u.fullName || "User";
+      const exactUsername = u.username || "User";
       const existing = map.get(u.id);
       if (existing) {
         map.set(u.id, {
           ...existing,
-          displayName: cleanUsername,
-          username: cleanUsername,
+          displayName: exactUsername,
+          username: exactUsername,
           avatar: u.avatarUrl || existing.avatar,
           about: u.about || existing.about,
         });
       } else {
         map.set(u.id, {
           id: u.id,
-          displayName: cleanUsername,
-          username: cleanUsername,
+          displayName: exactUsername,
+          username: exactUsername,
           avatar: u.avatarUrl || "",
           about: u.about || "Hey there! I am using Six9Chat",
           isExistingContact: false,
@@ -256,7 +256,7 @@ export function NewChatPanel({
     });
 
     const list = Array.from(map.values()).filter((u) => !isSelfUser(u.id, u.username));
-    const q = searchQuery.trim().toLowerCase().replace(/^@/, "");
+    const q = searchQuery.trim().toLowerCase();
     if (!q) return list;
 
     return list.filter(

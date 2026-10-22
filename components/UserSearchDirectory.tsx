@@ -200,7 +200,7 @@ export default function UserSearchDirectory() {
                   />
                   <div className="min-w-0">
                     <div className="font-bold text-white truncate">
-                      {profile.username || profile.full_name || 'User'}
+                      {profile.username || 'User'}
                     </div>
                   </div>
                 </div>

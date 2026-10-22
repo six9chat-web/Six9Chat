@@ -300,9 +300,7 @@ export function useRealtimeChat() {
 
         if (data?.status === "accepted" && data?.senderId === currentUser.id) {
           // The other user (receiverId) accepted our chat request!
-          const otherName = data.receiverUsername
-            ? data.receiverUsername.replace(/^@/, "")
-            : data.receiverName || "Contact";
+          const otherName = data.receiverUsername || data.receiverName || "Contact";
 
           const newContact: ChatContact = {
             id: data.receiverId,
@@ -328,6 +326,7 @@ export function useRealtimeChat() {
             newContact,
             ...prev.filter((c) => c.id !== data.receiverId),
           ]);
+          setActiveContactId(newContact.id);
         }
       });
 
@@ -416,9 +415,7 @@ export function useRealtimeChat() {
       channel.on("broadcast", { event: "chat_request_response" }, (payload: any) => {
         const p = payload.payload as any;
         if (p && p.status === "accepted" && p.senderId === currentUser.id) {
-          const displayName = p.receiverUsername
-            ? p.receiverUsername.replace(/^@/, "")
-            : p.receiverName || "Contact";
+          const displayName = p.receiverUsername || p.receiverName || "Contact";
 
           const newContact: ChatContact = {
             id: p.receiverId,
@@ -597,8 +594,8 @@ export function useRealtimeChat() {
                 .maybeSingle();
 
               if (sp) {
-                senderUsername = sp.username ? sp.username.replace(/^@/, "") : "";
-                senderName = senderUsername || sp.full_name || "User";
+                senderUsername = sp.username || "";
+                senderName = senderUsername || "User";
                 senderAvatar = sp.avatar_url || "";
               }
             } catch (err) {
@@ -643,9 +640,7 @@ export function useRealtimeChat() {
                   .eq("id", receiverId)
                   .maybeSingle();
 
-                const displayName = rp?.username
-                  ? rp.username.replace(/^@/, "")
-                  : rp?.full_name || "Contact";
+                const displayName = rp?.username || rp?.full_name || "Contact";
 
                 const newContact: ChatContact = {
                   id: receiverId,
@@ -838,7 +833,7 @@ export function useRealtimeChat() {
         }
       }
 
-      // 4. Persist to Supabase messages table via backend API
+      // 4. Persist to Supabase messages table via backend API & direct client write
       try {
         await fetch("/api/chat/messages", {
           method: "POST",
@@ -859,6 +854,23 @@ export function useRealtimeChat() {
             createdAt: now.toISOString(),
           }),
         });
+
+        // Direct client Supabase fallback write
+        await supabase.from("messages").upsert(
+          {
+            id: newMsg.id,
+            conversation_id: activeContactId,
+            sender_id: currentUser.id,
+            receiver_id: activeContactId,
+            content: newMsg.text,
+            text: newMsg.text,
+            media_type: newMsg.mediaType || "text",
+            media_url: newMsg.mediaUrl || null,
+            status: "delivered",
+            created_at: now.toISOString(),
+          },
+          { onConflict: "id" }
+        );
 
         setMessagesMap((prev) => ({
           ...prev,
@@ -1075,7 +1087,7 @@ export function useRealtimeChat() {
                 if (partnerProfile && partnerProfile.id !== user.id) {
                   const restoredContact: ChatContact = {
                     id: partnerProfile.id,
-                    name: partnerProfile.username ? partnerProfile.username.replace(/^@/, "") : (partnerProfile.full_name || "User"),
+                    name: partnerProfile.username || partnerProfile.full_name || "User",
                     avatar: partnerProfile.avatar_url || "",
                     avatarColor: "from-[#086288] to-[#4D8DBA]",
                     status: "online",
@@ -1125,7 +1137,7 @@ export function useRealtimeChat() {
 
               const mapped: ChatRequest[] = dbRequests.map((r: any) => {
                 const sp = profileMap.get(r.sender_id);
-                const senderUsername = sp?.username ? sp.username.replace(/^@/, "") : "";
+                const senderUsername = sp?.username || "";
                 return {
                   id: r.id,
                   senderId: r.sender_id,
@@ -1263,9 +1275,7 @@ export function useRealtimeChat() {
     setChatRequests((prev) => prev.filter((r) => r.id !== req.id));
 
     // 4. Automatically add requester to user's contacts and open chat
-    const displayName = req.senderUsername
-      ? req.senderUsername.replace(/^@/, "")
-      : req.senderName || "Contact";
+    const displayName = req.senderUsername || req.senderName || "Contact";
 
     const newContact: ChatContact = {
       id: req.senderId,
@@ -1390,24 +1400,10 @@ export function useRealtimeChat() {
     };
 
     setContacts((prev) => [newContact, ...prev.filter((c) => c.id !== id)]);
-
     setActiveContactId(id);
 
-    // Save initial connection in chat_requests table in background
-    if (existingUserId && currentUser?.id && existingUserId !== currentUser.id) {
-      fetch("/api/user/send-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          senderId: currentUser.id,
-          receiverId: existingUserId,
-          message: `${currentUser.name || "User"} connected with you`,
-        }),
-      }).catch((e) => console.warn("Background contact persist notice:", e));
-    }
-
     return id;
-  }, [contacts, currentUser]);
+  }, [contacts]);
 
   // Create a new group conversation with members and persist to Supabase
   const createGroup = useCallback(

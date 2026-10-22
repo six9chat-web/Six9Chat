@@ -63,9 +63,7 @@ export function NotificationBell({
     try {
       setActionInProgress(req.id);
       await onAccept(req);
-      const display = req.senderUsername
-        ? req.senderUsername.replace(/^@/, "")
-        : req.senderName || "User";
+      const display = req.senderUsername || req.senderName || "User";
       setToastMessage(`Accepted request from ${display}`);
       setTimeout(() => setToastMessage(null), 3000);
     } catch (err) {
@@ -190,10 +188,8 @@ export function NotificationBell({
                 ) : (
                   pendingRequests.map((req) => {
                     const isBusy = actionInProgress === req.id;
-                    // Exact single username display without @ or duplicate name lines
-                    const cleanUsername = req.senderUsername
-                      ? req.senderUsername.replace(/^@/, "")
-                      : req.senderName || "User";
+                    // Exact username display preserved from Supabase
+                    const cleanUsername = req.senderUsername || req.senderName || "User";
 
                     return (
                       <motion.div
