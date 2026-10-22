@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChatContact,
   ChatMessage,
@@ -47,6 +48,7 @@ export type ChatFilterType =
   | "pinned";
 
 export function useRealtimeChat() {
+  const router = useRouter();
   const [currentUser, setCurrentUser] = useState<UserProfile>(CURRENT_USER);
   const [contacts, setContacts] = useState<ChatContact[]>(INITIAL_CONTACTS);
   const [activeContactId, setActiveContactId] = useState<string>(() => {
@@ -687,7 +689,7 @@ export function useRealtimeChat() {
     } catch (e) {
       console.warn("Supabase Realtime subscription initialized in offline mode:", e);
     }
-  }, [activeContactId]);
+  }, [activeContactId, currentUser.id]);
 
   // Automated intelligent reply simulation to bring Six9 Chat feel to life
   const simulateReply = useCallback((contactId: string, userText: string) => {
@@ -1528,9 +1530,9 @@ export function useRealtimeChat() {
     } catch (e) {
       console.warn("Sign out notice:", e);
     } finally {
-      window.location.href = "/login";
+      router.push("/login");
     }
-  }, []);
+  }, [router]);
 
   return {
     currentUser,

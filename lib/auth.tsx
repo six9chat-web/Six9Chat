@@ -8,6 +8,7 @@ import React, {
   useCallback,
 } from "react";
 import { User, Session, AuthError, AuthChangeEvent } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { UserProfile } from "@/types/chat";
 import { purgeBloatedCookies } from "@/lib/cookieCleanup";
@@ -613,20 +614,6 @@ export function getMockSession(): MockSessionData | null {
         };
       }
     }
-
-    // Legacy cookie migration check: read, migrate to localStorage, and immediately clear cookie
-    const rawCookie = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("six9_mock_session="));
-    if (rawCookie) {
-      const val = decodeURIComponent(rawCookie.split("=")[1]);
-      const parsed = JSON.parse(val);
-      purgeBloatedCookies();
-      if (parsed.userId || parsed.id) {
-        localStorage.setItem("six9_mock_session", JSON.stringify(parsed));
-        return parsed;
-      }
-    }
   } catch (e) {
     console.warn("Failed to parse mock session:", e);
   }
@@ -975,6 +962,7 @@ export function onAuthStateChange(
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -1252,9 +1240,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
       setProfile(null);
       setNeedsOnboarding(false);
-      window.location.href = "/login";
+      router.push("/login");
     }
-  }, []);
+  }, [router]);
 
   const handleSaveUserProfile = useCallback(
     async (profileData: {

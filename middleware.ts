@@ -6,12 +6,19 @@ export async function middleware(request: NextRequest) {
   // Retrieve incoming Cookie header
   const rawCookieHeader = request.headers.get("cookie") || "";
 
-  // Proactively check for bloated or legacy session cookies
-  const hasBloatedCookies =
-    rawCookieHeader.includes("six9_mock_session") ||
-    rawCookieHeader.includes("sb-") ||
-    rawCookieHeader.includes("-auth-token") ||
-    rawCookieHeader.length > 2048;
+  // Check all incoming cookies
+  const allCookies = request.cookies.getAll();
+  const legacyCookieNames = allCookies
+    .filter(
+      (c) =>
+        c.name.startsWith("sb-") ||
+        c.name.includes("-auth-token") ||
+        c.name.startsWith("supabase-") ||
+        c.name.startsWith("six9_mock_session")
+    )
+    .map((c) => c.name);
+
+  const hasBloatedCookies = legacyCookieNames.length > 0 || rawCookieHeader.length > 2048;
 
   let response: NextResponse;
 
@@ -38,23 +45,30 @@ export async function middleware(request: NextRequest) {
       requestHeaders.delete("cookie");
     }
 
-    response = NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    });
+    if (pathname === "/") {
+      const chatUrl = request.nextUrl.clone();
+      chatUrl.pathname = "/chat";
+      response = NextResponse.redirect(chatUrl);
+    } else {
+      response = NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      });
+    }
 
-    // Send Set-Cookie deletion directives to instruct browser to erase legacy cookies
+    // Attach Set-Cookie deletion directives for all legacy cookies found
+    legacyCookieNames.forEach((name) => {
+      response.cookies.delete(name);
+    });
     response.cookies.delete("six9_mock_session");
   } else {
+    if (pathname === "/") {
+      const chatUrl = request.nextUrl.clone();
+      chatUrl.pathname = "/chat";
+      return NextResponse.redirect(chatUrl);
+    }
     response = NextResponse.next();
-  }
-
-  // Redirect root "/" to "/chat"
-  if (pathname === "/") {
-    const chatUrl = request.nextUrl.clone();
-    chatUrl.pathname = "/chat";
-    return NextResponse.redirect(chatUrl);
   }
 
   return response;

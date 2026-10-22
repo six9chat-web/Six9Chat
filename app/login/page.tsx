@@ -46,7 +46,7 @@ function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get("redirect") || "/chat";
-  const { language, setLanguage, t, dir, isRTL } = useTranslation();
+  const { t, dir, isRTL } = useTranslation();
 
   // Mode: "login" | "signup"
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -277,7 +277,7 @@ function AuthContent() {
         }
 
         // 2. Register credentials & ensure profile and persistent session creation
-        const result = await registerWithCredentials({
+        await registerWithCredentials({
           username: cleanUser,
           email: cleanMail,
           password: signupPassword,
