@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import { LanguageProvider } from "@/lib/LanguageContext";
+import { INLINE_COOKIE_PURGE_SCRIPT } from "@/lib/cookieCleanup";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,6 +30,12 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full w-full overflow-hidden m-0 p-0 antialiased dark`}
     >
+      <head>
+        <script
+          id="purge-bloated-cookies"
+          dangerouslySetInnerHTML={{ __html: INLINE_COOKIE_PURGE_SCRIPT }}
+        />
+      </head>
       <body className="h-full w-full overflow-hidden m-0 p-0 flex flex-col bg-[#053b53] text-slate-100 selection:bg-[#97D7FF] selection:text-[#086288]">
         <LanguageProvider>
           <AuthProvider>{children}</AuthProvider>

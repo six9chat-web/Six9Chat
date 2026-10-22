@@ -10,6 +10,7 @@ import React, {
 import { User, Session, AuthError, AuthChangeEvent } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { UserProfile } from "@/types/chat";
+import { purgeBloatedCookies } from "@/lib/cookieCleanup";
 
 export interface Profile {
   id: string;
@@ -596,13 +597,6 @@ export interface MockSessionData {
 export function getMockSession(): MockSessionData | null {
   if (typeof window === "undefined") return null;
   try {
-    const rawCookie = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("six9_mock_session="));
-    if (rawCookie) {
-      const val = decodeURIComponent(rawCookie.split("=")[1]);
-      return JSON.parse(val);
-    }
     const rawLocal = localStorage.getItem("six9_mock_session") || localStorage.getItem("six9_active_user");
     if (rawLocal) {
       const parsed = JSON.parse(rawLocal);
@@ -619,6 +613,20 @@ export function getMockSession(): MockSessionData | null {
         };
       }
     }
+
+    // Legacy cookie migration check: read, migrate to localStorage, and immediately clear cookie
+    const rawCookie = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("six9_mock_session="));
+    if (rawCookie) {
+      const val = decodeURIComponent(rawCookie.split("=")[1]);
+      const parsed = JSON.parse(val);
+      purgeBloatedCookies();
+      if (parsed.userId || parsed.id) {
+        localStorage.setItem("six9_mock_session", JSON.stringify(parsed));
+        return parsed;
+      }
+    }
   } catch (e) {
     console.warn("Failed to parse mock session:", e);
   }
@@ -629,9 +637,11 @@ export function setMockSession(data: MockSessionData) {
   if (typeof window === "undefined") return;
   try {
     const json = JSON.stringify(data);
-    document.cookie = `six9_mock_session=${encodeURIComponent(json)}; path=/; max-age=31536000; SameSite=Lax`;
+    // Persist session solely in localStorage to prevent 494 header overflow
     localStorage.setItem("six9_mock_session", json);
     localStorage.setItem("six9_active_user", json);
+    // Explicitly purge any legacy bloated cookies
+    purgeBloatedCookies();
   } catch (e) {
     console.warn("Failed to set mock session:", e);
   }
@@ -640,10 +650,10 @@ export function setMockSession(data: MockSessionData) {
 export function clearMockSession() {
   if (typeof window === "undefined") return;
   try {
-    document.cookie = "six9_mock_session=; path=/; max-age=0; SameSite=Lax";
     localStorage.removeItem("six9_mock_session");
     localStorage.removeItem("six9_active_user");
     localStorage.removeItem("six9_active_session");
+    purgeBloatedCookies();
   } catch (e) {
     console.warn("Failed to clear mock session:", e);
   }
@@ -1048,6 +1058,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Listen to Supabase Auth state changes
   useEffect(() => {
     let mounted = true;
+    purgeBloatedCookies();
 
     async function initSession() {
       try {

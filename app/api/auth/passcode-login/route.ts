@@ -125,23 +125,9 @@ export async function POST(request: Request) {
       console.warn("[Passcode Auth] profile upsert note:", upsertErr);
     }
 
-    // 5. Set session cookie for instant authentication across routes
+    // Ensure legacy cookie is removed so headers do not overflow
     const cookieStore = await cookies();
-    const sessionPayload = {
-      userId,
-      email: cleanEmail,
-      fullName: displayName,
-      avatarUrl: "",
-      statusText: "Hey there! I am using Six9Chat 🚀",
-      uid: assignedUid,
-    };
-
-    cookieStore.set("six9_mock_session", JSON.stringify(sessionPayload), {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      sameSite: "lax",
-      httpOnly: false,
-    });
+    cookieStore.delete("six9_mock_session");
 
     return NextResponse.json({
       success: true,

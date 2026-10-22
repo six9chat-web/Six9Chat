@@ -52,23 +52,9 @@ export async function POST(request: Request) {
       console.warn("[verify-otp profile upsert note]:", profErr);
     }
 
-    // 5. Set session cookie for seamless authentication
+    // Ensure legacy cookie is removed so headers do not overflow
     const cookieStore = await cookies();
-    const sessionPayload = {
-      userId,
-      email: cleanEmail,
-      fullName: displayName,
-      avatarUrl: "",
-      statusText: "Hey there! I am using Six9Chat 🚀",
-      uid: assignedUid,
-    };
-
-    cookieStore.set("six9_mock_session", JSON.stringify(sessionPayload), {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      sameSite: "lax",
-      httpOnly: false,
-    });
+    cookieStore.delete("six9_mock_session");
 
     return NextResponse.json(
       {

@@ -95,12 +95,7 @@ export async function POST(request: Request) {
       if (typeof updates.about === "string") updatedSession.statusText = updates.about;
       if (typeof updates.avatar_url === "string") updatedSession.avatarUrl = updates.avatar_url;
 
-      cookieStore.set("six9_mock_session", JSON.stringify(updatedSession), {
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7,
-        sameSite: "lax",
-        httpOnly: false,
-      });
+      cookieStore.delete("six9_mock_session");
     }
 
     return NextResponse.json({

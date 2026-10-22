@@ -1,16 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
+import { supabase } from '@/lib/supabaseClient';
 import { Avatar } from '@/components/ui/Avatar';
 import { useTranslation } from '@/lib/LanguageContext';
 import { generateUUID } from '@/types/chat';
-
-// Create supabase client ONCE outside component to prevent infinite re-renders
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export interface SearchProfile {
   id: string;

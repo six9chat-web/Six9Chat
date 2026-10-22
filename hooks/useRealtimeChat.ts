@@ -639,7 +639,7 @@ export function useRealtimeChat() {
               try {
                 const { data: rp } = await supabase
                   .from("profiles")
-                  .select("id, full_name, username, avatar_url, about")
+                  .select("id, full_name, username, avatar_url, about, status")
                   .eq("id", receiverId)
                   .maybeSingle();
 
@@ -652,7 +652,7 @@ export function useRealtimeChat() {
                   avatarColor: "from-[#086288] to-[#4D8DBA]",
                   status: "online",
                   lastSeen: "Online now",
-                  about: rp?.status || "Connected via Six9Chat request",
+                  about: rp?.about || rp?.status || "Connected via Six9Chat request",
                   phone: "",
                   unreadCount: 0,
                   lastMessage: {

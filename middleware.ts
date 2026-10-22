@@ -1,54 +1,69 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabaseMiddleware";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Refresh Supabase session cookies on every request
-  const { supabaseResponse, user } = await updateSession(request);
+  // Retrieve incoming Cookie header
+  const rawCookieHeader = request.headers.get("cookie") || "";
 
-  // Fallback dev/mock session cookie check
-  const mockCookie = request.cookies.get("six9_mock_session")?.value;
-  const isUserAuthenticated = Boolean(user || mockCookie);
+  // Proactively check for bloated or legacy session cookies
+  const hasBloatedCookies =
+    rawCookieHeader.includes("six9_mock_session") ||
+    rawCookieHeader.includes("sb-") ||
+    rawCookieHeader.includes("-auth-token") ||
+    rawCookieHeader.length > 2048;
 
-  const isAuthRoute =
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/signup") ||
-    pathname.startsWith("/auth");
-  const isChatRoute = pathname === "/" || pathname.startsWith("/chat");
+  let response: NextResponse;
 
-  // Unauthenticated user trying to access protected chat routes -> Redirect to /login
-  if (!isUserAuthenticated && isChatRoute) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    if (pathname !== "/") {
-      loginUrl.searchParams.set("redirect", pathname);
+  if (hasBloatedCookies) {
+    // Strip bloated session cookies from downstream request headers to eliminate 494 overflows
+    const filteredCookies = rawCookieHeader
+      .split(";")
+      .map((c) => c.trim())
+      .filter((c) => {
+        const name = c.split("=")[0].trim();
+        return (
+          !name.startsWith("sb-") &&
+          !name.includes("-auth-token") &&
+          !name.startsWith("supabase-") &&
+          !name.startsWith("six9_mock_session")
+        );
+      })
+      .join("; ");
+
+    const requestHeaders = new Headers(request.headers);
+    if (filteredCookies) {
+      requestHeaders.set("cookie", filteredCookies);
+    } else {
+      requestHeaders.delete("cookie");
     }
-    return NextResponse.redirect(loginUrl);
+
+    response = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+
+    // Send Set-Cookie deletion directives to instruct browser to erase legacy cookies
+    response.cookies.delete("six9_mock_session");
+  } else {
+    response = NextResponse.next();
   }
 
-  // Authenticated user trying to access auth pages (/login, /signup) -> Redirect to /chat
-  if (isUserAuthenticated && isAuthRoute) {
+  // Redirect root "/" to "/chat"
+  if (pathname === "/") {
     const chatUrl = request.nextUrl.clone();
     chatUrl.pathname = "/chat";
-    chatUrl.searchParams.delete("redirect");
     return NextResponse.redirect(chatUrl);
   }
 
-  // Authenticated user accessing root "/" -> Redirect to /chat
-  if (isUserAuthenticated && pathname === "/") {
-    const chatUrl = request.nextUrl.clone();
-    chatUrl.pathname = "/chat";
-    return NextResponse.redirect(chatUrl);
-  }
-
-  return supabaseResponse;
+  return response;
 }
 
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
+     * Match all request paths except for:
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
