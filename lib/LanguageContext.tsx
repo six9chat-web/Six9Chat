@@ -33,7 +33,25 @@ const LanguageContext = createContext<LanguageContextType | undefined>(
 );
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [currentLanguage, setCurrentLanguage] = useState<Language>(DEFAULT_LANGUAGE);
+  const [currentLanguage, setCurrentLanguage] = useState<Language>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const found =
+            LANGUAGES.find((l) => l.code === stored) ||
+            LANGUAGES.find(
+              (l) => l.code.toLowerCase() === stored.toLowerCase()
+            ) ||
+            LANGUAGES.find((l) => l.code.startsWith(stored.split("-")[0]));
+          if (found) return found;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return DEFAULT_LANGUAGE;
+  });
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Initialize from localStorage or browser language on mount
@@ -105,24 +123,30 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const t = useCallback(
     (key: TranslationKey | string, fallback?: string): string => {
       const langCode = currentLanguage.code;
-      const primaryPrefix = langCode.split("-")[0];
+      const lowerCode = langCode.toLowerCase();
+      const primaryPrefix = langCode.split("-")[0].toLowerCase();
 
       // 1. Try exact language code match
       if (TRANSLATIONS[langCode]?.[key]) {
         return TRANSLATIONS[langCode][key];
       }
 
-      // 2. Try base prefix (e.g., zh-CN -> zh)
+      // 2. Try lowercased code
+      if (TRANSLATIONS[lowerCode]?.[key]) {
+        return TRANSLATIONS[lowerCode][key];
+      }
+
+      // 3. Try base prefix (e.g., zh-CN -> zh, es-ES -> es)
       if (TRANSLATIONS[primaryPrefix]?.[key]) {
         return TRANSLATIONS[primaryPrefix][key];
       }
 
-      // 3. Fallback to English
+      // 4. Fallback to English
       if (TRANSLATIONS["en"]?.[key]) {
         return TRANSLATIONS["en"][key];
       }
 
-      // 4. Fallback to provided fallback or key
+      // 5. Fallback to provided fallback or key
       return fallback || key;
     },
     [currentLanguage]
