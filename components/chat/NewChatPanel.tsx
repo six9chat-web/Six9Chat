@@ -49,7 +49,7 @@ export function NewChatPanel({
   currentUser,
   contacts,
   onSelectContact,
-  onAddNewContact,
+  onAddNewContact: _onAddNewContact,
   onOpenNewGroup,
   onSendChatRequest,
   onDeleteContact,
@@ -270,48 +270,23 @@ export function NewChatPanel({
     return displayedUsers.filter((u) => !removedUserIds.has(u.id));
   }, [displayedUsers, removedUserIds]);
 
-  // Instant Conversation Trigger: Check/create conversation in DB, activate, and close panel
+  // STRICT MANDATE: Only allow selecting users who are ALREADY existing, accepted contacts.
+  // ABSOLUTELY NO conversation or chat room should exist or open until a user sends a request AND receiver clicks "Accept".
   const handleSelectUser = useCallback(
-    async (user: {
+    (user: {
       id: string;
       displayName: string;
       username: string;
       avatar: string;
       isExistingContact: boolean;
     }) => {
-      try {
-        if (currentUser?.id && user.id) {
-          // Check/create 1-on-1 row in conversations table
-          await fetch("/api/chat/conversations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: currentUser.id,
-              partnerId: user.id,
-            }),
-          }).catch((e) => console.warn("Conversation trigger notice:", e));
-        }
-
-        if (user.isExistingContact) {
-          onSelectContact(user.id);
-        } else if (onAddNewContact) {
-          onAddNewContact(
-            user.displayName || user.username,
-            user.username,
-            user.avatar,
-            user.id
-          );
-        } else {
-          onSelectContact(user.id);
-        }
-      } catch (err) {
-        console.warn("[NewChatPanel] handleSelectUser notice:", err);
-        onSelectContact(user.id);
-      } finally {
-        onClose();
+      if (!user.isExistingContact) {
+        return;
       }
+      onSelectContact(user.id);
+      onClose();
     },
-    [currentUser?.id, onSelectContact, onAddNewContact, onClose]
+    [onSelectContact, onClose]
   );
 
   if (!isOpen) return null;
@@ -425,10 +400,12 @@ export function NewChatPanel({
               key={user.id}
               className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#086288]/40 transition text-left group"
             >
-              {/* Left clickable info area */}
+              {/* Left info area: ONLY clickable if already an existing accepted contact */}
               <div
-                onClick={() => handleSelectUser(user)}
-                className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+                onClick={() => (user.isExistingContact ? handleSelectUser(user) : undefined)}
+                className={`flex items-center gap-3 min-w-0 flex-1 ${
+                  user.isExistingContact ? "cursor-pointer" : "cursor-default"
+                }`}
               >
                 <div className="relative shrink-0">
                   <Avatar

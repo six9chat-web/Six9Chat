@@ -216,9 +216,23 @@ export async function getConversationMessages(
       .order("created_at", { ascending: true });
 
     if (userA && userB && !canonicalId.startsWith("group-")) {
-      query = query.or(
-        `conversation_id.eq.${canonicalId},and(sender_id.eq.${userA},receiver_id.eq.${userB}),and(sender_id.eq.${userB},receiver_id.eq.${userA})`
-      );
+      let convUuid = "";
+      try {
+        const conv = await getOrCreateConversation(userA, userB);
+        if (conv?.id) convUuid = conv.id;
+      } catch {}
+
+      const orFilters = [
+        `and(sender_id.eq.${userA},receiver_id.eq.${userB})`,
+        `and(sender_id.eq.${userB},receiver_id.eq.${userA})`,
+      ];
+      if (convUuid) orFilters.push(`conversation_id.eq.${convUuid}`);
+      if (canonicalId && canonicalId !== convUuid) orFilters.push(`conversation_id.eq.${canonicalId}`);
+      if (conversationId && conversationId !== convUuid && conversationId !== canonicalId) {
+        orFilters.push(`conversation_id.eq.${conversationId}`);
+      }
+
+      query = query.or(orFilters.join(","));
     } else {
       query = query.or(
         `conversation_id.eq.${canonicalId},conversation_id.eq.${conversationId}`

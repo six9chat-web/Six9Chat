@@ -72,6 +72,7 @@ export function useRealtimeChat() {
   const [activeStory, setActiveStory] = useState<StoryItem | null>(null);
   const [chatRequests, setChatRequests] = useState<ChatRequest[]>(INITIAL_CHAT_REQUESTS);
   const currentUserRef = useRef<UserProfile>(currentUser);
+  const activeContactIdRef = useRef<string>(activeContactId);
 
   // Clear any legacy local storage contacts caches to ensure strictly genuine DB state
   useEffect(() => {
@@ -92,6 +93,10 @@ export function useRealtimeChat() {
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
+
+  useEffect(() => {
+    activeContactIdRef.current = activeContactId;
+  }, [activeContactId]);
 
   // Call preview state
   const [callState, setCallState] = useState<CallModalState>({
@@ -179,15 +184,20 @@ export function useRealtimeChat() {
         },
       });
 
-      // Listen for broadcast messages
-      channel.on("broadcast", { event: "new_message" }, (payload: { payload: ChatMessage & { receiverId?: string } }) => {
-        const incoming = payload.payload;
-        if (incoming && incoming.senderId !== currentUser.id) {
+      // 1. Listen for incoming direct broadcast messages (0ms ultra-low latency)
+      channel.on(
+        "broadcast",
+        { event: "new_message" },
+        (payload: { payload: ChatMessage & { receiverId?: string } }) => {
+          const incoming = payload.payload;
+          const activeId = currentUserRef.current.id;
+          if (!incoming || incoming.senderId === activeId) return;
+
           const isGroup = incoming.conversationId?.startsWith("group-");
           const conversationKey = isGroup ? incoming.conversationId : incoming.senderId;
 
           // Only accept if it's for this group, or sent to currentUser
-          if (isGroup || incoming.receiverId === currentUser.id || !incoming.receiverId) {
+          if (isGroup || incoming.receiverId === activeId || !incoming.receiverId) {
             const formatted: ChatMessage = {
               ...incoming,
               conversationId: conversationKey,
@@ -204,6 +214,7 @@ export function useRealtimeChat() {
             }));
 
             // Update contact list preview and unread count
+            const currentActiveContactId = activeContactIdRef.current;
             setContacts((prev) => {
               const exists = prev.some((c) => c.id === conversationKey);
               if (exists) {
@@ -211,9 +222,12 @@ export function useRealtimeChat() {
                   c.id === conversationKey
                     ? {
                         ...c,
-                        unreadCount: c.id === activeContactId ? 0 : c.unreadCount + 1,
+                        unreadCount:
+                          c.id === currentActiveContactId ? 0 : c.unreadCount + 1,
                         lastMessage: {
-                          text: formatted.text || `[${(formatted.mediaType || "media").toUpperCase()}]`,
+                          text:
+                            formatted.text ||
+                            `[${(formatted.mediaType || "media").toUpperCase()}]`,
                           timestamp: formatted.timestamp,
                           isSelf: false,
                           status: "delivered",
@@ -243,280 +257,246 @@ export function useRealtimeChat() {
             });
           }
         }
-      });
+      );
 
-      // Listen for message reactions broadcast
-      channel.on("broadcast", { event: "message_reaction" }, (payload: { payload: { messageId: string; emoji: string; userId: string; conversationId: string } }) => {
-        const { messageId, emoji, userId, conversationId } = payload.payload;
-        if (messageId && conversationId) {
-          setMessagesMap((prev) => {
-            const list = prev[conversationId] || [];
-            const updated = list.map((m) => {
-              if (m.id !== messageId) return m;
+      // 2. Listen for message reactions broadcast
+      channel.on(
+        "broadcast",
+        { event: "message_reaction" },
+        (payload: {
+          payload: {
+            messageId: string;
+            emoji: string;
+            userId: string;
+            conversationId: string;
+          };
+        }) => {
+          const { messageId, emoji, userId, conversationId } = payload.payload;
+          if (messageId && conversationId) {
+            const activeId = currentUserRef.current.id;
+            setMessagesMap((prev) => {
+              const list = prev[conversationId] || [];
+              const updated = list.map((m) => {
+                if (m.id !== messageId) return m;
 
-              const reactions = m.reactions ? [...m.reactions] : [];
-              const idx = reactions.findIndex((r) => r.emoji === emoji);
-              const isSelf = userId === currentUser.id;
+                const reactions = m.reactions ? [...m.reactions] : [];
+                const idx = reactions.findIndex((r) => r.emoji === emoji);
+                const isSelf = userId === activeId;
 
-              if (idx >= 0) {
-                const item = reactions[idx];
-                reactions[idx] = {
-                  ...item,
-                  count: item.count + 1,
-                  userReacted: isSelf ? true : item.userReacted,
-                };
-              } else {
-                reactions.push({ emoji, count: 1, userReacted: isSelf });
-              }
+                if (idx >= 0) {
+                  const item = reactions[idx];
+                  reactions[idx] = {
+                    ...item,
+                    count: item.count + 1,
+                    userReacted: isSelf ? true : item.userReacted,
+                  };
+                } else {
+                  reactions.push({ emoji, count: 1, userReacted: isSelf });
+                }
 
-              return { ...m, reactions };
+                return { ...m, reactions };
+              });
+
+              return { ...prev, [conversationId]: updated };
             });
-
-            return { ...prev, [conversationId]: updated };
-          });
+          }
         }
-      });
+      );
 
-      // Listen for typing events
-      channel.on("broadcast", { event: "typing" }, (payload: { payload: { contactId: string; typing: boolean } }) => {
-        const { contactId, typing } = payload.payload;
-        if (contactId === activeContactId) {
-          setIsTyping(Boolean(typing));
+      // 3. Listen for typing events
+      channel.on(
+        "broadcast",
+        { event: "typing" },
+        (payload: { payload: { contactId: string; typing: boolean } }) => {
+          const { contactId, typing } = payload.payload;
+          if (contactId === activeContactIdRef.current) {
+            setIsTyping(Boolean(typing));
+          }
         }
-      });
+      );
 
-      // Listen for incoming real-time chat requests via broadcast
-      channel.on("broadcast", { event: "chat_request" }, (payload: { payload: ChatRequest }) => {
-        const incomingReq = payload.payload;
-        if (incomingReq && incomingReq.receiverId === currentUser.id) {
-          setChatRequests((prev) => [
-            incomingReq,
-            ...prev.filter((r) => r.id !== incomingReq.id),
-          ]);
+      // 4. Listen for real-time broadcast chat requests (instant Bell notification)
+      channel.on(
+        "broadcast",
+        { event: "chat_request" },
+        (payload: { payload: ChatRequest }) => {
+          const incomingReq = payload.payload;
+          const activeId = currentUserRef.current.id;
+          if (
+            incomingReq &&
+            incomingReq.receiverId === activeId &&
+            incomingReq.status === "pending"
+          ) {
+            setChatRequests((prev) => [
+              incomingReq,
+              ...prev.filter((r) => r.id !== incomingReq.id),
+            ]);
+          }
         }
-      });
+      );
 
-      // Listen for accepted/rejected status responses
-      channel.on("broadcast", { event: "chat_request_response" }, (payload: { payload: { requestId?: string; status?: string; senderId?: string; receiverId?: string; receiverUsername?: string; receiverName?: string; receiverAvatar?: string } }) => {
-        const data = payload.payload;
-        if (data?.requestId) {
-          setChatRequests((prev) => prev.filter((r) => r.id !== data.requestId));
-        }
-
-        if (data?.status === "accepted" && data?.senderId === currentUser.id && data?.receiverId) {
-          // The other user (receiverId) accepted our chat request!
-          const otherName = data.receiverUsername || data.receiverName || "Contact";
-
-          const newContact: ChatContact = {
-            id: data.receiverId,
-            name: otherName,
-            avatar: data.receiverAvatar || "",
-            avatarColor: "from-[#086288] to-[#4D8DBA]",
-            status: "online",
-            lastSeen: "Online now",
-            about: "Connected via Six9Chat request",
-            unreadCount: 0,
-            lastMessage: {
-              text: "Chat request accepted. Say hi! 👋",
-              timestamp: new Date().toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-              isSelf: false,
-              status: "read",
-            },
+      // 5. Listen for real-time broadcast chat request accept/reject response
+      channel.on(
+        "broadcast",
+        { event: "chat_request_response" },
+        async (payload: {
+          payload: {
+            requestId?: string;
+            status?: string;
+            senderId?: string;
+            receiverId?: string;
+            receiverUsername?: string;
+            receiverName?: string;
+            receiverAvatar?: string;
           };
+        }) => {
+          const data = payload.payload;
+          const activeId = currentUserRef.current.id;
+          if (data?.requestId) {
+            setChatRequests((prev) =>
+              prev.filter((r) => r.id !== data.requestId)
+            );
+          }
 
-          setContacts((prev) => [
-            newContact,
-            ...prev.filter((c) => c.id !== data.receiverId),
-          ]);
-          setActiveContactId(newContact.id);
+          if (
+            data?.status === "accepted" &&
+            data?.senderId === activeId &&
+            data?.receiverId
+          ) {
+            // The other user (receiverId) accepted our chat request!
+            const otherName =
+              data.receiverUsername || data.receiverName || "Contact";
+
+            const newContact: ChatContact = {
+              id: data.receiverId,
+              name: otherName,
+              avatar: data.receiverAvatar || "",
+              avatarColor: "from-[#086288] to-[#4D8DBA]",
+              status: "online",
+              lastSeen: "Online now",
+              about: "Connected via Six9Chat request",
+              unreadCount: 0,
+              lastMessage: {
+                text: "Chat request accepted. Say hi! 👋",
+                timestamp: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+                isSelf: false,
+                status: "read",
+              },
+            };
+
+            setContacts((prev) => [
+              newContact,
+              ...prev.filter((c) => c.id !== data.receiverId),
+            ]);
+            setActiveContactId(newContact.id);
+          }
         }
-      });
+      );
 
-      // Listen for newly created groups
-      channel.on("broadcast", { event: "new_group" }, (payload: { payload: ChatContact }) => {
-        const incomingGroup = payload.payload;
-        if (incomingGroup && incomingGroup.id) {
-          setContacts((prev) => [
-            incomingGroup,
-            ...prev.filter((c) => c.id !== incomingGroup.id),
-          ]);
+      // 6. Listen for newly created groups
+      channel.on(
+        "broadcast",
+        { event: "new_group" },
+        (payload: { payload: ChatContact }) => {
+          const incomingGroup = payload.payload;
+          if (incomingGroup && incomingGroup.id) {
+            setContacts((prev) => [
+              incomingGroup,
+              ...prev.filter((c) => c.id !== incomingGroup.id),
+            ]);
+          }
         }
-      });
+      );
 
-      // Listen for incoming direct broadcast messages (0ms ultra-low latency)
-      channel.on("broadcast", { event: "new_message" }, (payload: { payload: ChatMessage & { receiverId?: string } }) => {
-        const msg = payload.payload;
-        if (msg && msg.receiverId === currentUser.id) {
-          const conversationKey = msg.senderId;
+      // 7. Listen for postgres changes on messages table
+      channel.on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload: { new: Record<string, unknown> | null }) => {
+          const newRecord = payload.new;
+          if (!newRecord) return;
+
+          const activeId = currentUserRef.current.id;
+          const isSelf = newRecord.sender_id === activeId;
+          const convId = (newRecord.conversation_id as string) || "";
+          const receiverId = (newRecord.receiver_id as string) || "";
+          const senderId = (newRecord.sender_id as string) || "";
+
+          // Only process if relevant to current user or group
+          if (
+            !isSelf &&
+            receiverId !== activeId &&
+            !convId.startsWith("group-")
+          ) {
+            return;
+          }
+
+          const conversationKey = convId.startsWith("group-")
+            ? convId
+            : isSelf
+            ? (receiverId || convId)
+            : senderId;
+
+          const contentText = String(newRecord.content || newRecord.text || "");
+
           const formatted: ChatMessage = {
-            id: msg.id || generateUUID(),
+            id: String(newRecord.id || Date.now()),
             conversationId: conversationKey,
-            senderId: msg.senderId,
-            senderName: msg.senderName || "Contact",
-            senderAvatar: msg.senderAvatar || "",
-            isSelf: false,
-            text: msg.text || "",
-            timestamp: msg.timestamp || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            senderId: String(newRecord.sender_id || "other"),
+            senderName: String(newRecord.sender_name || "Contact"),
+            senderAvatar: String(newRecord.sender_avatar || ""),
+            isSelf,
+            text: contentText,
+            timestamp: new Date().toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
             date: "Today",
-            status: "delivered",
-            mediaType: msg.mediaType || "text",
-            mediaUrl: msg.mediaUrl,
-            mediaMeta: msg.mediaMeta,
-            reactions: msg.reactions || [],
+            status: (newRecord.status as MessageStatus) || "delivered",
+            mediaType: (newRecord.media_type as MediaType) || "text",
+            mediaUrl: (newRecord.media_url as string) || undefined,
+            mediaMeta: (newRecord.media_meta as MediaMeta) || undefined,
+            reactions: (newRecord.reactions as MessageReaction[]) || [],
           };
 
-          setMessagesMap((prev) => ({
-            ...prev,
-            [conversationKey]: [
-              ...(prev[conversationKey] || []).filter((m) => m.id !== formatted.id),
+          setMessagesMap((prev) => {
+            const currentList = prev[conversationKey] || prev[convId] || [];
+            const updatedList = [
+              ...currentList.filter((m) => m.id !== formatted.id),
               formatted,
-            ],
-          }));
+            ];
+            return {
+              ...prev,
+              [conversationKey]: updatedList,
+              ...(convId && convId !== conversationKey ? { [convId]: updatedList } : {}),
+            };
+          });
 
+          // Update contact sidebar last message
           setContacts((prev) =>
             prev.map((c) =>
-              c.id === conversationKey
+              c.id === conversationKey ||
+              c.id === convId ||
+              (isSelf ? c.id === receiverId : c.id === senderId)
                 ? {
                     ...c,
                     lastMessage: {
-                      text: formatted.text || `[${(formatted.mediaType || "media").toUpperCase()}]`,
+                      text: contentText,
                       timestamp: formatted.timestamp,
-                      isSelf: false,
-                      status: "read",
+                      isSelf,
+                      status: formatted.status,
                     },
                   }
                 : c
             )
           );
         }
-      });
-
-      // Listen for real-time broadcast chat requests
-      channel.on("broadcast", { event: "chat_request" }, (payload: { payload: ChatRequest }) => {
-        const req = payload.payload;
-        if (req && req.receiverId === currentUser.id && req.status === "pending") {
-          const formattedReq: ChatRequest = {
-            id: req.id,
-            senderId: req.senderId,
-            senderName: req.senderName || "Six9 User",
-            senderUsername: req.senderUsername || "",
-            senderAvatar: req.senderAvatar || "",
-            receiverId: req.receiverId,
-            status: "pending",
-            message: req.message || "wants to start a conversation with you",
-            createdAt: req.createdAt || "Just now",
-          };
-          setChatRequests((prev) => [
-            formattedReq,
-            ...prev.filter((r) => r.id !== formattedReq.id),
-          ]);
-        }
-      });
-
-      // Listen for real-time broadcast chat request accept/reject response
-      channel.on("broadcast", { event: "chat_request_response" }, (payload: { payload: { status?: string; senderId?: string; receiverId?: string; receiverUsername?: string; receiverName?: string; receiverAvatar?: string } }) => {
-        const p = payload.payload;
-        if (p && p.status === "accepted" && p.senderId === currentUser.id) {
-          const displayName = p.receiverUsername || p.receiverName || "Contact";
-
-          const newContact: ChatContact = {
-            id: p.receiverId || "",
-            name: displayName,
-            avatar: p.receiverAvatar || "",
-            avatarColor: "from-[#086288] to-[#4D8DBA]",
-            status: "online",
-            lastSeen: "Online now",
-            about: "Connected via Six9Chat request",
-            phone: "",
-            unreadCount: 0,
-            lastMessage: {
-              text: "Chat request accepted. Say hi! 👋",
-              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-              isSelf: false,
-              status: "read",
-            },
-          };
-
-          setContacts((prev) => [newContact, ...prev.filter((c) => c.id !== p.receiverId)]);
-          setActiveContactId(newContact.id);
-        }
-      });
-
-      // Listen for postgres changes on messages
-      channel.on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        (payload: { new: Record<string, unknown> | null }) => {
-          const newRecord = payload.new;
-          if (newRecord) {
-            const isSelf = newRecord.sender_id === currentUser.id;
-            const convId = (newRecord.conversation_id as string) || "";
-            const conversationKey = convId.startsWith("group-")
-              ? convId
-              : isSelf
-              ? ((newRecord.receiver_id as string) || convId)
-              : (newRecord.sender_id as string);
-
-            const contentText = String(newRecord.content || newRecord.text || "");
-
-            const formatted: ChatMessage = {
-              id: String(newRecord.id || Date.now()),
-              conversationId: conversationKey,
-              senderId: String(newRecord.sender_id || "other"),
-              senderName: String(newRecord.sender_name || "Contact"),
-              senderAvatar: String(newRecord.sender_avatar || ""),
-              isSelf,
-              text: contentText,
-              timestamp: new Date().toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-              date: "Today",
-              status: (newRecord.status as MessageStatus) || "delivered",
-              mediaType: (newRecord.media_type as MediaType) || "text",
-              mediaUrl: (newRecord.media_url as string) || undefined,
-              mediaMeta: (newRecord.media_meta as MediaMeta) || undefined,
-              reactions: (newRecord.reactions as MessageReaction[]) || [],
-            };
-
-            setMessagesMap((prev) => {
-              const currentList = prev[conversationKey] || prev[convId] || [];
-              const updatedList = [
-                ...currentList.filter((m) => m.id !== formatted.id),
-                formatted,
-              ];
-              return {
-                ...prev,
-                [conversationKey]: updatedList,
-                ...(convId && convId !== conversationKey ? { [convId]: updatedList } : {}),
-              };
-            });
-
-            // Update contact sidebar last message
-            setContacts((prev) =>
-              prev.map((c) =>
-                c.id === conversationKey ||
-                c.id === convId ||
-                (isSelf ? c.id === newRecord.receiver_id : c.id === newRecord.sender_id)
-                  ? {
-                      ...c,
-                      lastMessage: {
-                        text: contentText,
-                        timestamp: formatted.timestamp,
-                        isSelf,
-                        status: formatted.status,
-                      },
-                    }
-                  : c
-              )
-            );
-          }
-        }
       );
 
+      // 8. Listen for message reactions / updates
       channel.on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages" },
@@ -544,49 +524,56 @@ export function useRealtimeChat() {
         }
       );
 
-      // Listen for realtime conversation updates (last_message, updated_at)
+      // 9. Listen for realtime conversation updates
       channel.on(
         "postgres_changes",
         { event: "*", schema: "public", table: "conversations" },
         (payload: { new: Record<string, unknown> | null }) => {
           const conv = payload.new;
-          if (conv && conv.last_message) {
-            const partnerId = conv.user1_id === currentUser.id ? conv.user2_id : conv.user1_id;
+          if (!conv) return;
+          const activeId = currentUserRef.current.id;
+          if (conv.user1_id === activeId || conv.user2_id === activeId) {
+            const partnerId = conv.user1_id === activeId ? String(conv.user2_id) : String(conv.user1_id);
             const timeStr = conv.updated_at
               ? new Date(conv.updated_at as string).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
               : "Recently";
 
-            setContacts((prev) =>
-              prev.map((c) =>
-                c.id === partnerId || c.id === conv.id
-                  ? {
-                      ...c,
-                      lastMessage: {
-                        text: String(conv.last_message),
-                        timestamp: timeStr,
-                        isSelf: false,
-                        status: "read",
-                      },
-                    }
-                  : c
-              )
-            );
+            setContacts((prev) => {
+              const exists = prev.some((c) => c.id === partnerId || c.id === conv.id);
+              if (exists) {
+                return prev.map((c) =>
+                  c.id === partnerId || c.id === conv.id
+                    ? {
+                        ...c,
+                        lastMessage: conv.last_message
+                          ? {
+                              text: String(conv.last_message),
+                              timestamp: timeStr,
+                              isSelf: false,
+                              status: "read",
+                            }
+                          : c.lastMessage,
+                      }
+                    : c
+                );
+              }
+              return prev;
+            });
           }
         }
       );
 
-      // Listen for postgres changes on chat_requests
+      // 10. Listen for postgres changes on chat_requests table
       channel.on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "chat_requests" },
+        { event: "*", schema: "public", table: "chat_requests" },
         async (payload: { new: Record<string, unknown> | null }) => {
-          const newReq = payload.new;
+          const rec = payload.new;
+          if (!rec) return;
           const activeId = currentUserRef.current.id;
-          if (
-            newReq &&
-            newReq.receiver_id === activeId &&
-            newReq.status === "pending"
-          ) {
+
+          // Pending request sent to me
+          if (rec.receiver_id === activeId && rec.status === "pending") {
             let senderName = "Six9 User";
             let senderUsername = "";
             let senderAvatar = "";
@@ -595,7 +582,7 @@ export function useRealtimeChat() {
               const { data: sp } = await supabase
                 .from("profiles")
                 .select("full_name, username, avatar_url")
-                .eq("id", String(newReq.sender_id))
+                .eq("id", String(rec.sender_id))
                 .maybeSingle();
 
               if (sp) {
@@ -608,14 +595,14 @@ export function useRealtimeChat() {
             }
 
             const formattedReq: ChatRequest = {
-              id: String(newReq.id),
-              senderId: String(newReq.sender_id),
+              id: String(rec.id),
+              senderId: String(rec.sender_id),
               senderName,
               senderUsername,
               senderAvatar,
-              receiverId: String(newReq.receiver_id),
+              receiverId: String(rec.receiver_id),
               status: "pending",
-              message: "wants to start a conversation with you",
+              message: String(rec.message || "wants to start a conversation with you"),
               createdAt: "Just now",
             };
             setChatRequests((prev) => [
@@ -623,53 +610,46 @@ export function useRealtimeChat() {
               ...prev.filter((r) => r.id !== formattedReq.id),
             ]);
           }
-        }
-      );
 
-      channel.on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "chat_requests" },
-        async (payload: { new: Record<string, unknown> | null }) => {
-          const updated = payload.new;
-          const activeId = currentUserRef.current.id;
-          if (updated) {
-            setChatRequests((prev) => prev.filter((r) => r.id !== String(updated.id)));
+          // If accepted or declined, remove from pending requests
+          if (rec.status !== "pending") {
+            setChatRequests((prev) => prev.filter((r) => r.id !== String(rec.id)));
+          }
 
-            // If my sent request was accepted by the other user, add them to contacts immediately!
-            if (updated.status === "accepted" && String(updated.sender_id) === activeId) {
-              const receiverId = String(updated.receiver_id);
-              try {
-                const { data: rp } = await supabase
-                  .from("profiles")
-                  .select("id, full_name, username, avatar_url, about, status")
-                  .eq("id", receiverId)
-                  .maybeSingle();
+          // If my sent request was accepted by the other user, add them to contacts immediately!
+          if (rec.status === "accepted" && String(rec.sender_id) === activeId) {
+            const receiverId = String(rec.receiver_id);
+            try {
+              const { data: rp } = await supabase
+                .from("profiles")
+                .select("id, full_name, username, avatar_url, about, status")
+                .eq("id", receiverId)
+                .maybeSingle();
 
-                const displayName = rp?.username || rp?.full_name || "Contact";
+              const displayName = rp?.username || rp?.full_name || "Contact";
 
-                const newContact: ChatContact = {
-                  id: receiverId,
-                  name: displayName,
-                  avatar: rp?.avatar_url || "",
-                  avatarColor: "from-[#086288] to-[#4D8DBA]",
-                  status: "online",
-                  lastSeen: "Online now",
-                  about: rp?.about || rp?.status || "Connected via Six9Chat request",
-                  phone: "",
-                  unreadCount: 0,
-                  lastMessage: {
-                    text: "Chat request accepted. Say hi! 👋",
-                    timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                    isSelf: false,
-                    status: "read",
-                  },
-                };
+              const newContact: ChatContact = {
+                id: receiverId,
+                name: displayName,
+                avatar: rp?.avatar_url || "",
+                avatarColor: "from-[#086288] to-[#4D8DBA]",
+                status: "online",
+                lastSeen: "Online now",
+                about: rp?.about || rp?.status || "Connected via Six9Chat request",
+                phone: "",
+                unreadCount: 0,
+                lastMessage: {
+                  text: "Chat request accepted. Say hi! 👋",
+                  timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                  isSelf: false,
+                  status: "read",
+                },
+              };
 
-                setContacts((prev) => [newContact, ...prev.filter((c) => c.id !== receiverId)]);
-                setActiveContactId(newContact.id);
-              } catch (err) {
-                console.warn("Could not load newly accepted contact profile:", err);
-              }
+              setContacts((prev) => [newContact, ...prev.filter((c) => c.id !== receiverId)]);
+              setActiveContactId(newContact.id);
+            } catch (err) {
+              console.warn("Could not load newly accepted contact profile:", err);
             }
           }
         }
@@ -689,7 +669,7 @@ export function useRealtimeChat() {
     } catch (e) {
       console.warn("Supabase Realtime subscription initialized in offline mode:", e);
     }
-  }, [activeContactId, currentUser.id]);
+  }, [currentUser.id]);
 
   // Automated intelligent reply simulation to bring Six9 Chat feel to life
   const simulateReply = useCallback((contactId: string, userText: string) => {
@@ -1088,39 +1068,47 @@ export function useRealtimeChat() {
             }
 
             if (savedTargetId && !serverContacts.some((c) => c.id === savedTargetId)) {
-              // Target is not in the existing conversation list, fetch profile from Supabase directly to restore chat
+              // Only restore if a genuine conversation exists in database
               try {
-                let partnerId = savedTargetId;
-                // Check if savedTargetId was a conversation row ID
                 const { data: convRow } = await supabase
                   .from("conversations")
                   .select("id, user1_id, user2_id")
-                  .eq("id", savedTargetId)
+                  .or(`and(user1_id.eq.${user.id},user2_id.eq.${savedTargetId}),and(user1_id.eq.${savedTargetId},user2_id.eq.${user.id}),id.eq.${savedTargetId}`)
                   .maybeSingle();
 
                 if (convRow) {
-                  partnerId = convRow.user1_id === user.id ? convRow.user2_id : convRow.user1_id;
-                }
+                  const partnerId = convRow.user1_id === user.id ? convRow.user2_id : convRow.user1_id;
+                  const { data: partnerProfile } = await supabase
+                    .from("profiles")
+                    .select("id, full_name, username, avatar_url, about")
+                    .eq("id", partnerId)
+                    .maybeSingle();
 
-                const { data: partnerProfile } = await supabase
-                  .from("profiles")
-                  .select("id, full_name, username, avatar_url, about")
-                  .eq("id", partnerId)
-                  .maybeSingle();
-
-                if (partnerProfile && partnerProfile.id !== user.id) {
-                  const restoredContact: ChatContact = {
-                    id: partnerProfile.id,
-                    name: partnerProfile.username || partnerProfile.full_name || "User",
-                    avatar: partnerProfile.avatar_url || "",
-                    avatarColor: "from-[#086288] to-[#4D8DBA]",
-                    status: "online",
-                    lastSeen: "Online now",
-                    about: partnerProfile.about || "Connected on Six9Chat",
-                    unreadCount: 0,
-                  };
-                  serverContacts.unshift(restoredContact);
-                  savedTargetId = partnerProfile.id;
+                  if (partnerProfile && partnerProfile.id !== user.id) {
+                    const restoredContact: ChatContact = {
+                      id: partnerProfile.id,
+                      name: partnerProfile.username || partnerProfile.full_name || "User",
+                      avatar: partnerProfile.avatar_url || "",
+                      avatarColor: "from-[#086288] to-[#4D8DBA]",
+                      status: "online",
+                      lastSeen: "Online now",
+                      about: partnerProfile.about || "Connected on Six9Chat",
+                      unreadCount: 0,
+                    };
+                    serverContacts.unshift(restoredContact);
+                    savedTargetId = partnerProfile.id;
+                  }
+                } else {
+                  // No verified conversation exists! Clear stale target to prevent unapproved chats
+                  savedTargetId = "";
+                  try {
+                    localStorage.removeItem("six9chat_active_chat");
+                    const url = new URL(window.location.href);
+                    if (url.searchParams.has("c")) {
+                      url.searchParams.delete("c");
+                      window.history.replaceState({}, "", url.toString());
+                    }
+                  } catch {}
                 }
               } catch {}
             }
@@ -1267,6 +1255,20 @@ export function useRealtimeChat() {
 
     // Direct Supabase client sync fallback
     try {
+      if (currentUser?.id && req.senderId) {
+        const [u1, u2] = [currentUser.id, req.senderId].sort();
+        await supabase
+          .from("conversations")
+          .upsert(
+            {
+              user1_id: u1,
+              user2_id: u2,
+              last_message: "Chat request accepted. Say hi! 👋",
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user1_id,user2_id" }
+          );
+      }
       await supabase
         .from("chat_requests")
         .update({ status: "accepted" })
@@ -1498,9 +1500,22 @@ export function useRealtimeChat() {
           body: JSON.stringify({
             senderId: currentUser.id,
             receiverId: targetUserId,
-            message: `${currentUser.name} wants to start a conversation with you`,
+            message: `${currentUser.name || currentUser.username || "User"} wants to start a conversation with you`,
           }),
         });
+
+        // Direct client Supabase fallback
+        try {
+          await supabase.from("chat_requests").upsert(
+            {
+              sender_id: currentUser.id,
+              receiver_id: targetUserId,
+              status: "pending",
+              message: `${currentUser.name || currentUser.username || "User"} wants to start a conversation with you`,
+            },
+            { onConflict: "sender_id,receiver_id" }
+          );
+        } catch {}
 
         channelRef.current?.send({
           type: "broadcast",
