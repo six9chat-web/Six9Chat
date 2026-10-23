@@ -44,6 +44,8 @@ export async function POST(req: Request) {
       reactions,
       status,
       createdAt,
+      replyTo,
+      reply_to,
     } = body;
 
     if (!id || !senderId) {
@@ -67,6 +69,7 @@ export async function POST(req: Request) {
       reactions: reactions || [],
       status: status || "delivered",
       createdAt,
+      replyTo: replyTo || reply_to,
     });
 
     return NextResponse.json({ success: true, message: saved });

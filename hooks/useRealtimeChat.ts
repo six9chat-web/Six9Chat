@@ -479,6 +479,7 @@ export function useRealtimeChat() {
             mediaUrl: (newRecord.media_url as string) || undefined,
             mediaMeta: (newRecord.media_meta as MediaMeta) || undefined,
             reactions: (newRecord.reactions as MessageReaction[]) || [],
+            replyTo: ((newRecord.reply_to || newRecord.replyTo || undefined) as any),
           };
 
           setMessagesMap((prev) => {
@@ -801,7 +802,8 @@ export function useRealtimeChat() {
       text: string,
       mediaType: MediaType = "text",
       mediaMeta?: MediaMeta,
-      mediaUrl?: string
+      mediaUrl?: string,
+      replyTo?: { id: string; senderName: string; text: string }
     ) => {
       if (!text.trim() && !mediaUrl && mediaType === "text") return;
 
@@ -828,6 +830,7 @@ export function useRealtimeChat() {
         mediaUrl,
         mediaMeta,
         reactions: [],
+        replyTo,
       };
 
       // 1. Optimistic update
@@ -863,6 +866,7 @@ export function useRealtimeChat() {
             payload: {
               ...newMsg,
               receiverId: activeContactId,
+              replyTo,
             },
           });
         } catch (err) {
@@ -889,6 +893,7 @@ export function useRealtimeChat() {
             reactions: [],
             status: "delivered",
             createdAt: now.toISOString(),
+            replyTo,
           }),
         });
 
@@ -922,6 +927,7 @@ export function useRealtimeChat() {
                 media_url: newMsg.mediaUrl || null,
                 status: "delivered",
                 created_at: now.toISOString(),
+                reply_to: replyTo || null,
               },
               { onConflict: "id" }
             );

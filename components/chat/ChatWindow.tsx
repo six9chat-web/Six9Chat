@@ -15,7 +15,8 @@ interface ChatWindowProps {
     text: string,
     mediaType?: MediaType,
     mediaMeta?: MediaMeta,
-    mediaUrl?: string
+    mediaUrl?: string,
+    replyTo?: { id: string; senderName: string; text: string }
   ) => void;
   onReactToMessage?: (messageId: string, emoji: string) => void;
   onBackToSidebar?: () => void;
@@ -45,7 +46,18 @@ export function ChatWindow({
   const [chatSearchQuery, setChatSearchQuery] = useState("");
   const [isSendingRequest, setIsSendingRequest] = useState(false);
   const [hasSentRequest, setHasSentRequest] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<{ id: string; senderName: string; text: string } | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleReply = (msg: ChatMessage) => {
+    const senderLabel = msg.isSelf ? "You" : (contact.name || msg.senderName || "User");
+    const previewText = msg.text || (msg.mediaType ? `[${msg.mediaType.toUpperCase()}]` : "Attachment");
+    setReplyingTo({
+      id: msg.id,
+      senderName: senderLabel,
+      text: previewText,
+    });
+  };
 
   // Filter messages if search is active
   const displayedMessages = useMemo(() => {
@@ -85,6 +97,7 @@ export function ChatWindow({
 
   useEffect(() => {
     setHasSentRequest(false);
+    setReplyingTo(null);
   }, [contact.id]);
 
   const handleSendRequest = async () => {
@@ -237,6 +250,7 @@ export function ChatWindow({
                   message={msg}
                   isFirstInGroup={isFirstInGroup}
                   onReact={onReactToMessage}
+                  onReply={handleReply}
                 />
               );
             })}
@@ -348,7 +362,11 @@ export function ChatWindow({
           </div>
         </div>
       ) : (
-        <ChatInput onSendMessage={onSendMessage} />
+        <ChatInput
+          onSendMessage={onSendMessage}
+          replyingTo={replyingTo}
+          onCancelReply={() => setReplyingTo(null)}
+        />
       )}
     </div>
   );

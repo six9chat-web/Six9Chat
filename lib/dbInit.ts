@@ -72,10 +72,21 @@ export async function ensureDatabaseTablesExist() {
           media_url TEXT,
           media_meta JSONB,
           reactions JSONB DEFAULT '[]'::jsonb,
+          reply_to JSONB,
           status TEXT DEFAULT 'delivered',
           is_read BOOLEAN DEFAULT false,
           created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
         );
+
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = 'messages' AND column_name = 'reply_to'
+          ) THEN
+            ALTER TABLE public.messages ADD COLUMN reply_to JSONB;
+          END IF;
+        END $$;
 
         CREATE TABLE IF NOT EXISTS public.chat_requests (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -63,23 +63,31 @@ export function NewChatPanel({
   const [removedUserIds, setRemovedUserIds] = useState<Set<string>>(new Set());
   const [requestingUserId, setRequestingUserId] = useState<string | null>(null);
 
-  // Load existing pending requests sent by currentUser
+  // Load existing pending requests involving currentUser in either direction
   useEffect(() => {
     if (!isOpen || !currentUser?.id) return;
     supabase
       .from("chat_requests")
-      .select("receiver_id")
-      .eq("sender_id", currentUser.id)
-      .eq("status", "pending")
-      .then((res: { data: Array<{ receiver_id: string }> | null }) => {
+      .select("sender_id, receiver_id, status")
+      .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
+      .in("status", ["pending", "accepted"])
+      .then((res: { data: Array<{ sender_id: string; receiver_id: string; status: string }> | null }) => {
         if (res?.data) {
-          setSentRequests(new Set(res.data.map((r: { receiver_id: string }) => r.receiver_id)));
+          const ids = new Set<string>();
+          res.data.forEach((r) => {
+            const partner = r.sender_id === currentUser.id ? r.receiver_id : r.sender_id;
+            if (partner) ids.add(partner);
+          });
+          setSentRequests(ids);
         }
       });
   }, [isOpen, currentUser?.id]);
 
   const handleSendRequest = async (e: React.MouseEvent, user: { id: string }) => {
     e.stopPropagation();
+    // Prevent double-clicks and redundant calls
+    if (requestingUserId === user.id || sentRequests.has(user.id)) return;
+
     try {
       setRequestingUserId(user.id);
       if (onSendChatRequest) {
@@ -443,9 +451,9 @@ export function NewChatPanel({
                 ) : (
                   <button
                     type="button"
-                    disabled={requestingUserId === user.id}
+                    disabled={requestingUserId === user.id || sentRequests.has(user.id)}
                     onClick={(e) => handleSendRequest(e, user)}
-                    className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] text-[#086288] hover:brightness-105 active:scale-95 text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shadow-sm"
+                    className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] text-[#086288] hover:brightness-105 active:scale-95 text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                     title="Send chat request"
                   >
                     {requestingUserId === user.id ? (

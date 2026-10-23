@@ -25,12 +25,20 @@ interface ChatInputProps {
     text: string,
     mediaType?: MediaType,
     mediaMeta?: MediaMeta,
-    mediaUrl?: string
+    mediaUrl?: string,
+    replyTo?: { id: string; senderName: string; text: string }
   ) => void;
   disabled?: boolean;
+  replyingTo?: { id: string; senderName: string; text: string } | null;
+  onCancelReply?: () => void;
 }
 
-export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
+export function ChatInput({
+  onSendMessage,
+  disabled = false,
+  replyingTo,
+  onCancelReply,
+}: ChatInputProps) {
   const { t } = useTranslation();
   const [text, setText] = useState("");
   const [showAttachMenu, setShowAttachMenu] = useState(false);
@@ -59,6 +67,13 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
     }
   }, [text]);
 
+  // Focus textarea when replyingTo changes
+  useEffect(() => {
+    if (replyingTo && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [replyingTo]);
+
   const [prevIsRecording, setPrevIsRecording] = useState(isRecording);
   if (prevIsRecording !== isRecording) {
     setPrevIsRecording(isRecording);
@@ -83,8 +98,9 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
 
   const handleSend = () => {
     if (!text.trim()) return;
-    onSendMessage(text.trim(), "text");
+    onSendMessage(text.trim(), "text", undefined, undefined, replyingTo || undefined);
     setText("");
+    onCancelReply?.();
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.focus();
@@ -302,6 +318,35 @@ export function ChatInput({ onSendMessage, disabled = false }: ChatInputProps) {
             }}
             onClose={() => setShowEmojiPicker(false)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* WhatsApp-Style Quoted / Reply Preview Box */}
+      <AnimatePresence>
+        {replyingTo && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto" }}
+            exit={{ opacity: 0, y: 8, height: 0 }}
+            className="mb-2 p-2.5 px-3 bg-[#032433] border border-[#4D8DBA]/50 border-l-4 border-l-[#97D7FF] rounded-xl flex items-center justify-between shadow-lg backdrop-blur-md"
+          >
+            <div className="flex-1 min-w-0 pr-3">
+              <div className="text-xs font-bold text-[#97D7FF] truncate flex items-center gap-1.5">
+                <span>Replying to {replyingTo.senderName}</span>
+              </div>
+              <div className="text-xs text-slate-300 truncate mt-0.5">
+                {replyingTo.text}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onCancelReply}
+              className="p-1 rounded-full hover:bg-[#4D8DBA]/30 text-slate-400 hover:text-white transition cursor-pointer shrink-0"
+              title="Cancel reply"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
 

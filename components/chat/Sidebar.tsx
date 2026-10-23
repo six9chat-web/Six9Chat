@@ -118,7 +118,7 @@ export function Sidebar({
     <aside className="w-full h-full min-h-0 flex flex-col bg-[#053b53] border-r border-[#4D8DBA]/30 z-20 shrink-0 select-none overflow-hidden relative">
 
       {/* 1. Header Bar: Profile Avatar + Username + Notification Bell + New Chat Button */}
-      <div className="h-16 px-4 bg-[#086288] border-b border-[#4D8DBA]/35 backdrop-blur-xl flex items-center justify-between shrink-0">
+      <div className="h-16 px-4 bg-[#086288] border-b border-[#4D8DBA]/35 backdrop-blur-xl flex items-center justify-between shrink-0 relative z-50">
         <div className="flex items-center gap-3 min-w-0">
           {/* User Profile Avatar / Settings trigger */}
           <button

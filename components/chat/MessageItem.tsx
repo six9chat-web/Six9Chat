@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check,
@@ -11,6 +11,7 @@ import {
   FileText,
   Download,
   Smile,
+  Reply,
   Phone,
   Video,
 } from "lucide-react";
@@ -21,15 +22,26 @@ interface MessageItemProps {
   message: ChatMessage;
   isFirstInGroup?: boolean;
   onReact?: (messageId: string, emoji: string) => void;
+  onReply?: (message: ChatMessage) => void;
 }
 
 export function MessageItem({
   message,
   isFirstInGroup = true,
   onReact,
+  onReply,
 }: MessageItemProps) {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const lastTapRef = useRef<number>(0);
+
+  const handleTouchEnd = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      onReply?.(message);
+    }
+    lastTapRef.current = now;
+  };
 
   const toggleAudioPlay = () => {
     setIsPlayingAudio((prev) => !prev);
@@ -123,19 +135,39 @@ export function MessageItem({
       {/* Bubble Container:
           - Outgoing (Self): #086288 or #97D7FF (Ocean blue accent bubble)
           - Incoming: #053b53 or #FFEFC4 (Dark slate/cream bubble)
+          - WhatsApp-style double-click / double-tap to reply
       */}
       <div
+        onDoubleClick={() => onReply?.(message)}
+        onTouchEnd={handleTouchEnd}
+        title="Double-click or double-tap to reply"
         className={cn(
-          "relative max-w-[85%] sm:max-w-[70%] md:max-w-[60%] rounded-2xl shadow-md transition-all",
+          "relative max-w-[85%] sm:max-w-[70%] md:max-w-[60%] rounded-2xl shadow-md transition-all select-text cursor-pointer",
           message.isSelf
             ? "bg-[#086288] text-white rounded-br-xs border border-[#4D8DBA]/50 shadow-[#086288]/30"
             : "bg-[#053b53] text-white rounded-bl-xs border border-[#4D8DBA]/40 shadow-[#053b53]/40"
         )}
       >
-        {/* Sender Name in group */}
-        {!message.isSelf && isFirstInGroup && (
-          <div className="px-3.5 pt-2 pb-0.5 text-xs font-bold text-[#97D7FF] flex items-center gap-1.5">
-            <span>{message.senderName}</span>
+        {/* Sender Name in group chats only (NEVER show static Contact label in 1-on-1 chats) */}
+        {!message.isSelf &&
+          isFirstInGroup &&
+          message.conversationId?.startsWith("group-") &&
+          message.senderName &&
+          message.senderName !== "Contact" && (
+            <div className="px-3.5 pt-2 pb-0.5 text-xs font-bold text-[#97D7FF] flex items-center gap-1.5">
+              <span>{message.senderName}</span>
+            </div>
+          )}
+
+        {/* WhatsApp-Style Quoted / Reply Preview Box */}
+        {message.replyTo && (
+          <div className="mx-2 mt-2 p-2 rounded-lg bg-black/25 border-l-4 border-[#97D7FF] text-left text-xs select-none">
+            <div className="font-bold text-[#97D7FF] text-[11px] truncate">
+              {message.replyTo.senderName || "User"}
+            </div>
+            <div className="text-slate-200 text-xs truncate max-w-xs mt-0.5 opacity-90">
+              {message.replyTo.text || "Media"}
+            </div>
           </div>
         )}
 
@@ -279,6 +311,15 @@ export function MessageItem({
           message.isSelf ? "order-first" : "order-last"
         )}
       >
+        <button
+          type="button"
+          onClick={() => onReply?.(message)}
+          className="p-1 rounded-full hover:bg-[#4D8DBA]/25 text-slate-400 hover:text-[#97D7FF] transition cursor-pointer"
+          title="Reply (or double-tap)"
+        >
+          <Reply className="w-4 h-4" />
+        </button>
+
         <button
           type="button"
           onClick={() => setShowReactionPicker((p) => !p)}

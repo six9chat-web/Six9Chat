@@ -12,6 +12,33 @@ export async function POST(req: Request) {
       );
     }
 
+    if (senderId === receiverId) {
+      return NextResponse.json(
+        { success: false, error: "Cannot send request to yourself" },
+        { status: 400 }
+      );
+    }
+
+    // 1. Strict database check: Ensure if request already exists in either direction with status 'pending' or 'accepted', do NOT duplicate
+    const { data: existing } = await supabaseServer
+      .from("chat_requests")
+      .select("id, sender_id, receiver_id, status")
+      .or(
+        `and(sender_id.eq.${senderId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${senderId})`
+      )
+      .in("status", ["pending", "accepted"])
+      .maybeSingle();
+
+    if (existing) {
+      return NextResponse.json({
+        success: true,
+        alreadyExists: true,
+        message: existing.status === "accepted" ? "Already friends" : "Chat request already pending",
+        request: existing,
+      });
+    }
+
+    // 2. Safe upsert with pending status
     const { data, error } = await supabaseServer
       .from("chat_requests")
       .upsert(
@@ -20,6 +47,7 @@ export async function POST(req: Request) {
           receiver_id: receiverId,
           status: "pending",
           message: message || "wants to start a conversation with you",
+          updated_at: new Date().toISOString(),
         },
         { onConflict: "sender_id,receiver_id" }
       )

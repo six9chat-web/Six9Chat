@@ -87,7 +87,7 @@ export function NotificationBell({
   };
 
   return (
-    <div ref={containerRef} className="relative inline-block">
+    <div ref={containerRef} className="relative inline-block z-50">
       {/* 1. Header Bar Notification Bell Trigger */}
       <button
         type="button"
@@ -117,7 +117,7 @@ export function NotificationBell({
           <>
             {/* Backdrop overlay for outside click */}
             <div
-              className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[0.5px]"
+              className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[0.5px]"
               onClick={() => setIsOpen(false)}
               aria-hidden="true"
             />
@@ -129,7 +129,7 @@ export function NotificationBell({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -6 }}
               transition={{ duration: 0.15, ease: "easeOut" }}
-              className="absolute right-0 top-full mt-2 w-80 rounded-2xl bg-[#086288] border border-[#4D8DBA]/70 p-3.5 shadow-2xl backdrop-blur-2xl text-slate-100 overflow-hidden flex flex-col max-h-[75vh] z-50 ring-1 ring-[#97D7FF]/35"
+              className="absolute right-0 top-full mt-2 w-80 sm:w-88 rounded-2xl bg-[#053b53] border border-[#4D8DBA]/70 p-3.5 shadow-2xl backdrop-blur-2xl text-slate-100 flex flex-col max-h-[75vh] z-50 ring-1 ring-[#97D7FF]/40"
             >
               {/* Header with crisp Close Cross button */}
               <div className="flex items-center justify-between pb-3 border-b border-[#4D8DBA]/35 shrink-0">

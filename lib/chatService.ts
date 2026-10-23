@@ -13,6 +13,7 @@ export interface DBMessage {
   media_url?: string;
   media_meta?: MediaMeta;
   reactions?: MessageReaction[];
+  reply_to?: { id: string; senderName: string; text: string };
   status?: string;
   created_at: string;
 }
@@ -121,6 +122,7 @@ export async function saveMessage(msg: {
   mediaUrl?: string;
   mediaMeta?: MediaMeta;
   reactions?: MessageReaction[];
+  replyTo?: { id: string; senderName: string; text: string };
   status?: string;
   createdAt?: string;
 }): Promise<DBMessage> {
@@ -144,6 +146,7 @@ export async function saveMessage(msg: {
     media_url: msg.mediaUrl || undefined,
     media_meta: msg.mediaMeta || undefined,
     reactions: msg.reactions || [],
+    reply_to: msg.replyTo,
     status: msg.status || "delivered",
     created_at: msg.createdAt || new Date().toISOString(),
   };
@@ -199,6 +202,7 @@ export async function saveMessage(msg: {
         media_url: record.media_url,
         media_meta: record.media_meta,
         reactions: record.reactions,
+        reply_to: record.reply_to || null,
         status: record.status,
         created_at: record.created_at,
       },
@@ -274,6 +278,7 @@ export async function getConversationMessages(
             media_type: row.media_type,
             media_url: row.media_url,
             media_meta: row.media_meta,
+            reply_to: row.reply_to || undefined,
             reactions: row.reactions || [],
             status: row.status,
             created_at: row.created_at,
@@ -324,6 +329,7 @@ export async function getConversationMessages(
     mediaUrl: m.media_url || undefined,
     mediaMeta: m.media_meta || undefined,
     reactions: m.reactions || [],
+    replyTo: m.reply_to || (m as any).replyTo || undefined,
   }));
 }
 
