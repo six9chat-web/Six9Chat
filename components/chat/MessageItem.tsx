@@ -14,15 +14,28 @@ import {
   Reply,
   Phone,
   Video,
+  ChevronDown,
+  Copy,
+  Forward,
+  CheckSquare,
+  Trash2,
 } from "lucide-react";
 import { ChatMessage, MessageStatus } from "@/types/chat";
 import { cn } from "@/lib/utils";
+import { useClickOutside } from "@/hooks/useClickOutside";
 
-interface MessageItemProps {
+export interface MessageItemProps {
   message: ChatMessage;
   isFirstInGroup?: boolean;
   onReact?: (messageId: string, emoji: string) => void;
   onReply?: (message: ChatMessage) => void;
+  onCopy?: (message: ChatMessage) => void;
+  onForward?: (message: ChatMessage) => void;
+  onSelect?: (messageId: string) => void;
+  onDelete?: (message: ChatMessage) => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (messageId: string) => void;
 }
 
 export function MessageItem({
@@ -30,18 +43,32 @@ export function MessageItem({
   isFirstInGroup = true,
   onReact,
   onReply,
+  onCopy,
+  onForward,
+  onSelect,
+  onDelete,
+  isSelectionMode = false,
+  isSelected = false,
+  onToggleSelect,
 }: MessageItemProps) {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<number>(0);
 
+  // Close context menu when clicking outside
+  useClickOutside(menuRef, () => setShowMenu(false), showMenu);
+
   const handleTouchEnd = () => {
+    if (isSelectionMode) return;
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
       onReply?.(message);
     }
     lastTapRef.current = now;
   };
+
 
   const toggleAudioPlay = () => {
     setIsPlayingAudio((prev) => !prev);
@@ -128,26 +155,172 @@ export function MessageItem({
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
       className={cn(
-        "group relative flex items-end gap-1.5 w-full my-1 px-2 sm:px-4",
+        "group relative flex items-end gap-2 w-full my-1 px-2 sm:px-4",
         message.isSelf ? "justify-end" : "justify-start"
       )}
     >
+      {/* Multi-Selection Checkbox (WhatsApp Web style) */}
+      {isSelectionMode && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect?.(message.id);
+          }}
+          className={cn(
+            "self-center p-1 cursor-pointer shrink-0 z-20",
+            message.isSelf ? "order-last ml-1" : "order-first mr-1"
+          )}
+          title={isSelected ? "Deselect message" : "Select message"}
+        >
+          <div
+            className={cn(
+              "w-5 h-5 rounded-md border flex items-center justify-center transition-all",
+              isSelected
+                ? "bg-[#97D7FF] border-[#97D7FF] text-[#086288]"
+                : "border-slate-400 hover:border-[#97D7FF] bg-black/30"
+            )}
+          >
+            {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+          </div>
+        </div>
+      )}
+
       {/* Bubble Container:
           - Outgoing (Self): #086288 or #97D7FF (Ocean blue accent bubble)
           - Incoming: #053b53 or #FFEFC4 (Dark slate/cream bubble)
           - WhatsApp-style double-click / double-tap to reply
       */}
       <div
-        onDoubleClick={() => onReply?.(message)}
+        onClick={(e) => {
+          if (isSelectionMode) {
+            e.stopPropagation();
+            onToggleSelect?.(message.id);
+          }
+        }}
+        onDoubleClick={() => {
+          if (!isSelectionMode) {
+            onReply?.(message);
+          }
+        }}
         onTouchEnd={handleTouchEnd}
-        title="Double-click or double-tap to reply"
+        title={isSelectionMode ? "Click to toggle selection" : "Double-click or double-tap to reply"}
         className={cn(
           "relative max-w-[85%] sm:max-w-[70%] md:max-w-[60%] rounded-2xl shadow-md transition-all select-text cursor-pointer",
           message.isSelf
             ? "bg-[#086288] text-white rounded-br-xs border border-[#4D8DBA]/50 shadow-[#086288]/30"
-            : "bg-[#053b53] text-white rounded-bl-xs border border-[#4D8DBA]/40 shadow-[#053b53]/40"
+            : "bg-[#053b53] text-white rounded-bl-xs border border-[#4D8DBA]/40 shadow-[#053b53]/40",
+          isSelectionMode && isSelected && "ring-2 ring-[#97D7FF] brightness-105"
         )}
       >
+        {/* WhatsApp Web Style Hover Chevron Down Trigger & Floating Dropdown */}
+        {!isSelectionMode && (
+          <div className="absolute top-1.5 right-1.5 z-30">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMenu((prev) => !prev);
+              }}
+              className={cn(
+                "w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm",
+                "text-slate-300 hover:text-white bg-black/30 hover:bg-black/60 backdrop-blur-xs",
+                showMenu
+                  ? "opacity-100 ring-1 ring-[#97D7FF]/60 bg-black/70 text-[#97D7FF]"
+                  : "opacity-0 group-hover:opacity-100"
+              )}
+              title="Message options"
+              aria-label="Message options"
+            >
+              <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+            </button>
+
+            {/* Context Dropdown Menu (Exact 5 Core Actions) */}
+            <AnimatePresence>
+              {showMenu && (
+                <motion.div
+                  ref={menuRef}
+                  initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.12 }}
+                  className={cn(
+                    "absolute top-7 z-50 min-w-[170px] py-1.5 rounded-xl bg-[#032433] border border-[#4D8DBA]/50 shadow-2xl backdrop-blur-xl text-left text-xs select-none",
+                    message.isSelf ? "right-0" : "right-0 sm:left-0 sm:right-auto"
+                  )}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* 1. Reply */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onReply?.(message);
+                    }}
+                    className="w-full px-3.5 py-2 flex items-center gap-2.5 text-slate-200 hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer"
+                  >
+                    <Reply className="w-4 h-4 text-[#97D7FF]" />
+                    <span>Reply</span>
+                  </button>
+
+                  {/* 2. Copy */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onCopy?.(message);
+                    }}
+                    className="w-full px-3.5 py-2 flex items-center gap-2.5 text-slate-200 hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer"
+                  >
+                    <Copy className="w-4 h-4 text-emerald-300" />
+                    <span>Copy</span>
+                  </button>
+
+                  {/* 3. Forward */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onForward?.(message);
+                    }}
+                    className="w-full px-3.5 py-2 flex items-center gap-2.5 text-slate-200 hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer"
+                  >
+                    <Forward className="w-4 h-4 text-sky-300" />
+                    <span>Forward</span>
+                  </button>
+
+                  {/* 4. Select */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onSelect?.(message.id);
+                    }}
+                    className="w-full px-3.5 py-2 flex items-center gap-2.5 text-slate-200 hover:text-white hover:bg-[#4D8DBA]/25 transition cursor-pointer"
+                  >
+                    <CheckSquare className="w-4 h-4 text-amber-300" />
+                    <span>Select</span>
+                  </button>
+
+                  <div className="h-px my-1 bg-[#4D8DBA]/30" />
+
+                  {/* 5. Delete */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onDelete?.(message);
+                    }}
+                    className="w-full px-3.5 py-2 flex items-center gap-2.5 text-rose-300 hover:text-rose-200 hover:bg-rose-500/20 transition cursor-pointer font-medium"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-400" />
+                    <span>Delete</span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
         {/* Sender Name in group chats only (NEVER show static Contact label in 1-on-1 chats) */}
         {!message.isSelf &&
           isFirstInGroup &&
@@ -265,10 +438,11 @@ export function MessageItem({
 
         {/* Text Message Content */}
         {message.text && (
-          <div className="px-3.5 py-1.5 text-xs sm:text-sm font-normal leading-relaxed break-words whitespace-pre-wrap">
+          <div className="px-3.5 pr-7 py-1.5 text-xs sm:text-sm font-normal leading-relaxed break-words whitespace-pre-wrap">
             {message.text}
           </div>
         )}
+
 
         {/* Timestamp and Delivery Status Bar */}
         <div className="flex items-center justify-end gap-1 px-3 pb-1.5 -mt-0.5 text-[10px] font-medium text-slate-300 select-none">

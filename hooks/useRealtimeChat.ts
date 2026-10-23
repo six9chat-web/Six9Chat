@@ -450,6 +450,31 @@ export function useRealtimeChat() {
         }
       );
 
+      // 7b. Listen for real-time broadcast message_deleted events
+      channel.on(
+        "broadcast",
+        { event: "message_deleted" },
+        (payload: { payload: { messageId?: string; messageIds?: string[] } }) => {
+          const singleId = payload.payload?.messageId;
+          const multiIds = payload.payload?.messageIds;
+          const removeSet = new Set<string>();
+          if (singleId) removeSet.add(singleId);
+          if (multiIds && Array.isArray(multiIds)) {
+            multiIds.forEach((id) => removeSet.add(id));
+          }
+
+          if (removeSet.size > 0) {
+            setMessagesMap((prev) => {
+              const res = { ...prev };
+              for (const key of Object.keys(res)) {
+                res[key] = res[key].filter((m) => !removeSet.has(m.id));
+              }
+              return res;
+            });
+          }
+        }
+      );
+
       // 8. Listen for postgres changes on messages table
       channel.on(
         "postgres_changes",
@@ -587,6 +612,24 @@ export function useRealtimeChat() {
                       : m
                   );
                 }
+              }
+              return res;
+            });
+          }
+        }
+      );
+
+      // 8b. Listen for message deletion in postgres
+      channel.on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "messages" },
+        (payload: { old: Record<string, unknown> | null }) => {
+          const deletedId = (payload.old as { id?: string })?.id;
+          if (deletedId) {
+            setMessagesMap((prev) => {
+              const res = { ...prev };
+              for (const key of Object.keys(res)) {
+                res[key] = res[key].filter((m) => m.id !== deletedId);
               }
               return res;
             });
@@ -816,18 +859,21 @@ export function useRealtimeChat() {
     }, 1200);
   }, [contacts]);
 
-  // Send message action
+  // Send message action (supports sending to active chat or forwarding to any destination contact)
   const sendMessage = useCallback(
     async (
       text: string,
       mediaType: MediaType = "text",
       mediaMeta?: MediaMeta,
       mediaUrl?: string,
-      replyTo?: { id: string; senderName: string; text: string }
+      replyTo?: { id: string; senderName: string; text: string },
+      targetContactId?: string
     ) => {
+      const destId = targetContactId || activeContactId;
+      if (!destId) return;
       if (!text.trim() && !mediaUrl && mediaType === "text") return;
 
-      const currentContact = contacts.find((c) => c.id === activeContactId);
+      const currentContact = contacts.find((c) => c.id === destId);
       if (currentContact?.isBlocked || currentContact?.isUnfriended || currentContact?.isUnfriendedByPartner) return;
 
       const now = new Date();
@@ -836,7 +882,7 @@ export function useRealtimeChat() {
 
       const newMsg: ChatMessage = {
         id: msgId,
-        conversationId: activeContactId,
+        conversationId: destId,
         senderId: currentUser.id,
         senderName: currentUser.name || "You",
         senderAvatar: currentUser.avatar || "",
@@ -856,13 +902,13 @@ export function useRealtimeChat() {
       // 1. Optimistic update
       setMessagesMap((prev) => ({
         ...prev,
-        [activeContactId]: [...(prev[activeContactId] || []), newMsg],
+        [destId]: [...(prev[destId] || []), newMsg],
       }));
 
       // 2. Update contact list preview
       setContacts((prev) =>
         prev.map((c) =>
-          c.id === activeContactId
+          c.id === destId
             ? {
                 ...c,
                 lastMessage: {
@@ -885,7 +931,7 @@ export function useRealtimeChat() {
             event: "new_message",
             payload: {
               ...newMsg,
-              receiverId: activeContactId,
+              receiverId: destId,
               replyTo,
             },
           });
@@ -901,9 +947,9 @@ export function useRealtimeChat() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             id: newMsg.id,
-            conversationId: activeContactId,
+            conversationId: destId,
             senderId: currentUser.id,
-            receiverId: activeContactId,
+            receiverId: destId,
             senderName: currentUser.name,
             senderAvatar: currentUser.avatar,
             text: newMsg.text,
@@ -922,8 +968,8 @@ export function useRealtimeChat() {
         // Direct client Supabase fallback write
         try {
           let convUuid = "";
-          if (!activeContactId.startsWith("group-")) {
-            const [u1, u2] = [currentUser.id, activeContactId].sort();
+          if (!destId.startsWith("group-")) {
+            const [u1, u2] = [currentUser.id, destId].sort();
             const { data: convRow } = await supabase
               .from("conversations")
               .upsert(
@@ -941,13 +987,13 @@ export function useRealtimeChat() {
             if (convRow?.id) convUuid = convRow.id;
           }
 
-          const targetConvId = convUuid || activeContactId;
+          const targetConvId = convUuid || destId;
           await supabase.from("messages").upsert(
             {
               id: newMsg.id,
               conversation_id: targetConvId,
               sender_id: currentUser.id,
-              receiver_id: activeContactId,
+              receiver_id: destId,
               content: newMsg.text,
               text: newMsg.text,
               media_type: newMsg.mediaType || "text",
@@ -964,7 +1010,7 @@ export function useRealtimeChat() {
 
         setMessagesMap((prev) => ({
           ...prev,
-          [activeContactId]: (prev[activeContactId] || []).map((m) =>
+          [destId]: (prev[destId] || []).map((m) =>
             m.id === msgId ? { ...m, status: "delivered" } : m
           ),
         }));
@@ -973,11 +1019,11 @@ export function useRealtimeChat() {
       }
 
       // Only simulate bot replies on demo contacts
-      if (activeContactId.startsWith("contact-")) {
-        simulateReply(activeContactId, text);
+      if (destId.startsWith("contact-")) {
+        simulateReply(destId, text);
       }
     },
-    [activeContactId, currentUser, simulateReply]
+    [activeContactId, contacts, currentUser, simulateReply]
   );
 
   // Reaction toggling with Realtime sync and database persistence
@@ -1054,6 +1100,109 @@ export function useRealtimeChat() {
     },
     [activeContactId, currentUser.id]
   );
+
+  // --------------------------------------------------------------------------
+  // Message Deletion (Single & Bulk with "Delete for Me" and "Delete for Everyone")
+  // --------------------------------------------------------------------------
+  const deleteMessage = useCallback(
+    async (messageId: string, deleteForEveryone: boolean) => {
+      // 1. Immediately remove from local messagesMap
+      setMessagesMap((prev) => {
+        const next = { ...prev };
+        for (const k of Object.keys(next)) {
+          next[k] = next[k].filter((m) => m.id !== messageId);
+        }
+        return next;
+      });
+
+      // 2. Persist locally for "Delete for Me"
+      if (!deleteForEveryone && currentUser?.id) {
+        try {
+          const key = `six9_deleted_msg_${currentUser.id}`;
+          const currentDeleted: string[] = JSON.parse(localStorage.getItem(key) || "[]");
+          if (!currentDeleted.includes(messageId)) {
+            currentDeleted.push(messageId);
+            localStorage.setItem(key, JSON.stringify(currentDeleted.slice(-300)));
+          }
+        } catch {}
+        return;
+      }
+
+      // 3. Delete for Everyone (Supabase DELETE, realtime broadcast & server API)
+      if (deleteForEveryone) {
+        try {
+          channelRef.current?.send({
+            type: "broadcast",
+            event: "message_deleted",
+            payload: { messageId, conversationId: activeContactId },
+          });
+        } catch {}
+
+        try {
+          await supabase.from("messages").delete().eq("id", messageId);
+        } catch {}
+
+        try {
+          await fetch(`/api/chat/messages?id=${encodeURIComponent(messageId)}`, {
+            method: "DELETE",
+          });
+        } catch {}
+      }
+    },
+    [activeContactId, currentUser?.id]
+  );
+
+  const deleteMultipleMessages = useCallback(
+    async (messageIds: string[], deleteForEveryone: boolean) => {
+      if (!messageIds || messageIds.length === 0) return;
+      const idSet = new Set(messageIds);
+
+      // 1. Remove from local messagesMap
+      setMessagesMap((prev) => {
+        const next = { ...prev };
+        for (const k of Object.keys(next)) {
+          next[k] = next[k].filter((m) => !idSet.has(m.id));
+        }
+        return next;
+      });
+
+      // 2. Persist locally for "Delete for Me"
+      if (!deleteForEveryone && currentUser?.id) {
+        try {
+          const key = `six9_deleted_msg_${currentUser.id}`;
+          const currentDeleted: string[] = JSON.parse(localStorage.getItem(key) || "[]");
+          messageIds.forEach((id) => {
+            if (!currentDeleted.includes(id)) currentDeleted.push(id);
+          });
+          localStorage.setItem(key, JSON.stringify(currentDeleted.slice(-300)));
+        } catch {}
+        return;
+      }
+
+      // 3. Delete for Everyone
+      if (deleteForEveryone) {
+        try {
+          channelRef.current?.send({
+            type: "broadcast",
+            event: "message_deleted",
+            payload: { messageIds, conversationId: activeContactId },
+          });
+        } catch {}
+
+        try {
+          await supabase.from("messages").delete().in("id", messageIds);
+        } catch {}
+
+        try {
+          await fetch(`/api/chat/messages?ids=${encodeURIComponent(messageIds.join(","))}`, {
+            method: "DELETE",
+          });
+        } catch {}
+      }
+    },
+    [activeContactId, currentUser?.id]
+  );
+
 
   // Call actions
   const startCall = useCallback((type: "audio" | "video") => {
@@ -1350,11 +1499,21 @@ export function useRealtimeChat() {
         );
         const data = await res.json();
         if (isMounted && data.success && Array.isArray(data.messages)) {
+          let visibleMessages = data.messages;
+          try {
+            const key = `six9_deleted_msg_${currentUser.id}`;
+            const deletedForMe: string[] = JSON.parse(localStorage.getItem(key) || "[]");
+            if (deletedForMe && deletedForMe.length > 0) {
+              visibleMessages = visibleMessages.filter((m: ChatMessage) => !deletedForMe.includes(m.id));
+            }
+          } catch {}
+
           setMessagesMap((prev) => ({
             ...prev,
-            [activeContactId]: data.messages,
+            [activeContactId]: visibleMessages,
           }));
         }
+
       } catch (err) {
         console.warn("Could not load messages history:", err);
       }
@@ -1898,7 +2057,10 @@ export function useRealtimeChat() {
     unblockUser,
     clearChat,
     deleteChat,
+    deleteMessage,
+    deleteMultipleMessages,
     unfriendUser,
     signOut: handleSignOut,
   };
 }
+

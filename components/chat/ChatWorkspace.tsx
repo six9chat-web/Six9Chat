@@ -62,8 +62,11 @@ export function ChatWorkspace() {
     unblockUser,
     clearChat,
     deleteChat,
+    deleteMessage,
+    deleteMultipleMessages,
     unfriendUser,
   } = useRealtimeChat();
+
 
   // Mobile viewport navigation state: 'sidebar' | 'chat'
   const [mobileView, setMobileView] = useState<"sidebar" | "chat">(() => {
@@ -209,8 +212,11 @@ export function ChatWorkspace() {
             <ChatWindow
               contact={activeContact}
               messages={activeMessages}
+              allContacts={allContacts}
               isTyping={isTyping}
               onSendMessage={sendMessage}
+              onDeleteMessage={deleteMessage}
+              onDeleteMultipleMessages={deleteMultipleMessages}
               onReactToMessage={addReaction}
               onBackToSidebar={handleBackToSidebarMobile}
               onVoiceCall={() => startCall("audio")}
@@ -223,6 +229,7 @@ export function ChatWorkspace() {
               onSendChatRequest={sendChatRequest}
               onDeleteConversation={deleteChat}
             />
+
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center select-none bg-gradient-to-b from-[#053b53] to-[#032433]">
               <div className="relative mb-6 flex flex-col items-center">

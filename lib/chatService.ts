@@ -217,6 +217,60 @@ export async function saveMessage(msg: {
 }
 
 /**
+ * Permanently delete a message from Supabase messages table and memory cache
+ */
+export async function deleteMessageFromDb(messageId: string): Promise<boolean> {
+  try {
+    messageLookup.delete(messageId);
+    for (const [convId, list] of memoryMessages.entries()) {
+      memoryMessages.set(convId, list.filter((m) => m.id !== messageId));
+    }
+
+    const { error } = await supabaseServer
+      .from("messages")
+      .delete()
+      .eq("id", messageId);
+
+    if (error) {
+      console.warn("[ChatService] deleteMessageFromDb db notice:", error);
+    }
+    return !error;
+  } catch (err) {
+    console.warn("[ChatService] deleteMessageFromDb exception:", err);
+    return false;
+  }
+}
+
+/**
+ * Permanently delete multiple messages from Supabase messages table and memory cache
+ */
+export async function deleteMultipleMessagesFromDb(messageIds: string[]): Promise<boolean> {
+  if (!messageIds || messageIds.length === 0) return true;
+  try {
+    for (const id of messageIds) {
+      messageLookup.delete(id);
+    }
+    for (const [convId, list] of memoryMessages.entries()) {
+      memoryMessages.set(convId, list.filter((m) => !messageIds.includes(m.id)));
+    }
+
+    const { error } = await supabaseServer
+      .from("messages")
+      .delete()
+      .in("id", messageIds);
+
+    if (error) {
+      console.warn("[ChatService] deleteMultipleMessagesFromDb db notice:", error);
+    }
+    return !error;
+  } catch (err) {
+    console.warn("[ChatService] deleteMultipleMessagesFromDb exception:", err);
+    return false;
+  }
+}
+
+
+/**
  * Fetch messages for a conversation or between two users
  */
 export async function getConversationMessages(

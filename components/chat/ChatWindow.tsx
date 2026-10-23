@@ -1,23 +1,39 @@
 "use client";
 
 import React, { useRef, useEffect, useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { ChatContact, ChatMessage, MediaType, MediaMeta } from "@/types/chat";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageItem } from "@/components/chat/MessageItem";
-import { ShieldAlert, UserPlus, Trash2, UserMinus, Check, Loader2 } from "lucide-react";
+import { ForwardModal } from "@/components/chat/ForwardModal";
+import { DeleteMessageModal } from "@/components/chat/DeleteMessageModal";
+import {
+  ShieldAlert,
+  UserPlus,
+  Trash2,
+  UserMinus,
+  Check,
+  Loader2,
+  X,
+  Forward,
+} from "lucide-react";
 
 interface ChatWindowProps {
   contact: ChatContact;
   messages: ChatMessage[];
+  allContacts?: ChatContact[];
   isTyping?: boolean;
   onSendMessage: (
     text: string,
     mediaType?: MediaType,
     mediaMeta?: MediaMeta,
     mediaUrl?: string,
-    replyTo?: { id: string; senderName: string; text: string }
+    replyTo?: { id: string; senderName: string; text: string },
+    targetContactId?: string
   ) => void;
+  onDeleteMessage?: (messageId: string, deleteForEveryone: boolean) => void;
+  onDeleteMultipleMessages?: (messageIds: string[], deleteForEveryone: boolean) => void;
   onReactToMessage?: (messageId: string, emoji: string) => void;
   onBackToSidebar?: () => void;
   onVoiceCall?: () => void;
@@ -31,8 +47,11 @@ interface ChatWindowProps {
 export function ChatWindow({
   contact,
   messages,
+  allContacts = [],
   isTyping = false,
   onSendMessage,
+  onDeleteMessage,
+  onDeleteMultipleMessages,
   onReactToMessage,
   onBackToSidebar,
   onVoiceCall,
@@ -47,8 +66,34 @@ export function ChatWindow({
   const [isSendingRequest, setIsSendingRequest] = useState(false);
   const [hasSentRequest, setHasSentRequest] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{ id: string; senderName: string; text: string } | null>(null);
+
+  // Multi-message selection mode
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
+
+  // Forward Modal State
+  const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
+  const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
+
+  // Delete Modal State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingMessage, setDeletingMessage] = useState<ChatMessage | null>(null);
+
+  // Quick Toast Notification State
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
+  const showToast = (text: string) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastMessage(text);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, 2400);
+  };
+
+  // 1. Reply Action
   const handleReply = (msg: ChatMessage) => {
     const senderLabel = msg.isSelf ? "You" : (contact.name || msg.senderName || "User");
     const previewText = msg.text || (msg.mediaType ? `[${msg.mediaType.toUpperCase()}]` : "Attachment");
@@ -58,6 +103,137 @@ export function ChatWindow({
       text: previewText,
     });
   };
+
+  // 2. Copy Action
+  const handleCopy = (msg: ChatMessage) => {
+    const textToCopy = msg.text || (msg.mediaType ? `[${msg.mediaType.toUpperCase()}]` : "");
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(textToCopy);
+      showToast("Message copied to clipboard");
+    }
+  };
+
+  // 3. Forward Action
+  const handleForward = (msg: ChatMessage) => {
+    setForwardingMessage(msg);
+    setIsForwardModalOpen(true);
+  };
+
+  const handleConfirmForward = (targetContactIds: string[]) => {
+    if (forwardingMessage) {
+      targetContactIds.forEach((destId) => {
+        onSendMessage(
+          forwardingMessage.text,
+          forwardingMessage.mediaType,
+          forwardingMessage.mediaMeta,
+          forwardingMessage.mediaUrl,
+          undefined,
+          destId
+        );
+      });
+      showToast(
+        `Message forwarded to ${targetContactIds.length} chat${targetContactIds.length > 1 ? "s" : ""}`
+      );
+      setForwardingMessage(null);
+      setIsForwardModalOpen(false);
+    } else if (isSelectionMode && selectedMessageIds.size > 0) {
+      const selectedMsgs = messages.filter((m) => selectedMessageIds.has(m.id));
+      selectedMsgs.forEach((msg) => {
+        targetContactIds.forEach((destId) => {
+          onSendMessage(
+            msg.text,
+            msg.mediaType,
+            msg.mediaMeta,
+            msg.mediaUrl,
+            undefined,
+            destId
+          );
+        });
+      });
+      showToast(`Forwarded ${selectedMsgs.length} message(s)`);
+      setIsSelectionMode(false);
+      setSelectedMessageIds(new Set());
+      setIsForwardModalOpen(false);
+    }
+  };
+
+  // 4. Select Action
+  const handleSelect = (messageId: string) => {
+    setIsSelectionMode(true);
+    setSelectedMessageIds(new Set([messageId]));
+  };
+
+  const handleToggleSelectMessage = (messageId: string) => {
+    setSelectedMessageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+        if (next.size === 0) {
+          setIsSelectionMode(false);
+        }
+      } else {
+        next.add(messageId);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedMessageIds.size === displayedMessages.length) {
+      setSelectedMessageIds(new Set());
+      setIsSelectionMode(false);
+    } else {
+      setSelectedMessageIds(new Set(displayedMessages.map((m) => m.id)));
+    }
+  };
+
+  const exitSelectionMode = () => {
+    setIsSelectionMode(false);
+    setSelectedMessageIds(new Set());
+  };
+
+  const handleForwardSelected = () => {
+    if (selectedMessageIds.size === 0) return;
+    setForwardingMessage(null);
+    setIsForwardModalOpen(true);
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedMessageIds.size === 0) return;
+    setDeletingMessage(null);
+    setIsDeleteModalOpen(true);
+  };
+
+  // 5. Delete Action
+  const handleDelete = (msg: ChatMessage) => {
+    setDeletingMessage(msg);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = (deleteForEveryone: boolean) => {
+    if (deletingMessage) {
+      onDeleteMessage?.(deletingMessage.id, deleteForEveryone);
+      showToast(deleteForEveryone ? "Deleted for everyone" : "Deleted for me");
+      setDeletingMessage(null);
+      setIsDeleteModalOpen(false);
+    } else if (isSelectionMode && selectedMessageIds.size > 0) {
+      const ids = Array.from(selectedMessageIds);
+      onDeleteMultipleMessages?.(ids, deleteForEveryone);
+      showToast(`Deleted ${ids.length} message(s)`);
+      setIsSelectionMode(false);
+      setSelectedMessageIds(new Set());
+      setIsDeleteModalOpen(false);
+    }
+  };
+
+  const deletingIsSelf = useMemo(() => {
+    if (deletingMessage) return deletingMessage.isSelf;
+    if (isSelectionMode && selectedMessageIds.size > 0) {
+      const selected = messages.filter((m) => selectedMessageIds.has(m.id));
+      return selected.length > 0 && selected.every((m) => m.isSelf);
+    }
+    return false;
+  }, [deletingMessage, isSelectionMode, selectedMessageIds, messages]);
 
   // Filter messages if search is active
   const displayedMessages = useMemo(() => {
@@ -81,8 +257,7 @@ export function ChatWindow({
     return groups;
   }, [displayedMessages]);
 
-  // STRICT CONTAINER-ONLY AUTO-SCROLL:
-  // Using scrollTop on messagesContainerRef directly prevents window/body scrolling
+  // Container-only auto-scroll to bottom on message update
   useEffect(() => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop =
@@ -90,7 +265,6 @@ export function ChatWindow({
     }
   }, [messages, isTyping]);
 
-  // Ensure window is strictly anchored to (0, 0)
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -98,6 +272,10 @@ export function ChatWindow({
   useEffect(() => {
     setHasSentRequest(false);
     setReplyingTo(null);
+    setIsSelectionMode(false);
+    setSelectedMessageIds(new Set());
+    setForwardingMessage(null);
+    setDeletingMessage(null);
   }, [contact.id]);
 
   const handleSendRequest = async () => {
@@ -113,22 +291,70 @@ export function ChatWindow({
 
   return (
     <div className="flex-1 min-w-0 min-h-0 h-full flex flex-col bg-[#053b53] relative overflow-hidden">
-      {/* 1. Top Chat Header Bar (Always pinned at top, shrink-0) */}
-      <ChatHeader
-        contact={contact}
-        isTyping={isTyping}
-        onBackToSidebar={onBackToSidebar}
-        onVoiceCall={onVoiceCall}
-        onVideoCall={onVideoCall}
-        onToggleSearchInChat={() => {
-          setIsSearchOpen((prev) => !prev);
-          if (isSearchOpen) setChatSearchQuery("");
-        }}
-        isSearchOpen={isSearchOpen}
-        searchQuery={chatSearchQuery}
-        onSearchChange={setChatSearchQuery}
-        onOpenContactInfo={onOpenContactInfo}
-      />
+      {/* 1. Top Bar: WhatsApp Selection Action Bar or Regular ChatHeader */}
+      {isSelectionMode ? (
+        <div className="h-16 px-4 bg-[#032433] border-b border-[#4D8DBA]/40 flex items-center justify-between shrink-0 z-30 select-none shadow-md">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={exitSelectionMode}
+              className="p-2 rounded-full hover:bg-[#4D8DBA]/25 text-slate-300 hover:text-white transition cursor-pointer"
+              title="Close selection"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <span className="text-sm font-bold text-white tracking-tight">
+              {selectedMessageIds.size} selected
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleToggleSelectAll}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[#97D7FF] hover:bg-[#4D8DBA]/20 transition cursor-pointer"
+            >
+              {selectedMessageIds.size === displayedMessages.length ? "Deselect All" : "Select All"}
+            </button>
+
+            <button
+              type="button"
+              disabled={selectedMessageIds.size === 0}
+              onClick={handleForwardSelected}
+              className="p-2 rounded-xl hover:bg-[#4D8DBA]/25 text-slate-200 hover:text-sky-300 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Forward selected"
+            >
+              <Forward className="w-5 h-5" />
+            </button>
+
+            <button
+              type="button"
+              disabled={selectedMessageIds.size === 0}
+              onClick={handleDeleteSelected}
+              className="p-2 rounded-xl hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Delete selected"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <ChatHeader
+          contact={contact}
+          isTyping={isTyping}
+          onBackToSidebar={onBackToSidebar}
+          onVoiceCall={onVoiceCall}
+          onVideoCall={onVideoCall}
+          onToggleSearchInChat={() => {
+            setIsSearchOpen((prev) => !prev);
+            if (isSearchOpen) setChatSearchQuery("");
+          }}
+          isSearchOpen={isSearchOpen}
+          searchQuery={chatSearchQuery}
+          onSearchChange={setChatSearchQuery}
+          onOpenContactInfo={onOpenContactInfo}
+        />
+      )}
 
       {/* 2. WhatsApp Subtle Doodle Wallpaper Pattern Background */}
       <div className="absolute inset-0 top-16 bottom-16 pointer-events-none opacity-[0.07] overflow-hidden select-none">
@@ -141,76 +367,32 @@ export function ChatWindow({
           <defs>
             <pattern
               id="whatsappDoodlePattern"
-              width="120"
-              height="120"
+              width="140"
+              height="140"
               patternUnits="userSpaceOnUse"
             >
-              {/* Coffee Cup Doodle */}
               <path
-                d="M15 25 h20 v12 c0 4 -3 8 -10 8 s-10 -4 -10 -8 z M35 28 h4 c3 0 4 2 4 4 s-1 4 -4 4 h-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                d="M20 20 c0-5 5-10 12-10 c8 0 14 6 14 13 c0 6-4 10-9 12 l-3 1 l0 4 l-6 0 l0-6 l6-2 c3-1 6-4 6-9 c0-4-3-7-8-7 c-4 0-7 3-7 6 z M29 45 a2.5 2.5 0 1 0 0.01 0 z"
+                fill="currentColor"
               />
-              {/* Speech Bubble Doodle */}
               <path
-                d="M75 18 h24 c3 0 6 3 6 6 v10 c0 3 -3 6 -6 6 h-12 l-6 5 v-5 h-6 c-3 0 -6 -3 -6 -6 v-10 c0 -3 3 -6 6 -6 z"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              {/* Smile Face Doodle */}
-              <circle
-                cx="30"
-                cy="85"
-                r="12"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.2"
-              />
-              <circle cx="26" cy="82" r="1.5" fill="currentColor" />
-              <circle cx="34" cy="82" r="1.5" fill="currentColor" />
-              <path
-                d="M26 89 q4 4 8 0"
+                d="M75 18 h16 v16 h-16 z M83 14 v4 M83 34 v4 M71 26 h4 M91 26 h4"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.2"
                 strokeLinecap="round"
               />
-              {/* Headphones / Clock Doodle */}
-              <circle
-                cx="85"
-                cy="75"
-                r="10"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.2"
-              />
-              <path
-                d="M85 69 v6 h4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
-              {/* Sparkle / Star Doodle */}
               <path
                 d="M58 52 l2 5 l5 2 l-5 2 l-2 5 l-2 -5 l-5 -2 l5 -2 z"
                 fill="currentColor"
                 opacity="0.8"
               />
-              {/* Heart Doodle */}
               <path
                 d="M102 102 c-2 -3 -6 -3 -8 0 c-2 3 0 6 4 9 l4 4 l4 -4 c4 -3 6 -6 4 -9 c-2 -3 -6 -3 -8 0 z"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.2"
               />
-              {/* Music Note Doodle */}
               <path
                 d="M18 58 v10 c-1 -1 -3 -1 -4 0 c-2 1 -2 3 0 4 c2 1 4 0 4 -2 v-9 h6 v5"
                 fill="none"
@@ -224,7 +406,7 @@ export function ChatWindow({
         </svg>
       </div>
 
-      {/* 3. Scrollable Messages Stream (min-h-0 guarantees correct flexbox scroll) */}
+      {/* 3. Scrollable Messages Stream */}
       <div
         ref={messagesContainerRef}
         className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-4 py-3 space-y-2.5 z-10"
@@ -238,7 +420,7 @@ export function ChatWindow({
               </span>
             </div>
 
-            {/* Message Items in this date group */}
+            {/* Message Items with Chevron Dropdown, Copy, Forward, Select, Delete */}
             {group.items.map((msg, index) => {
               const prevMsg = group.items[index - 1];
               const isFirstInGroup =
@@ -251,6 +433,13 @@ export function ChatWindow({
                   isFirstInGroup={isFirstInGroup}
                   onReact={onReactToMessage}
                   onReply={handleReply}
+                  onCopy={handleCopy}
+                  onForward={handleForward}
+                  onSelect={handleSelect}
+                  onDelete={handleDelete}
+                  isSelectionMode={isSelectionMode}
+                  isSelected={selectedMessageIds.has(msg.id)}
+                  onToggleSelect={handleToggleSelectMessage}
                 />
               );
             })}
@@ -266,7 +455,7 @@ export function ChatWindow({
         )}
       </div>
 
-      {/* 4. Bottom Input Dock or State Action Footers */}
+      {/* 4. Bottom Input Dock or Action Footers */}
       {contact.isBlocked ? (
         <div className="p-4 bg-[#032433]/95 border-t border-[#4D8DBA]/35 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left z-20 shrink-0 select-none">
           <div className="flex items-center gap-2.5 text-xs text-rose-300 font-semibold">
@@ -368,6 +557,47 @@ export function ChatWindow({
           onCancelReply={() => setReplyingTo(null)}
         />
       )}
+
+      {/* 5. Modals & Notifications */}
+      {/* Forward Modal */}
+      <ForwardModal
+        isOpen={isForwardModalOpen}
+        contacts={allContacts}
+        onClose={() => {
+          setIsForwardModalOpen(false);
+          setForwardingMessage(null);
+        }}
+        onConfirmForward={handleConfirmForward}
+        messageToForward={forwardingMessage}
+        selectedCount={forwardingMessage ? 1 : selectedMessageIds.size}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteMessageModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setDeletingMessage(null);
+        }}
+        onConfirmDelete={handleConfirmDelete}
+        isSelfSender={deletingIsSelf}
+        count={deletingMessage ? 1 : selectedMessageIds.size}
+      />
+
+      {/* Toast Notification Pill */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 15, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 15, scale: 0.95 }}
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#032433]/95 border border-[#4D8DBA]/60 text-white text-xs font-semibold shadow-2xl backdrop-blur-md flex items-center gap-2 select-none pointer-events-none"
+          >
+            <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+            <span>{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

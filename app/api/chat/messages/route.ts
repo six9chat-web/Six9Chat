@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveMessage, getConversationMessages } from "@/lib/chatService";
+import {
+  saveMessage,
+  getConversationMessages,
+  deleteMessageFromDb,
+  deleteMultipleMessagesFromDb,
+} from "@/lib/chatService";
 
 export async function GET(req: NextRequest) {
   try {
@@ -84,3 +89,34 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const searchParams = req.nextUrl.searchParams;
+    const messageId = searchParams.get("id");
+    const idsParam = searchParams.get("ids");
+
+    if (idsParam) {
+      const ids = idsParam.split(",").map((s) => s.trim()).filter(Boolean);
+      await deleteMultipleMessagesFromDb(ids);
+      return NextResponse.json({ success: true, count: ids.length });
+    }
+
+    if (!messageId) {
+      return NextResponse.json(
+        { success: false, error: "Message id is required" },
+        { status: 400 }
+      );
+    }
+
+    const ok = await deleteMessageFromDb(messageId);
+    return NextResponse.json({ success: ok, id: messageId });
+  } catch (error) {
+    console.error("[Messages DELETE error]:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to delete message" },
+      { status: 500 }
+    );
+  }
+}
+
