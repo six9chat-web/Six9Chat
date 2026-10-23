@@ -58,6 +58,11 @@ export function ChatWorkspace() {
     rejectChatRequest,
     sendChatRequest,
     deleteContact,
+    blockUser,
+    unblockUser,
+    clearChat,
+    deleteChat,
+    unfriendUser,
   } = useRealtimeChat();
 
   // Mobile viewport navigation state: 'sidebar' | 'chat'
@@ -184,6 +189,11 @@ export function ChatWorkspace() {
             onRejectChatRequest={rejectChatRequest}
             onSendChatRequest={sendChatRequest}
             onDeleteContact={deleteContact}
+            onBlockUser={blockUser}
+            onUnblockUser={unblockUser}
+            onClearChat={clearChat}
+            onDeleteChat={deleteChat}
+            onUnfriend={unfriendUser}
           />
         </div>
 
@@ -209,6 +219,7 @@ export function ChatWorkspace() {
                 setProfileModalTarget("contact");
                 setIsProfileModalOpen(true);
               }}
+              onUnblockUser={unblockUser}
             />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center select-none bg-gradient-to-b from-[#053b53] to-[#032433]">

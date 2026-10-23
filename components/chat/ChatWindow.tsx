@@ -5,6 +5,7 @@ import { ChatContact, ChatMessage, MediaType, MediaMeta } from "@/types/chat";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageItem } from "@/components/chat/MessageItem";
+import { ShieldAlert } from "lucide-react";
 
 interface ChatWindowProps {
   contact: ChatContact;
@@ -21,6 +22,7 @@ interface ChatWindowProps {
   onVoiceCall?: () => void;
   onVideoCall?: () => void;
   onOpenContactInfo?: () => void;
+  onUnblockUser?: (contactId: string) => void;
 }
 
 export function ChatWindow({
@@ -33,6 +35,7 @@ export function ChatWindow({
   onVoiceCall,
   onVideoCall,
   onOpenContactInfo,
+  onUnblockUser,
 }: ChatWindowProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [chatSearchQuery, setChatSearchQuery] = useState("");
@@ -228,8 +231,28 @@ export function ChatWindow({
         )}
       </div>
 
-      {/* 4. Bottom Input Dock (Always pinned at bottom, shrink-0) */}
-      <ChatInput onSendMessage={onSendMessage} />
+      {/* 4. Bottom Input Dock or Blocked Notice */}
+      {contact.isBlocked ? (
+        <div className="p-4 bg-[#032433]/95 border-t border-[#4D8DBA]/35 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left z-20 shrink-0 select-none">
+          <div className="flex items-center gap-2.5 text-xs text-rose-300 font-semibold">
+            <span className="p-1.5 rounded-full bg-rose-500/20 text-rose-400 shrink-0">
+              <ShieldAlert className="w-4 h-4" />
+            </span>
+            <span>{contact.name} is blocked</span>
+          </div>
+          {onUnblockUser && (
+            <button
+              type="button"
+              onClick={() => onUnblockUser(contact.id)}
+              className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] text-[#086288] font-bold text-xs hover:brightness-105 active:scale-95 transition cursor-pointer shadow-md shadow-[#086288]/40"
+            >
+              Unblock
+            </button>
+          )}
+        </div>
+      ) : (
+        <ChatInput onSendMessage={onSendMessage} />
+      )}
     </div>
   );
 }

@@ -47,6 +47,11 @@ interface SidebarProps {
   onRejectChatRequest?: (id: string) => Promise<void> | void;
   onSendChatRequest?: (targetUserId: string) => Promise<void> | void;
   onDeleteContact?: (contactId: string) => void;
+  onBlockUser?: (contactId: string) => void;
+  onUnblockUser?: (contactId: string) => void;
+  onClearChat?: (contactId: string) => void;
+  onDeleteChat?: (contactId: string) => void;
+  onUnfriend?: (contactId: string) => void;
 }
 
 export function Sidebar({
@@ -67,6 +72,11 @@ export function Sidebar({
   onRejectChatRequest,
   onSendChatRequest,
   onDeleteContact,
+  onBlockUser,
+  onUnblockUser,
+  onClearChat,
+  onDeleteChat,
+  onUnfriend,
 }: SidebarProps) {
   const { t } = useTranslation();
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
@@ -221,6 +231,11 @@ export function Sidebar({
           contacts={filteredContacts}
           activeContactId={activeContactId}
           onSelectContact={onSelectContact}
+          onBlockUser={onBlockUser}
+          onUnblockUser={onUnblockUser}
+          onClearChat={onClearChat}
+          onDeleteChat={onDeleteChat}
+          onUnfriend={onUnfriend}
           onDeleteContact={onDeleteContact}
         />
       )}

@@ -418,13 +418,6 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
         const partnerId = r.sender_id === userId ? r.receiver_id : r.sender_id;
         if (partnerId && partnerId !== userId) {
           acceptedPartnerIds.add(partnerId);
-          contactIds.add(partnerId);
-          lastMessageMap.set(partnerId, {
-            text: "Chat request accepted. Say hi! 👋",
-            timestamp: "Recently",
-            isSelf: r.sender_id === userId,
-            status: "read",
-          });
         }
       }
     }
@@ -432,7 +425,7 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
     console.warn("[ChatService] getUserConnectedContacts chat_requests notice:", err);
   }
 
-  // 2. Fetch conversations for strictly accepted partners to hydrate last_message
+  // 2. Fetch conversations for strictly accepted partners to hydrate last_message & active chats
   if (acceptedPartnerIds.size > 0) {
     try {
       const { data: convs, error: convErr } = await supabaseServer
@@ -445,17 +438,16 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
         for (const c of convs) {
           const partnerId = c.user1_id === userId ? c.user2_id : c.user1_id;
           if (partnerId && acceptedPartnerIds.has(partnerId)) {
-            if (c.last_message) {
-              const timeStr = c.updated_at
-                ? new Date(c.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                : "Recently";
-              lastMessageMap.set(partnerId, {
-                text: c.last_message,
-                timestamp: timeStr,
-                isSelf: false,
-                status: "read",
-              });
-            }
+            contactIds.add(partnerId);
+            const timeStr = c.updated_at
+              ? new Date(c.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "Recently";
+            lastMessageMap.set(partnerId, {
+              text: c.last_message || "Chat request accepted. Say hi! 👋",
+              timestamp: timeStr,
+              isSelf: false,
+              status: "read",
+            });
           }
         }
       }
@@ -463,7 +455,7 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
       console.warn("[ChatService] getUserConnectedContacts conversations note:", convNotice);
     }
 
-    // 3. Fetch recent messages history for accepted partners
+    // 3. Fetch recent messages history for accepted active partners
     try {
       const { data: recentMsgs } = await supabaseServer
         .from("messages")
@@ -476,7 +468,7 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
         for (const m of recentMsgs) {
           if (m.conversation_id && m.conversation_id.startsWith("group-")) continue;
           const partnerId = m.sender_id === userId ? m.receiver_id : m.sender_id;
-          if (partnerId && acceptedPartnerIds.has(partnerId)) {
+          if (partnerId && contactIds.has(partnerId)) {
             const timeStr = m.created_at
               ? new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
               : "Recently";
@@ -494,7 +486,29 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
     }
   }
 
-  // 3. Fetch profiles for all discovered contact IDs
+  // 3. Query blocked status for this user
+  const blockedByMeSet = new Set<string>();
+  const blockedMeSet = new Set<string>();
+  try {
+    const { data: blocks } = await supabaseServer
+      .from("blocked_users")
+      .select("blocker_id, blocked_id")
+      .or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`);
+
+    if (Array.isArray(blocks)) {
+      for (const b of blocks) {
+        if (b.blocker_id === userId) {
+          blockedByMeSet.add(b.blocked_id);
+        } else if (b.blocked_id === userId) {
+          blockedMeSet.add(b.blocker_id);
+        }
+      }
+    }
+  } catch (blockErr) {
+    console.warn("[ChatService] getUserConnectedContacts blocked_users notice:", blockErr);
+  }
+
+  // 4. Fetch profiles for all discovered contact IDs
   if (contactIds.size > 0) {
     try {
       const { data: profiles } = await supabaseServer
@@ -521,6 +535,8 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
             about: p.about || "Hey there! I am using Six9Chat",
             phone: p.username || p.email || "",
             unreadCount: 0,
+            isBlocked: blockedByMeSet.has(p.id),
+            isBlockedByPartner: blockedMeSet.has(p.id),
             lastMessage: lastMsg,
           });
         }

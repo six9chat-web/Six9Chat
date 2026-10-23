@@ -73,6 +73,8 @@ export interface ChatContact {
   isGroup?: boolean;
   groupMembers?: string[];
   unreadCount: number;
+  isBlocked?: boolean;
+  isBlockedByPartner?: boolean;
   lastMessage?: {
     text: string;
     timestamp: string;
@@ -113,7 +115,7 @@ export interface ChatRequest {
   senderUsername?: string;
   senderAvatar?: string;
   receiverId: string;
-  status: "pending" | "accepted" | "declined" | "rejected";
+  status: "pending" | "accepted" | "declined" | "rejected" | "unfriended";
   message?: string;
   createdAt: string;
 }

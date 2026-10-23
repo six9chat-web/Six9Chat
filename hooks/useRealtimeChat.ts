@@ -756,6 +756,9 @@ export function useRealtimeChat() {
     ) => {
       if (!text.trim() && !mediaUrl && mediaType === "text") return;
 
+      const currentContact = contacts.find((c) => c.id === activeContactId);
+      if (currentContact?.isBlocked) return;
+
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       const msgId = generateUUID();
@@ -1383,31 +1386,187 @@ export function useRealtimeChat() {
     setChatRequests((prev) => prev.filter((r) => r.id !== requestId));
   }, []);
 
-  // Delete / Remove contact from view and clear active session
-  const deleteContact = useCallback(async (contactId: string) => {
-    setContacts((prev) => prev.filter((c) => c.id !== contactId));
+  // 1. Block User
+  const blockUser = useCallback(
+    async (contactId: string) => {
+      setContacts((prev) =>
+        prev.map((c) => (c.id === contactId ? { ...c, isBlocked: true } : c))
+      );
 
-    if (activeContactId === contactId) {
-      setActiveContactId("");
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("six9chat_active_chat");
-        const url = new URL(window.location.href);
-        url.searchParams.delete("c");
-        window.history.replaceState({}, "", url.toString());
+      try {
+        if (currentUser?.id) {
+          await fetch("/api/chat/actions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "block",
+              userId: currentUser.id,
+              partnerId: contactId,
+            }),
+          });
+        }
+      } catch (e) {
+        console.warn("blockUser API notice:", e);
       }
-    }
+    },
+    [currentUser]
+  );
 
-    try {
-      if (currentUser?.id) {
-        await supabase
-          .from("conversations")
-          .delete()
-          .or(`and(user1_id.eq.${currentUser.id},user2_id.eq.${contactId}),and(user1_id.eq.${contactId},user2_id.eq.${currentUser.id})`);
+  // 2. Unblock User
+  const unblockUser = useCallback(
+    async (contactId: string) => {
+      setContacts((prev) =>
+        prev.map((c) => (c.id === contactId ? { ...c, isBlocked: false } : c))
+      );
+
+      try {
+        if (currentUser?.id) {
+          await fetch("/api/chat/actions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "unblock",
+              userId: currentUser.id,
+              partnerId: contactId,
+            }),
+          });
+        }
+      } catch (e) {
+        console.warn("unblockUser API notice:", e);
       }
-    } catch (e) {
-      console.warn("Delete conversation DB notice:", e);
-    }
-  }, [activeContactId, currentUser]);
+    },
+    [currentUser]
+  );
+
+  // 3. Clear Chat
+  const clearChat = useCallback(
+    async (contactId: string) => {
+      // Clear messages in state
+      setMessagesMap((prev) => ({
+        ...prev,
+        [contactId]: [],
+      }));
+
+      // Update lastMessage preview
+      setContacts((prev) =>
+        prev.map((c) =>
+          c.id === contactId
+            ? {
+                ...c,
+                lastMessage: {
+                  text: "Chat cleared",
+                  timestamp: "Just now",
+                  isSelf: true,
+                  status: "read",
+                },
+              }
+            : c
+        )
+      );
+
+      try {
+        if (currentUser?.id) {
+          await fetch("/api/chat/actions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "clear_chat",
+              userId: currentUser.id,
+              partnerId: contactId,
+            }),
+          });
+        }
+      } catch (e) {
+        console.warn("clearChat API notice:", e);
+      }
+    },
+    [currentUser]
+  );
+
+  // 4. Delete Chat (Removes conversation entry from chat list while preserving friendship)
+  const deleteChat = useCallback(
+    async (contactId: string) => {
+      setContacts((prev) => prev.filter((c) => c.id !== contactId));
+      setMessagesMap((prev) => ({
+        ...prev,
+        [contactId]: [],
+      }));
+
+      if (activeContactId === contactId) {
+        setActiveContactId("");
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.removeItem("six9chat_active_chat");
+            const url = new URL(window.location.href);
+            url.searchParams.delete("c");
+            window.history.replaceState({}, "", url.toString());
+          } catch {}
+        }
+      }
+
+      try {
+        if (currentUser?.id) {
+          await fetch("/api/chat/actions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "delete_chat",
+              userId: currentUser.id,
+              partnerId: contactId,
+            }),
+          });
+        }
+      } catch (e) {
+        console.warn("deleteChat API notice:", e);
+      }
+    },
+    [activeContactId, currentUser]
+  );
+
+  // 5. Unfriend User (Updates chat_requests, deletes conversation, wipes from chat list)
+  const unfriendUser = useCallback(
+    async (contactId: string) => {
+      setContacts((prev) => prev.filter((c) => c.id !== contactId));
+      setMessagesMap((prev) => ({
+        ...prev,
+        [contactId]: [],
+      }));
+      setChatRequests((prev) =>
+        prev.filter((r) => r.senderId !== contactId && r.receiverId !== contactId)
+      );
+
+      if (activeContactId === contactId) {
+        setActiveContactId("");
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.removeItem("six9chat_active_chat");
+            const url = new URL(window.location.href);
+            url.searchParams.delete("c");
+            window.history.replaceState({}, "", url.toString());
+          } catch {}
+        }
+      }
+
+      try {
+        if (currentUser?.id) {
+          await fetch("/api/chat/actions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "unfriend",
+              userId: currentUser.id,
+              partnerId: contactId,
+            }),
+          });
+        }
+      } catch (e) {
+        console.warn("unfriendUser API notice:", e);
+      }
+    },
+    [activeContactId, currentUser]
+  );
+
+  const deleteContact = deleteChat;
 
   // Add a new direct contact or start chat using their genuine Supabase user ID
   const addNewContact = useCallback((name: string, phone: string, avatar?: string, existingUserId?: string) => {
@@ -1594,6 +1753,11 @@ export function useRealtimeChat() {
     rejectChatRequest,
     sendChatRequest,
     deleteContact,
+    blockUser,
+    unblockUser,
+    clearChat,
+    deleteChat,
+    unfriendUser,
     signOut: handleSignOut,
   };
 }

@@ -81,11 +81,19 @@ export async function ensureDatabaseTablesExist() {
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           sender_id UUID NOT NULL,
           receiver_id UUID NOT NULL,
-          status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'rejected')),
+          status TEXT DEFAULT 'pending',
           message TEXT DEFAULT 'wants to start a conversation with you',
           created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
           updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
           CONSTRAINT chat_requests_sender_receiver_key UNIQUE (sender_id, receiver_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS public.blocked_users (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          blocker_id UUID NOT NULL,
+          blocked_id UUID NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+          CONSTRAINT blocked_users_blocker_blocked_key UNIQUE (blocker_id, blocked_id)
         );
       `);
       isInitialized = true;
