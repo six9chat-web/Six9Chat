@@ -887,6 +887,7 @@ export function useRealtimeChat() {
             senderName: currentUser.name,
             senderAvatar: currentUser.avatar,
             text: newMsg.text,
+            content: newMsg.text,
             mediaType: newMsg.mediaType,
             mediaUrl: newMsg.mediaUrl,
             mediaMeta: newMsg.mediaMeta,
@@ -894,44 +895,51 @@ export function useRealtimeChat() {
             status: "delivered",
             createdAt: now.toISOString(),
             replyTo,
+            replyToId: replyTo?.id,
           }),
         });
 
         // Direct client Supabase fallback write
         try {
-          const [u1, u2] = [currentUser.id, activeContactId].sort();
-          const { data: convRow } = await supabase
-            .from("conversations")
-            .upsert(
-              {
-                user1_id: u1,
-                user2_id: u2,
-                last_message: newMsg.text,
-                updated_at: now.toISOString(),
-              },
-              { onConflict: "user1_id,user2_id" }
-            )
-            .select("id")
-            .maybeSingle();
+          let convUuid = "";
+          if (!activeContactId.startsWith("group-")) {
+            const [u1, u2] = [currentUser.id, activeContactId].sort();
+            const { data: convRow } = await supabase
+              .from("conversations")
+              .upsert(
+                {
+                  user1_id: u1,
+                  user2_id: u2,
+                  last_message: newMsg.text,
+                  updated_at: now.toISOString(),
+                },
+                { onConflict: "user1_id,user2_id" }
+              )
+              .select("id")
+              .maybeSingle();
 
-          if (convRow?.id) {
-            await supabase.from("messages").upsert(
-              {
-                id: newMsg.id,
-                conversation_id: convRow.id,
-                sender_id: currentUser.id,
-                receiver_id: activeContactId,
-                content: newMsg.text,
-                text: newMsg.text,
-                media_type: newMsg.mediaType || "text",
-                media_url: newMsg.mediaUrl || null,
-                status: "delivered",
-                created_at: now.toISOString(),
-                reply_to: replyTo || null,
-              },
-              { onConflict: "id" }
-            );
+            if (convRow?.id) convUuid = convRow.id;
           }
+
+          const targetConvId = convUuid || activeContactId;
+          await supabase.from("messages").upsert(
+            {
+              id: newMsg.id,
+              conversation_id: targetConvId,
+              sender_id: currentUser.id,
+              receiver_id: activeContactId,
+              content: newMsg.text,
+              text: newMsg.text,
+              media_type: newMsg.mediaType || "text",
+              media_url: newMsg.mediaUrl || null,
+              status: "delivered",
+              is_read: false,
+              created_at: now.toISOString(),
+              reply_to: replyTo || null,
+              reply_to_id: replyTo?.id || null,
+            },
+            { onConflict: "id" }
+          );
         } catch {}
 
         setMessagesMap((prev) => ({
@@ -1139,16 +1147,31 @@ export function useRealtimeChat() {
                   isAuthorized = Boolean(acceptedReq);
                 }
 
-                const { data: convRow } = isAuthorized
-                  ? await supabase
-                      .from("conversations")
-                      .select("id, user1_id, user2_id")
-                      .or(`and(user1_id.eq.${user.id},user2_id.eq.${savedTargetId}),and(user1_id.eq.${savedTargetId},user2_id.eq.${user.id}),id.eq.${savedTargetId}`)
-                      .maybeSingle()
-                  : { data: null };
+                if (isAuthorized) {
+                  let partnerId = savedTargetId;
+                  if (!savedTargetId.startsWith("group-")) {
+                    const [u1, u2] = [user.id, savedTargetId].sort();
+                    try {
+                      const { data: convRow } = await supabase
+                        .from("conversations")
+                        .upsert(
+                          {
+                            user1_id: u1,
+                            user2_id: u2,
+                            last_message: "Chat request accepted. Say hi! 👋",
+                            updated_at: new Date().toISOString(),
+                          },
+                          { onConflict: "user1_id,user2_id" }
+                        )
+                        .select("id, user1_id, user2_id")
+                        .maybeSingle();
 
-                if (convRow) {
-                  const partnerId = convRow.user1_id === user.id ? convRow.user2_id : convRow.user1_id;
+                      if (convRow) {
+                        partnerId = convRow.user1_id === user.id ? convRow.user2_id : convRow.user1_id;
+                      }
+                    } catch {}
+                  }
+
                   const { data: partnerProfile } = await supabase
                     .from("profiles")
                     .select("id, full_name, username, avatar_url, about")

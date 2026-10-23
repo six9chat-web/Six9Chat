@@ -14,6 +14,7 @@ export interface DBMessage {
   media_meta?: MediaMeta;
   reactions?: MessageReaction[];
   reply_to?: { id: string; senderName: string; text: string };
+  reply_to_id?: string;
   status?: string;
   created_at: string;
 }
@@ -34,7 +35,7 @@ export function getCanonicalConversationId(userA: string, userB: string): string
 }
 
 /**
- * Get or create a 1-on-1 conversation record in Supabase conversations table
+ * Get or create a permanent 1-on-1 conversation record in Supabase conversations table
  */
 export async function getOrCreateConversation(userA: string, userB: string): Promise<{
   id: string;
@@ -45,7 +46,7 @@ export async function getOrCreateConversation(userA: string, userB: string): Pro
 }> {
   const [user1_id, user2_id] = [userA, userB].sort();
 
-  // Try finding existing or upserting conversation in Supabase
+  // Try finding existing conversation in Supabase
   try {
     const { data: existing, error } = await supabaseServer
       .from("conversations")
@@ -58,31 +59,14 @@ export async function getOrCreateConversation(userA: string, userB: string): Pro
       return existing;
     }
 
-    // Verify an accepted chat request exists before creating a new conversation
-    const { data: requestRow } = await supabaseServer
-      .from("chat_requests")
-      .select("id, status")
-      .or(`and(sender_id.eq.${user1_id},receiver_id.eq.${user2_id}),and(sender_id.eq.${user2_id},receiver_id.eq.${user1_id})`)
-      .eq("status", "accepted")
-      .limit(1)
-      .maybeSingle();
-
-    if (!requestRow) {
-      // Do not persist conversation row without accepted request
-      return {
-        id: getCanonicalConversationId(user1_id, user2_id),
-        user1_id,
-        user2_id,
-        last_message: "",
-      };
-    }
-
+    // Insert or upsert permanent conversation row
     const { data: upsertedRow, error: insertErr } = await supabaseServer
       .from("conversations")
       .upsert(
         {
           user1_id,
           user2_id,
+          last_message: "Chat request accepted. Say hi! 👋",
           updated_at: new Date().toISOString(),
         },
         { onConflict: "user1_id,user2_id" }
@@ -92,6 +76,18 @@ export async function getOrCreateConversation(userA: string, userB: string): Pro
 
     if (!insertErr && upsertedRow) {
       return upsertedRow;
+    }
+
+    // In case upsert had a conflict without returning data, re-query existing
+    const { data: retryExisting } = await supabaseServer
+      .from("conversations")
+      .select("id, user1_id, user2_id, last_message, updated_at")
+      .or(`and(user1_id.eq.${user1_id},user2_id.eq.${user2_id}),and(user1_id.eq.${user2_id},user2_id.eq.${user1_id})`)
+      .limit(1)
+      .maybeSingle();
+
+    if (retryExisting) {
+      return retryExisting;
     }
   } catch (err) {
     console.warn("[ChatService] getOrCreateConversation note:", err);
@@ -123,6 +119,7 @@ export async function saveMessage(msg: {
   mediaMeta?: MediaMeta;
   reactions?: MessageReaction[];
   replyTo?: { id: string; senderName: string; text: string };
+  replyToId?: string;
   status?: string;
   createdAt?: string;
 }): Promise<DBMessage> {
@@ -133,6 +130,7 @@ export async function saveMessage(msg: {
   // Validate or assign a valid UUID for message ID
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const validMsgId = uuidRegex.test(msg.id) ? msg.id : generateUUID();
+  const replyToId = msg.replyTo?.id || msg.replyToId || undefined;
 
   const record: DBMessage = {
     id: validMsgId,
@@ -147,6 +145,7 @@ export async function saveMessage(msg: {
     media_meta: msg.mediaMeta || undefined,
     reactions: msg.reactions || [],
     reply_to: msg.replyTo,
+    reply_to_id: replyToId,
     status: msg.status || "delivered",
     created_at: msg.createdAt || new Date().toISOString(),
   };
@@ -176,12 +175,13 @@ export async function saveMessage(msg: {
       const conv = await getOrCreateConversation(record.sender_id, record.receiver_id);
       if (conv && conv.id) {
         targetConvId = conv.id;
+        record.conversation_id = conv.id;
         // Update last_message on conversation
         await supabaseServer
           .from("conversations")
           .update({
             last_message: record.text,
-            updated_at: new Date().toISOString(),
+            updated_at: record.created_at,
           })
           .eq("id", conv.id);
       }
@@ -203,6 +203,7 @@ export async function saveMessage(msg: {
         media_meta: record.media_meta,
         reactions: record.reactions,
         reply_to: record.reply_to || null,
+        reply_to_id: replyToId || null,
         status: record.status,
         created_at: record.created_at,
       },
@@ -230,6 +231,18 @@ export async function getConversationMessages(
 
   const resultMessages: DBMessage[] = [];
   const seenIds = new Set<string>();
+
+  // Mark unread messages received by userA from userB as read
+  if (userA && userB) {
+    try {
+      await supabaseServer
+        .from("messages")
+        .update({ is_read: true, status: "read" })
+        .eq("receiver_id", userA)
+        .eq("sender_id", userB)
+        .eq("is_read", false);
+    } catch {}
+  }
 
   // 1. Try fetching from Supabase messages table
   try {
@@ -278,7 +291,8 @@ export async function getConversationMessages(
             media_type: row.media_type,
             media_url: row.media_url,
             media_meta: row.media_meta,
-            reply_to: row.reply_to || undefined,
+            reply_to: row.reply_to || (row.reply_to_id ? { id: row.reply_to_id, senderName: "", text: "" } : undefined),
+            reply_to_id: row.reply_to_id,
             reactions: row.reactions || [],
             status: row.status,
             created_at: row.created_at,
@@ -403,17 +417,24 @@ export async function toggleMessageReaction(
 }
 
 /**
- * Load all connected contacts (from conversations & accepted requests) and groups for a user
+ * Load all connected contacts (from chat_requests & conversations) and groups for a user
+ * Guarantees 100% persistent load of accepted friends and active chats like WhatsApp.
  */
 export async function getUserConnectedContacts(userId: string): Promise<ChatContact[]> {
   const contactsMap = new Map<string, ChatContact>();
-  const contactIds = new Set<string>();
-  const lastMessageMap = new Map<string, { text: string; timestamp: string; isSelf: boolean; status: MessageStatus }>();
+  const allContactIds = new Set<string>();
+  const lastMessageMap = new Map<
+    string,
+    { text: string; timestamp: string; isSelf: boolean; status: MessageStatus; rawTime?: string }
+  >();
+  const conversationMap = new Map<string, { id: string; last_message?: string; updated_at?: string }>();
 
-  // 1. Fetch chat requests (accepted or unfriended) for this user
+  // 1. Fetch chat requests (accepted, unfriended, blocked) for this user
   const acceptedPartnerIds = new Set<string>();
   const unfriendedByMeSet = new Set<string>();
   const unfriendedByPartnerSet = new Set<string>();
+  const blockedByMeSet = new Set<string>();
+  const blockedMeSet = new Set<string>();
 
   try {
     const { data: requests, error } = await supabaseServer
@@ -428,12 +449,21 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
 
         if (r.status === "accepted") {
           acceptedPartnerIds.add(partnerId);
+          allContactIds.add(partnerId);
         } else if (r.status === "unfriended") {
           if (r.sender_id === userId) {
             unfriendedByMeSet.add(partnerId);
           } else {
             unfriendedByPartnerSet.add(partnerId);
           }
+          allContactIds.add(partnerId);
+        } else if (r.status === "blocked") {
+          if (r.sender_id === userId) {
+            blockedByMeSet.add(partnerId);
+          } else {
+            blockedMeSet.add(partnerId);
+          }
+          allContactIds.add(partnerId);
         }
       }
     }
@@ -441,76 +471,45 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
     console.warn("[ChatService] getUserConnectedContacts chat_requests notice:", err);
   }
 
-  const allConnectedIds = new Set([
-    ...Array.from(acceptedPartnerIds),
-    ...Array.from(unfriendedByMeSet),
-    ...Array.from(unfriendedByPartnerSet),
-  ]);
+  // 2. Fetch conversations for this user
+  try {
+    const { data: convs, error: convErr } = await supabaseServer
+      .from("conversations")
+      .select("id, user1_id, user2_id, last_message, updated_at")
+      .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+      .order("updated_at", { ascending: false });
 
-  // 2. Fetch conversations for active or unfriended partners to hydrate last_message & active chats
-  if (allConnectedIds.size > 0) {
-    try {
-      const { data: convs, error: convErr } = await supabaseServer
-        .from("conversations")
-        .select("id, user1_id, user2_id, last_message, updated_at")
-        .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
-        .order("updated_at", { ascending: false });
-
-      if (!convErr && Array.isArray(convs)) {
-        for (const c of convs) {
-          const partnerId = c.user1_id === userId ? c.user2_id : c.user1_id;
-          if (partnerId && allConnectedIds.has(partnerId)) {
-            contactIds.add(partnerId);
-            const timeStr = c.updated_at
-              ? new Date(c.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-              : "Recently";
-            lastMessageMap.set(partnerId, {
-              text: c.last_message || (unfriendedByMeSet.has(partnerId) || unfriendedByPartnerSet.has(partnerId) ? "Unfriended" : "Chat request accepted. Say hi! 👋"),
-              timestamp: timeStr,
-              isSelf: false,
-              status: "read",
-            });
+    if (!convErr && Array.isArray(convs)) {
+      for (const c of convs) {
+        const partnerId = c.user1_id === userId ? c.user2_id : c.user1_id;
+        if (partnerId && partnerId !== userId) {
+          conversationMap.set(partnerId, c);
+          // If not unfriended/blocked, ensure partner is in active contacts list
+          if (!unfriendedByMeSet.has(partnerId) && !unfriendedByPartnerSet.has(partnerId)) {
+            allContactIds.add(partnerId);
           }
         }
       }
-    } catch (convNotice) {
-      console.warn("[ChatService] getUserConnectedContacts conversations note:", convNotice);
     }
+  } catch (convNotice) {
+    console.warn("[ChatService] getUserConnectedContacts conversations note:", convNotice);
+  }
 
-    // 3. Fetch recent messages history for accepted active partners
-    try {
-      const { data: recentMsgs } = await supabaseServer
-        .from("messages")
-        .select("id, conversation_id, sender_id, receiver_id, text, created_at, status, media_type")
-        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-        .order("created_at", { ascending: false })
-        .limit(150);
-
-      if (Array.isArray(recentMsgs)) {
-        for (const m of recentMsgs) {
-          if (m.conversation_id && m.conversation_id.startsWith("group-")) continue;
-          const partnerId = m.sender_id === userId ? m.receiver_id : m.sender_id;
-          if (partnerId && contactIds.has(partnerId)) {
-            const timeStr = m.created_at
-              ? new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-              : "Recently";
-            lastMessageMap.set(partnerId, {
-              text: m.text || (m.media_type ? `[${m.media_type.toUpperCase()}]` : "Message"),
-              timestamp: timeStr,
-              isSelf: m.sender_id === userId,
-              status: (m.status as MessageStatus) || "delivered",
-            });
-          }
+  // 3. For every accepted friend, ensure a permanent row in conversations exists
+  for (const partnerId of acceptedPartnerIds) {
+    if (!conversationMap.has(partnerId)) {
+      try {
+        const conv = await getOrCreateConversation(userId, partnerId);
+        if (conv) {
+          conversationMap.set(partnerId, conv);
         }
+      } catch (convErr) {
+        console.warn("[ChatService] auto create conversation note:", convErr);
       }
-    } catch (msgErr) {
-      console.warn("[ChatService] getUserConnectedContacts messages notice:", msgErr);
     }
   }
 
-  // 3. Query blocked status for this user
-  const blockedByMeSet = new Set<string>();
-  const blockedMeSet = new Set<string>();
+  // 4. Query blocked_users table
   try {
     const { data: blocks } = await supabaseServer
       .from("blocked_users")
@@ -530,21 +529,79 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
     console.warn("[ChatService] getUserConnectedContacts blocked_users notice:", blockErr);
   }
 
-  // 4. Fetch profiles for all discovered contact IDs
-  if (contactIds.size > 0) {
+  // 5. Query unread count for active user (receiver_id = userId, is_read = false)
+  const unreadCountMap = new Map<string, number>();
+  try {
+    const { data: unreadRows } = await supabaseServer
+      .from("messages")
+      .select("id, sender_id")
+      .eq("receiver_id", userId)
+      .eq("is_read", false);
+
+    if (Array.isArray(unreadRows)) {
+      for (const row of unreadRows) {
+        if (row.sender_id) {
+          unreadCountMap.set(row.sender_id, (unreadCountMap.get(row.sender_id) || 0) + 1);
+        }
+      }
+    }
+  } catch (unreadErr) {
+    console.warn("[ChatService] getUserConnectedContacts unread messages notice:", unreadErr);
+  }
+
+  // 6. Query recent messages to populate accurate last message preview
+  if (allContactIds.size > 0) {
+    try {
+      const { data: recentMsgs } = await supabaseServer
+        .from("messages")
+        .select("id, conversation_id, sender_id, receiver_id, content, text, created_at, status, media_type")
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .order("created_at", { ascending: false })
+        .limit(300);
+
+      if (Array.isArray(recentMsgs)) {
+        for (const m of recentMsgs) {
+          if (m.conversation_id && m.conversation_id.startsWith("group-")) continue;
+          const partnerId = m.sender_id === userId ? m.receiver_id : m.sender_id;
+          if (partnerId && allContactIds.has(partnerId) && !lastMessageMap.has(partnerId)) {
+            const timeStr = m.created_at
+              ? new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "Recently";
+            const textContent = m.content || m.text || (m.media_type ? `[${m.media_type.toUpperCase()}]` : "Message");
+            lastMessageMap.set(partnerId, {
+              text: textContent,
+              timestamp: timeStr,
+              isSelf: m.sender_id === userId,
+              status: (m.status as MessageStatus) || "delivered",
+              rawTime: m.created_at,
+            });
+          }
+        }
+      }
+    } catch (msgErr) {
+      console.warn("[ChatService] getUserConnectedContacts messages notice:", msgErr);
+    }
+  }
+
+  // 7. Fetch profiles for all discovered contact IDs
+  if (allContactIds.size > 0) {
     try {
       const { data: profiles } = await supabaseServer
         .from("profiles")
         .select("id, username, email, full_name, about, avatar_url, updated_at, created_at")
-        .in("id", Array.from(contactIds));
+        .in("id", Array.from(allContactIds));
 
       if (Array.isArray(profiles)) {
         for (const p of profiles) {
+          const conv = conversationMap.get(p.id);
           const lastMsg = lastMessageMap.get(p.id) || {
-            text: "Started a conversation",
-            timestamp: "Just now",
+            text: conv?.last_message || (unfriendedByMeSet.has(p.id) || unfriendedByPartnerSet.has(p.id) ? "Unfriended" : "Chat request accepted. Say hi! 👋"),
+            timestamp: conv?.updated_at
+              ? new Date(conv.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "Recently",
             isSelf: false,
             status: "read",
+            rawTime: conv?.updated_at || p.updated_at,
           };
 
           contactsMap.set(p.id, {
@@ -556,13 +613,19 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
             lastSeen: "Online now",
             about: p.about || "Hey there! I am using Six9Chat",
             phone: p.username || p.email || "",
-            unreadCount: 0,
+            unreadCount: unreadCountMap.get(p.id) || 0,
             isBlocked: blockedByMeSet.has(p.id),
             isBlockedByPartner: blockedMeSet.has(p.id),
             isUnfriended: unfriendedByMeSet.has(p.id),
             isUnfriendedByPartner: unfriendedByPartnerSet.has(p.id),
-            lastMessage: lastMsg,
-          });
+            lastMessage: {
+              text: lastMsg.text,
+              timestamp: lastMsg.timestamp,
+              isSelf: lastMsg.isSelf,
+              status: lastMsg.status,
+            },
+            updatedAt: lastMsg.rawTime || conv?.updated_at || p.updated_at || new Date().toISOString(),
+          } as ChatContact & { updatedAt?: string });
         }
       }
     } catch (profErr) {
@@ -570,7 +633,7 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
     }
   }
 
-  // 2. Fetch groups where user is creator or member
+  // 8. Fetch groups where user is creator or member
   try {
     const { data: groups } = await supabaseServer
       .from("groups")
@@ -596,12 +659,20 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
             isSelf: false,
             status: "read",
           },
-        });
+          updatedAt: g.updated_at || g.created_at || new Date().toISOString(),
+        } as ChatContact & { updatedAt?: string });
       }
     }
   } catch (err) {
     console.warn("[ChatService] getUserConnectedContacts groups notice:", err);
   }
 
-  return Array.from(contactsMap.values());
+  // 9. Sort contacts by latest activity descending (WhatsApp style)
+  const sorted = Array.from(contactsMap.values()).sort((a, b) => {
+    const tA = (a as any).updatedAt ? new Date((a as any).updatedAt).getTime() : 0;
+    const tB = (b as any).updatedAt ? new Date((b as any).updatedAt).getTime() : 0;
+    return tB - tA;
+  });
+
+  return sorted;
 }

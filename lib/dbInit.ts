@@ -59,11 +59,22 @@ export async function ensureDatabaseTablesExist() {
           updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
         );
 
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints 
+            WHERE table_schema = 'public' AND table_name = 'conversations' AND constraint_name = 'unique_conversation_users'
+          ) THEN
+            ALTER TABLE public.conversations ADD CONSTRAINT unique_conversation_users UNIQUE (user1_id, user2_id);
+          END IF;
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END $$;
+
         CREATE TABLE IF NOT EXISTS public.messages (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          conversation_id UUID NOT NULL,
-          sender_id UUID NOT NULL,
-          receiver_id UUID,
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          conversation_id TEXT NOT NULL,
+          sender_id TEXT NOT NULL,
+          receiver_id TEXT,
           content TEXT DEFAULT '',
           text TEXT DEFAULT '',
           sender_name TEXT,
@@ -73,6 +84,7 @@ export async function ensureDatabaseTablesExist() {
           media_meta JSONB,
           reactions JSONB DEFAULT '[]'::jsonb,
           reply_to JSONB,
+          reply_to_id TEXT,
           status TEXT DEFAULT 'delivered',
           is_read BOOLEAN DEFAULT false,
           created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -86,6 +98,25 @@ export async function ensureDatabaseTablesExist() {
           ) THEN
             ALTER TABLE public.messages ADD COLUMN reply_to JSONB;
           END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = 'messages' AND column_name = 'reply_to_id'
+          ) THEN
+            ALTER TABLE public.messages ADD COLUMN reply_to_id TEXT;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = 'messages' AND column_name = 'content'
+          ) THEN
+            ALTER TABLE public.messages ADD COLUMN content TEXT DEFAULT '';
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = 'messages' AND column_name = 'is_read'
+          ) THEN
+            ALTER TABLE public.messages ADD COLUMN is_read BOOLEAN DEFAULT false;
+          END IF;
+        EXCEPTION WHEN OTHERS THEN NULL;
         END $$;
 
         CREATE TABLE IF NOT EXISTS public.chat_requests (
@@ -98,6 +129,14 @@ export async function ensureDatabaseTablesExist() {
           updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
           CONSTRAINT chat_requests_sender_receiver_key UNIQUE (sender_id, receiver_id)
         );
+
+        DO $$
+        BEGIN
+          ALTER TABLE public.chat_requests DROP CONSTRAINT IF EXISTS chat_requests_status_check;
+          ALTER TABLE public.chat_requests ADD CONSTRAINT chat_requests_status_check 
+            CHECK (status IN ('pending', 'accepted', 'unfriended', 'blocked', 'declined', 'rejected'));
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END $$;
 
         CREATE TABLE IF NOT EXISTS public.blocked_users (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

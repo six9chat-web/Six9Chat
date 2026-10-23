@@ -56,6 +56,7 @@ export interface ChatMessage {
     senderName: string;
     text: string;
   };
+  replyToId?: string;
 }
 
 export interface ChatContact {
@@ -77,6 +78,7 @@ export interface ChatContact {
   isBlockedByPartner?: boolean;
   isUnfriended?: boolean;
   isUnfriendedByPartner?: boolean;
+  updatedAt?: string;
   lastMessage?: {
     text: string;
     timestamp: string;
@@ -117,7 +119,7 @@ export interface ChatRequest {
   senderUsername?: string;
   senderAvatar?: string;
   receiverId: string;
-  status: "pending" | "accepted" | "declined" | "rejected" | "unfriended";
+  status: "pending" | "accepted" | "declined" | "rejected" | "unfriended" | "blocked";
   message?: string;
   createdAt: string;
 }
