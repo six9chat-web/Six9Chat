@@ -117,6 +117,7 @@ export function ChatList({
       {contacts.map((contact) => {
         const isActive = contact.id === activeContactId;
         const isMenuOpen = openMenuContactId === contact.id;
+        const isUnread = !isActive && contact.unreadCount > 0;
 
         return (
           <div
@@ -186,12 +187,12 @@ export function ChatList({
 
                   <span
                     className={cn(
-                      "text-[11px] font-normal shrink-0 ml-2 transition-colors",
-                      isActive
-                        ? "text-[#FFEFC4] font-medium"
-                        : contact.unreadCount > 0
+                      "text-[11px] shrink-0 ml-2 transition-colors",
+                      isUnread
                         ? "text-[#97D7FF] font-bold"
-                        : "text-slate-400"
+                        : isActive
+                        ? "text-[#FFEFC4] font-medium"
+                        : "text-slate-400 font-normal"
                     )}
                   >
                     {contact.lastMessage?.timestamp || ""}
@@ -203,11 +204,11 @@ export function ChatList({
                   <p
                     className={cn(
                       "text-xs truncate flex items-center gap-1.5 leading-snug transition-colors flex-1 min-w-0",
-                      isActive
-                        ? "text-slate-200"
-                        : contact.unreadCount > 0
-                        ? "text-[#97D7FF] font-bold tracking-tight"
-                        : "text-slate-400 group-hover:text-slate-200"
+                      isUnread
+                        ? "text-white font-bold tracking-tight"
+                        : isActive
+                        ? "text-slate-200 font-normal"
+                        : "text-slate-400 font-normal group-hover:text-slate-200"
                     )}
                   >
                     {contact.lastMessage?.isSelf && (
@@ -217,9 +218,7 @@ export function ChatList({
                     <span
                       className={cn(
                         "truncate",
-                        contact.unreadCount > 0 && !isActive
-                          ? "font-bold text-[#97D7FF]"
-                          : ""
+                        isUnread ? "font-bold text-white" : "font-normal"
                       )}
                     >
                       {contact.lastMessage?.text || "No messages yet"}
@@ -232,7 +231,8 @@ export function ChatList({
                       <Pin className="w-3.5 h-3.5 text-[#97D7FF] rotate-45 shrink-0" />
                     )}
 
-                    {contact.unreadCount > 0 && (
+                    {/* Unread badge: only rendered when user is NOT in this active room and count > 0 */}
+                    {isUnread && (
                       <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#97D7FF] text-[#053b53] font-black text-[11px] flex items-center justify-center shadow-md shadow-[#97D7FF]/40 ring-1 ring-[#97D7FF] shrink-0">
                         {contact.unreadCount}
                       </span>

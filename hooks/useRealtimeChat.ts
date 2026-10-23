@@ -148,7 +148,17 @@ export function useRealtimeChat() {
     setContacts((prev) =>
       prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
     );
-  }, []);
+    if (currentUser?.id && id) {
+      Promise.resolve(
+        supabase
+          .from("messages")
+          .update({ is_read: true, status: "read" })
+          .eq("receiver_id", currentUser.id)
+          .eq("is_read", false)
+          .or(`sender_id.eq.${id},conversation_id.eq.${id}`)
+      ).catch(() => {});
+    }
+  }, [currentUser?.id]);
 
   // Persist active chat session across page refreshes via URL and LocalStorage
   useEffect(() => {
@@ -215,6 +225,8 @@ export function useRealtimeChat() {
 
             // Update contact list preview and unread count
             const currentActiveContactId = activeContactIdRef.current;
+            const isViewingThisConversation = conversationKey === currentActiveContactId;
+
             setContacts((prev) => {
               const exists = prev.some((c) => c.id === conversationKey);
               if (exists) {
@@ -222,15 +234,14 @@ export function useRealtimeChat() {
                   c.id === conversationKey
                     ? {
                         ...c,
-                        unreadCount:
-                          c.id === currentActiveContactId ? 0 : c.unreadCount + 1,
+                        unreadCount: isViewingThisConversation ? 0 : c.unreadCount + 1,
                         lastMessage: {
                           text:
                             formatted.text ||
                             `[${(formatted.mediaType || "media").toUpperCase()}]`,
                           timestamp: formatted.timestamp,
                           isSelf: false,
-                          status: "delivered",
+                          status: isViewingThisConversation ? "read" : "delivered",
                           mediaType: formatted.mediaType,
                         },
                       }
@@ -243,18 +254,27 @@ export function useRealtimeChat() {
                   avatar: formatted.senderAvatar || "",
                   status: "online",
                   lastSeen: "Online now",
-                  unreadCount: 1,
+                  unreadCount: isViewingThisConversation ? 0 : 1,
                   lastMessage: {
                     text: formatted.text || "[Media]",
                     timestamp: formatted.timestamp,
                     isSelf: false,
-                    status: "delivered",
+                    status: isViewingThisConversation ? "read" : "delivered",
                     mediaType: formatted.mediaType,
                   },
                 };
                 return [newC, ...prev];
               }
             });
+
+            if (isViewingThisConversation && activeId && formatted.id) {
+              Promise.resolve(
+                supabase
+                  .from("messages")
+                  .update({ is_read: true, status: "read" })
+                  .eq("id", formatted.id)
+              ).catch(() => {});
+            }
           }
         }
       );
@@ -1207,14 +1227,30 @@ export function useRealtimeChat() {
               } catch {}
             }
 
-            setContacts(serverContacts);
-
+            let initialActiveId = "";
             if (savedTargetId && serverContacts.some((c) => c.id === savedTargetId)) {
-              setActiveContactId(savedTargetId);
+              initialActiveId = savedTargetId;
             } else if (serverContacts.length > 0) {
-              setActiveContactId(serverContacts[0].id);
-            } else {
-              setActiveContactId("");
+              initialActiveId = serverContacts[0].id;
+            }
+
+            // Immediately clear unreadCount for the currently open active contact room
+            const hydratedContacts = initialActiveId
+              ? serverContacts.map((c) => (c.id === initialActiveId ? { ...c, unreadCount: 0 } : c))
+              : serverContacts;
+
+            setContacts(hydratedContacts);
+            setActiveContactId(initialActiveId);
+
+            if (initialActiveId && user.id) {
+              Promise.resolve(
+                supabase
+                  .from("messages")
+                  .update({ is_read: true, status: "read" })
+                  .eq("receiver_id", user.id)
+                  .eq("is_read", false)
+                  .or(`sender_id.eq.${initialActiveId},conversation_id.eq.${initialActiveId}`)
+              ).catch(() => {});
             }
           } catch (e) {
             console.warn("Could not load conversations from API:", e);
@@ -1290,6 +1326,21 @@ export function useRealtimeChat() {
   // 3. Load conversation message history whenever active chat contact changes
   useEffect(() => {
     if (!activeContactId || !currentUser?.id) return;
+
+    // Immediately set unread_count to 0 for this conversation in local state
+    setContacts((prev) =>
+      prev.map((c) => (c.id === activeContactId && c.unreadCount > 0 ? { ...c, unreadCount: 0 } : c))
+    );
+
+    // Trigger Supabase query/RPC update to mark incoming unread messages as is_read = true
+    Promise.resolve(
+      supabase
+        .from("messages")
+        .update({ is_read: true, status: "read" })
+        .eq("receiver_id", currentUser.id)
+        .eq("is_read", false)
+        .or(`sender_id.eq.${activeContactId},conversation_id.eq.${activeContactId}`)
+    ).catch((e: unknown) => console.warn("Supabase mark read note:", e));
 
     let isMounted = true;
     async function fetchMessages() {
