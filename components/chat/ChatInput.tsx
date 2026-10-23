@@ -9,13 +9,12 @@ import {
   Send,
   Image as ImageIcon,
   FileText,
-  MapPin,
   X,
   Check,
   Video,
-  Paperclip,
   Loader2,
 } from "lucide-react";
+
 import { MediaType, MediaMeta } from "@/types/chat";
 import { EmojiPicker } from "./EmojiPicker";
 import { useTranslation } from "@/lib/LanguageContext";
@@ -54,7 +53,7 @@ export function ChatInput({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   // Auto-resize textarea
   useEffect(() => {
@@ -218,16 +217,6 @@ export function ChatInput({
         }}
         className="hidden"
       />
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="*/*"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFileUpload(file);
-        }}
-        className="hidden"
-      />
 
       {/* Attachment Popover Menu */}
       <AnimatePresence>
@@ -276,34 +265,8 @@ export function ChatInput({
                 </div>
                 <span>Document</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#4D8DBA]/30 text-white text-xs font-medium transition cursor-pointer"
-              >
-                <div className="w-7 h-7 rounded-full bg-[#086288] flex items-center justify-center text-teal-300">
-                  <Paperclip className="w-4 h-4" />
-                </div>
-                <span>Any File / Audio</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  onSendMessage("Live location shared", "location", {
-                    locationName: "Campus Central Plaza",
-                  });
-                  setShowAttachMenu(false);
-                }}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#4D8DBA]/30 text-white text-xs font-medium transition cursor-pointer"
-              >
-                <div className="w-7 h-7 rounded-full bg-[#086288] flex items-center justify-center text-rose-400">
-                  <MapPin className="w-4 h-4" />
-                </div>
-                <span>Location</span>
-              </button>
             </motion.div>
+
           </>
         )}
       </AnimatePresence>
