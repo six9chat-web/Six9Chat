@@ -1,20 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Search,
   MessageSquarePlus,
   X,
   MessageSquare,
+  ArrowLeft,
 } from "lucide-react";
-import { AnimatePresence } from "framer-motion";
 import { ChatList } from "@/components/chat/ChatList";
+import { SearchPanel } from "@/components/chat/SearchPanel";
 import { ChatContact, StoryItem, UserProfile, ChatRequest } from "@/types/chat";
 import { ChatFilterType } from "@/hooks/useRealtimeChat";
 import { Avatar } from "@/components/ui/Avatar";
 import { NotificationBell } from "@/components/chat/NotificationBell";
-import { NewChatPanel } from "@/components/chat/NewChatPanel";
 import { useTranslation } from "@/lib/LanguageContext";
+import { useClickOutside } from "@/hooks/useClickOutside";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
@@ -65,7 +66,6 @@ export function Sidebar({
   onFilterChange,
   onOpenNewChat,
   onOpenNewGroup,
-  onAddNewContact,
   onOpenProfile,
   chatRequests = [],
   onAcceptChatRequest,
@@ -79,7 +79,10 @@ export function Sidebar({
   onUnfriend,
 }: SidebarProps) {
   const { t } = useTranslation();
-  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   const userRecord = currentUser as unknown as Record<string, unknown>;
   const currentUsername =
     (typeof userRecord?.username === "string" && userRecord.username ? userRecord.username : null) ||
@@ -95,15 +98,15 @@ export function Sidebar({
     { id: "groups", label: t("groups", "Groups") },
   ];
 
-  // Pure local filter — strictly excludes current logged-in user
+  // Pure local filter for Active Conversations Mode — strictly excludes current logged-in user
   const trimmedQuery = searchQuery.trim().toLowerCase();
-  const isSelfContact = (c: ChatContact) => {
+  const isSelfContact = useCallback((c: ChatContact) => {
     if (!currentUser) return false;
     if (currentUser.id && c.id === currentUser.id) return true;
     if (currentUser.name && c.name === currentUser.name && currentUser.name !== "You") return true;
     if (currentUser.username && (c.name?.toLowerCase().replace(/^@+/, "") === currentUser.username.toLowerCase().replace(/^@+/, ""))) return true;
     return false;
-  };
+  }, [currentUser]);
 
   const filteredContacts = trimmedQuery
     ? contacts.filter(
@@ -113,6 +116,43 @@ export function Sidebar({
           (c.phone && c.phone.toLowerCase().includes(trimmedQuery)))
       )
     : contacts.filter((c) => !isSelfContact(c));
+
+  // Handler to close search mode and instantly restore Active Conversations list
+  const handleCloseSearch = useCallback(() => {
+    setIsSearchMode(false);
+    onSearchChange("");
+    searchInputRef.current?.blur();
+  }, [onSearchChange]);
+
+  // Click-Outside Listener: Clicking anywhere outside the search container auto-dismisses search mode
+  useClickOutside(
+    searchContainerRef,
+    () => {
+      if (isSearchMode || Boolean(searchQuery.trim())) {
+        handleCloseSearch();
+      }
+    },
+    isSearchMode || Boolean(searchQuery.trim())
+  );
+
+  // Keyboard shortcut: Pressing 'Escape' closes search mode and restores active conversations
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && (isSearchMode || searchQuery)) {
+        handleCloseSearch();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSearchMode, searchQuery, handleCloseSearch]);
+
+  const handleOpenSearchMode = () => {
+    setIsSearchMode(true);
+    onOpenNewChat?.();
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 40);
+  };
 
   return (
     <aside className="w-full h-full min-h-0 flex flex-col bg-[#053b53] border-r border-[#4D8DBA]/30 z-20 shrink-0 select-none overflow-hidden relative">
@@ -152,13 +192,10 @@ export function Sidebar({
             onReject={onRejectChatRequest || (() => {})}
           />
 
-          {/* New Chat Button */}
+          {/* New Chat Button: Triggers Search & Contacts Mode */}
           <button
             type="button"
-            onClick={() => {
-              setIsNewChatOpen(true);
-              onOpenNewChat?.();
-            }}
+            onClick={handleOpenSearchMode}
             className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-[#4D8DBA] hover:bg-[#97D7FF] text-white hover:text-[#086288] font-bold text-xs flex items-center gap-1.5 shadow-md shadow-[#086288]/40 transition active:scale-95 cursor-pointer"
             title={t("newChat", "New Chat")}
           >
@@ -167,95 +204,129 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* 2. Local Filter Search Bar — filters ONLY active conversations, no DB calls */}
-      <div className="px-3 pt-3 pb-2 shrink-0">
-        <div className="relative flex items-center w-full">
-          <Search className="w-4 h-4 text-slate-300 absolute left-3.5 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={t("searchNameOrUsername", "Search name or username...")}
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-            className="w-full h-10 pl-10 pr-9 rounded-full bg-[#032433] border border-[#4D8DBA]/40 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => onSearchChange("")}
-              className="absolute right-3 p-1 rounded-full text-slate-400 hover:text-white transition cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Outer Search & Contacts Container wrapped with click-outside ref */}
+      <div ref={searchContainerRef} className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
 
-      {/* 3. Filter Pill Tabs: All, Unread, Pinned, Groups */}
-      <div className="px-3 pb-2.5 shrink-0 overflow-x-auto no-scrollbar flex items-center gap-1.5">
-        {filterTabs.map((tab) => {
-          const isActive = activeFilter === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onFilterChange(tab.id)}
+        {/* 2. Search Bar: Clean input, supports focus trigger & WhatsApp-style back arrow */}
+        <div className="px-3 pt-3 pb-2 shrink-0">
+          <div className="relative flex items-center w-full">
+            {isSearchMode ? (
+              <button
+                type="button"
+                onClick={handleCloseSearch}
+                className="w-7 h-7 absolute left-2 rounded-full hover:bg-white/10 active:bg-white/20 text-[#97D7FF] flex items-center justify-center transition cursor-pointer z-10"
+                title="Back to active chats"
+                aria-label="Back to active chats"
+              >
+                <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+              </button>
+            ) : (
+              <Search className="w-4 h-4 text-slate-300 absolute left-3.5 pointer-events-none" />
+            )}
+
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onFocus={() => setIsSearchMode(true)}
+              onChange={(e) => {
+                onSearchChange(e.target.value);
+                if (!isSearchMode) setIsSearchMode(true);
+              }}
+              placeholder={t("searchNameOrUsername", "Search name or username...")}
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
               className={cn(
-                "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer shrink-0",
-                isActive
-                  ? "bg-[#4D8DBA] text-white shadow-md shadow-[#086288]/40 ring-1 ring-[#97D7FF]/50"
-                  : "bg-[#032433] border border-[#4D8DBA]/35 text-slate-300 hover:text-white hover:bg-[#4D8DBA]/25"
+                "w-full h-10 pr-9 rounded-full bg-[#032433] border border-[#4D8DBA]/40 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] transition",
+                isSearchMode ? "pl-10" : "pl-10"
               )}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+            />
 
-      {/* 4. Chat List — passes locally-filtered contacts; shows empty state on no match */}
-      {trimmedQuery && filteredContacts.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center select-none">
-          <div className="w-12 h-12 rounded-2xl bg-[#032433] border border-[#4D8DBA]/40 flex items-center justify-center mb-3 shadow-lg">
-            <MessageSquare className="w-5 h-5 text-[#4D8DBA]" />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => onSearchChange("")}
+                className="absolute right-3 p-1 rounded-full text-slate-400 hover:text-white transition cursor-pointer z-10"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
-          <p className="text-sm font-bold text-white mb-1">{t("noActiveChats", "No active chats yet")}</p>
-          <p className="text-[11px] text-slate-400 max-w-[200px] leading-relaxed">
-            {t("noActiveChatsDesc", "Search a user by username to start messaging.")}
-          </p>
         </div>
-      ) : (
-        <ChatList
-          contacts={filteredContacts}
-          activeContactId={activeContactId}
-          onSelectContact={onSelectContact}
-          onBlockUser={onBlockUser}
-          onUnblockUser={onUnblockUser}
-          onClearChat={onClearChat}
-          onDeleteChat={onDeleteChat}
-          onUnfriend={onUnfriend}
-          onDeleteContact={onDeleteContact}
-        />
-      )}
 
-      {/* WhatsApp-Style New Chat Left Panel View */}
-      <AnimatePresence>
-        {isNewChatOpen && (
-          <NewChatPanel
-            isOpen={isNewChatOpen}
-            onClose={() => setIsNewChatOpen(false)}
+        {/* 3. CONDITIONAL VIEW: Search Mode (SearchPanel) vs Active Conversations Mode (Default) */}
+        {isSearchMode ? (
+          /* SEARCH MODE: Live Directory Search & Registered Users View ("CONTACTS ON SIX9CHAT") */
+          <SearchPanel
+            searchQuery={searchQuery}
+            onSearchChange={onSearchChange}
             currentUser={currentUser}
             contacts={contacts}
-            onSelectContact={onSelectContact}
-            onAddNewContact={onAddNewContact}
+            onSelectContact={(id) => {
+              onSelectContact(id);
+              handleCloseSearch();
+            }}
+            onClose={handleCloseSearch}
             onOpenNewGroup={onOpenNewGroup}
             onSendChatRequest={onSendChatRequest}
             onDeleteContact={onDeleteContact}
           />
+        ) : (
+          /* ACTIVE CONVERSATIONS MODE (DEFAULT): Persistent Accepted Friends, Active Chats, Unread Badges */
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            {/* Filter Pill Tabs: All, Unread, Pinned, Groups */}
+            <div className="px-3 pb-2.5 shrink-0 overflow-x-auto no-scrollbar flex items-center gap-1.5">
+              {filterTabs.map((tab) => {
+                const isActive = activeFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => onFilterChange(tab.id)}
+                    className={cn(
+                      "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer shrink-0",
+                      isActive
+                        ? "bg-[#4D8DBA] text-white shadow-md shadow-[#086288]/40 ring-1 ring-[#97D7FF]/50"
+                        : "bg-[#032433] border border-[#4D8DBA]/35 text-slate-300 hover:text-white hover:bg-[#4D8DBA]/25"
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Chat List — renders active conversations persistently */}
+            {trimmedQuery && filteredContacts.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center select-none">
+                <div className="w-12 h-12 rounded-2xl bg-[#032433] border border-[#4D8DBA]/40 flex items-center justify-center mb-3 shadow-lg">
+                  <MessageSquare className="w-5 h-5 text-[#4D8DBA]" />
+                </div>
+                <p className="text-sm font-bold text-white mb-1">{t("noActiveChats", "No active chats yet")}</p>
+                <p className="text-[11px] text-slate-400 max-w-[200px] leading-relaxed">
+                  {t("noActiveChatsDesc", "Search a user by username to start messaging.")}
+                </p>
+              </div>
+            ) : (
+              <ChatList
+                contacts={filteredContacts}
+                activeContactId={activeContactId}
+                onSelectContact={onSelectContact}
+                onBlockUser={onBlockUser}
+                onUnblockUser={onUnblockUser}
+                onClearChat={onClearChat}
+                onDeleteChat={onDeleteChat}
+                onUnfriend={onUnfriend}
+                onDeleteContact={onDeleteContact}
+              />
+            )}
+          </div>
         )}
-      </AnimatePresence>
+      </div>
     </aside>
   );
 }
+
+export default Sidebar;
