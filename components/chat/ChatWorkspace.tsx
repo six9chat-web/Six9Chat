@@ -220,6 +220,8 @@ export function ChatWorkspace() {
                 setIsProfileModalOpen(true);
               }}
               onUnblockUser={unblockUser}
+              onSendChatRequest={sendChatRequest}
+              onDeleteConversation={deleteChat}
             />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center select-none bg-gradient-to-b from-[#053b53] to-[#032433]">

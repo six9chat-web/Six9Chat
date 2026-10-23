@@ -131,26 +131,25 @@ export async function POST(req: NextRequest) {
       }
 
       case "unfriend": {
-        // 1. Update chat_requests status to 'unfriended' (or delete)
-        const { error: reqErr } = await supabaseServer
+        // 1. Delete any existing chat_request between this pair
+        await supabaseServer
           .from("chat_requests")
-          .update({ status: "unfriended", updated_at: new Date().toISOString() })
+          .delete()
           .or(`and(sender_id.eq.${userId},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${userId})`);
 
-        if (reqErr) {
-          // If status check constraint rejected 'unfriended', delete row cleanly
-          await supabaseServer
-            .from("chat_requests")
-            .delete()
-            .or(`and(sender_id.eq.${userId},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${userId})`);
-        }
+        // 2. Insert record where sender_id is the user who performed unfriend
+        await supabaseServer.from("chat_requests").upsert(
+          {
+            sender_id: userId,
+            receiver_id: partnerId,
+            status: "unfriended",
+            message: "unfriended",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "sender_id,receiver_id" }
+        );
 
-        // 2. Remove the conversation entry
-        await supabaseServer
-          .from("conversations")
-          .delete()
-          .or(`and(user1_id.eq.${u1},user2_id.eq.${u2}),and(user1_id.eq.${u2},user2_id.eq.${u1})`);
-
+        // Keep conversation entry intact so user sees "[ + Add Again ]" and "[ Delete Conversation ]"
         return NextResponse.json({ success: true, message: "Unfriended user successfully" });
       }
 

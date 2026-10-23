@@ -75,6 +75,8 @@ export interface ChatContact {
   unreadCount: number;
   isBlocked?: boolean;
   isBlockedByPartner?: boolean;
+  isUnfriended?: boolean;
+  isUnfriendedByPartner?: boolean;
   lastMessage?: {
     text: string;
     timestamp: string;

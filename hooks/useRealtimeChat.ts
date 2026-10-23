@@ -411,7 +411,26 @@ export function useRealtimeChat() {
         }
       );
 
-      // 7. Listen for postgres changes on messages table
+      // 7. Listen for real-time unfriend broadcast events
+      channel.on(
+        "broadcast",
+        { event: "user_unfriended" },
+        (payload: { payload: { unfriendedBy: string; targetUserId: string } }) => {
+          const data = payload.payload;
+          const activeId = currentUserRef.current.id;
+          if (data?.targetUserId === activeId && data?.unfriendedBy) {
+            setContacts((prev) =>
+              prev.map((c) =>
+                c.id === data.unfriendedBy
+                  ? { ...c, isUnfriendedByPartner: true }
+                  : c
+              )
+            );
+          }
+        }
+      );
+
+      // 8. Listen for postgres changes on messages table
       channel.on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
@@ -475,24 +494,54 @@ export function useRealtimeChat() {
             };
           });
 
-          // Update contact sidebar last message
-          setContacts((prev) =>
-            prev.map((c) =>
-              c.id === conversationKey ||
-              c.id === convId ||
-              (isSelf ? c.id === receiverId : c.id === senderId)
-                ? {
-                    ...c,
-                    lastMessage: {
-                      text: contentText,
-                      timestamp: formatted.timestamp,
-                      isSelf,
-                      status: formatted.status,
-                    },
-                  }
-                : c
-            )
-          );
+          // Update contact sidebar last message and unread count dynamically
+          const currentActiveContactId = activeContactIdRef.current;
+          setContacts((prev) => {
+            const targetId = isSelf ? receiverId : senderId;
+            const exists = prev.some(
+              (c) => c.id === conversationKey || c.id === targetId || c.id === convId
+            );
+            if (exists) {
+              return prev.map((c) =>
+                c.id === conversationKey || c.id === targetId || c.id === convId
+                  ? {
+                      ...c,
+                      unreadCount:
+                        isSelf || c.id === currentActiveContactId
+                          ? 0
+                          : (c.unreadCount || 0) + 1,
+                      lastMessage: {
+                        text:
+                          contentText ||
+                          (formatted.mediaType ? `[${formatted.mediaType.toUpperCase()}]` : "[Message]"),
+                        timestamp: formatted.timestamp,
+                        isSelf,
+                        status: formatted.status,
+                        mediaType: formatted.mediaType,
+                      },
+                    }
+                  : c
+              );
+            } else if (!isSelf && senderId) {
+              const newC: ChatContact = {
+                id: senderId,
+                name: formatted.senderName || "New Contact",
+                avatar: formatted.senderAvatar || "",
+                status: "online",
+                lastSeen: "Online now",
+                unreadCount: currentActiveContactId === senderId ? 0 : 1,
+                lastMessage: {
+                  text: contentText || "[Message]",
+                  timestamp: formatted.timestamp,
+                  isSelf: false,
+                  status: formatted.status,
+                  mediaType: formatted.mediaType,
+                },
+              };
+              return [newC, ...prev];
+            }
+            return prev;
+          });
         }
       );
 
@@ -757,7 +806,7 @@ export function useRealtimeChat() {
       if (!text.trim() && !mediaUrl && mediaType === "text") return;
 
       const currentContact = contacts.find((c) => c.id === activeContactId);
-      if (currentContact?.isBlocked) return;
+      if (currentContact?.isBlocked || currentContact?.isUnfriended || currentContact?.isUnfriendedByPartner) return;
 
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -1523,29 +1572,32 @@ export function useRealtimeChat() {
     [activeContactId, currentUser]
   );
 
-  // 5. Unfriend User (Updates chat_requests, deletes conversation, wipes from chat list)
+  // 5. Unfriend User (Updates chat_requests, updates contact state, broadcasts event)
   const unfriendUser = useCallback(
     async (contactId: string) => {
-      setContacts((prev) => prev.filter((c) => c.id !== contactId));
-      setMessagesMap((prev) => ({
-        ...prev,
-        [contactId]: [],
-      }));
+      // Mark contact as unfriended locally so the user sees the action footer
+      setContacts((prev) =>
+        prev.map((c) =>
+          c.id === contactId
+            ? { ...c, isUnfriended: true, isUnfriendedByPartner: false }
+            : c
+        )
+      );
       setChatRequests((prev) =>
         prev.filter((r) => r.senderId !== contactId && r.receiverId !== contactId)
       );
 
-      if (activeContactId === contactId) {
-        setActiveContactId("");
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.removeItem("six9chat_active_chat");
-            const url = new URL(window.location.href);
-            url.searchParams.delete("c");
-            window.history.replaceState({}, "", url.toString());
-          } catch {}
-        }
-      }
+      // Broadcast unfriend event to partner in realtime
+      try {
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "user_unfriended",
+          payload: {
+            unfriendedBy: currentUser.id,
+            targetUserId: contactId,
+          },
+        });
+      } catch {}
 
       try {
         if (currentUser?.id) {
@@ -1563,7 +1615,7 @@ export function useRealtimeChat() {
         console.warn("unfriendUser API notice:", e);
       }
     },
-    [activeContactId, currentUser]
+    [currentUser]
   );
 
   const deleteContact = deleteChat;
@@ -1704,6 +1756,15 @@ export function useRealtimeChat() {
             createdAt: "Just now",
           },
         });
+
+        // Reset unfriended state on this contact
+        setContacts((prev) =>
+          prev.map((c) =>
+            c.id === targetUserId
+              ? { ...c, isUnfriended: false, isUnfriendedByPartner: false }
+              : c
+          )
+        );
       } catch (e) {
         console.warn("Send request error:", e);
       }

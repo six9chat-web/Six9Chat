@@ -404,20 +404,30 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
   const contactIds = new Set<string>();
   const lastMessageMap = new Map<string, { text: string; timestamp: string; isSelf: boolean; status: MessageStatus }>();
 
-  // 1. Fetch strictly accepted chat requests for this user
+  // 1. Fetch chat requests (accepted or unfriended) for this user
   const acceptedPartnerIds = new Set<string>();
+  const unfriendedByMeSet = new Set<string>();
+  const unfriendedByPartnerSet = new Set<string>();
+
   try {
     const { data: requests, error } = await supabaseServer
       .from("chat_requests")
       .select("id, sender_id, receiver_id, status, updated_at, created_at")
-      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      .eq("status", "accepted");
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
 
     if (!error && Array.isArray(requests)) {
       for (const r of requests) {
         const partnerId = r.sender_id === userId ? r.receiver_id : r.sender_id;
-        if (partnerId && partnerId !== userId) {
+        if (!partnerId || partnerId === userId) continue;
+
+        if (r.status === "accepted") {
           acceptedPartnerIds.add(partnerId);
+        } else if (r.status === "unfriended") {
+          if (r.sender_id === userId) {
+            unfriendedByMeSet.add(partnerId);
+          } else {
+            unfriendedByPartnerSet.add(partnerId);
+          }
         }
       }
     }
@@ -425,8 +435,14 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
     console.warn("[ChatService] getUserConnectedContacts chat_requests notice:", err);
   }
 
-  // 2. Fetch conversations for strictly accepted partners to hydrate last_message & active chats
-  if (acceptedPartnerIds.size > 0) {
+  const allConnectedIds = new Set([
+    ...Array.from(acceptedPartnerIds),
+    ...Array.from(unfriendedByMeSet),
+    ...Array.from(unfriendedByPartnerSet),
+  ]);
+
+  // 2. Fetch conversations for active or unfriended partners to hydrate last_message & active chats
+  if (allConnectedIds.size > 0) {
     try {
       const { data: convs, error: convErr } = await supabaseServer
         .from("conversations")
@@ -437,13 +453,13 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
       if (!convErr && Array.isArray(convs)) {
         for (const c of convs) {
           const partnerId = c.user1_id === userId ? c.user2_id : c.user1_id;
-          if (partnerId && acceptedPartnerIds.has(partnerId)) {
+          if (partnerId && allConnectedIds.has(partnerId)) {
             contactIds.add(partnerId);
             const timeStr = c.updated_at
               ? new Date(c.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
               : "Recently";
             lastMessageMap.set(partnerId, {
-              text: c.last_message || "Chat request accepted. Say hi! 👋",
+              text: c.last_message || (unfriendedByMeSet.has(partnerId) || unfriendedByPartnerSet.has(partnerId) ? "Unfriended" : "Chat request accepted. Say hi! 👋"),
               timestamp: timeStr,
               isSelf: false,
               status: "read",
@@ -537,6 +553,8 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
             unreadCount: 0,
             isBlocked: blockedByMeSet.has(p.id),
             isBlockedByPartner: blockedMeSet.has(p.id),
+            isUnfriended: unfriendedByMeSet.has(p.id),
+            isUnfriendedByPartner: unfriendedByPartnerSet.has(p.id),
             lastMessage: lastMsg,
           });
         }

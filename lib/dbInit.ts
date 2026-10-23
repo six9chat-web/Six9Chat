@@ -95,6 +95,45 @@ export async function ensureDatabaseTablesExist() {
           created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
           CONSTRAINT blocked_users_blocker_blocked_key UNIQUE (blocker_id, blocked_id)
         );
+
+        -- Ensure Realtime publication includes messages, conversations and chat_requests
+        DO $pub$
+        BEGIN
+          BEGIN
+            ALTER TABLE public.messages REPLICA IDENTITY FULL;
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
+
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_publication_tables 
+              WHERE pubname = 'supabase_realtime' AND tablename = 'messages'
+            ) THEN
+              ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+            END IF;
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
+
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_publication_tables 
+              WHERE pubname = 'supabase_realtime' AND tablename = 'conversations'
+            ) THEN
+              ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
+            END IF;
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
+
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_publication_tables 
+              WHERE pubname = 'supabase_realtime' AND tablename = 'chat_requests'
+            ) THEN
+              ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_requests;
+            END IF;
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
+        END $pub$;
       `);
       isInitialized = true;
       return { success: true };

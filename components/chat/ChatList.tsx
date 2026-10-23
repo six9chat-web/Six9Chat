@@ -172,6 +172,16 @@ export function ChatList({
                         Blocked
                       </span>
                     )}
+                    {contact.isUnfriended && (
+                      <span className="text-[10px] font-semibold text-amber-300 bg-amber-500/20 px-1.5 py-0.2 rounded-md shrink-0">
+                        Unfriended
+                      </span>
+                    )}
+                    {contact.isUnfriendedByPartner && !contact.isUnfriended && (
+                      <span className="text-[10px] font-semibold text-amber-300 bg-amber-500/20 px-1.5 py-0.2 rounded-md shrink-0">
+                        Unfriended you
+                      </span>
+                    )}
                   </span>
 
                   <span
@@ -180,7 +190,7 @@ export function ChatList({
                       isActive
                         ? "text-[#FFEFC4] font-medium"
                         : contact.unreadCount > 0
-                        ? "text-[#FFEFC4] font-semibold"
+                        ? "text-[#97D7FF] font-bold"
                         : "text-slate-400"
                     )}
                   >
@@ -193,14 +203,25 @@ export function ChatList({
                   <p
                     className={cn(
                       "text-xs truncate flex items-center gap-1.5 leading-snug transition-colors flex-1 min-w-0",
-                      isActive ? "text-slate-200" : "text-slate-400 group-hover:text-slate-200"
+                      isActive
+                        ? "text-slate-200"
+                        : contact.unreadCount > 0
+                        ? "text-[#97D7FF] font-bold tracking-tight"
+                        : "text-slate-400 group-hover:text-slate-200"
                     )}
                   >
                     {contact.lastMessage?.isSelf && (
                       <span>{renderStatusTicks(contact.lastMessage.status)}</span>
                     )}
                     {renderMediaIcon(contact.lastMessage?.mediaType)}
-                    <span className="truncate">
+                    <span
+                      className={cn(
+                        "truncate",
+                        contact.unreadCount > 0 && !isActive
+                          ? "font-bold text-[#97D7FF]"
+                          : ""
+                      )}
+                    >
                       {contact.lastMessage?.text || "No messages yet"}
                     </span>
                   </p>
@@ -212,7 +233,7 @@ export function ChatList({
                     )}
 
                     {contact.unreadCount > 0 && (
-                      <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#FFEFC4] text-[#086288] font-bold text-[10px] flex items-center justify-center shadow-md shrink-0">
+                      <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#97D7FF] text-[#053b53] font-black text-[11px] flex items-center justify-center shadow-md shadow-[#97D7FF]/40 ring-1 ring-[#97D7FF] shrink-0">
                         {contact.unreadCount}
                       </span>
                     )}
