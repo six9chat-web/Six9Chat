@@ -10,7 +10,6 @@ import {
   VideoOff,
   Volume2,
   VolumeX,
-  Maximize2,
   Radio,
 } from "lucide-react";
 import { ChatContact } from "@/types/chat";

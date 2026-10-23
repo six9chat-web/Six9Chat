@@ -71,6 +71,24 @@ export async function PATCH(req: Request) {
       );
     }
 
+    // When accepted, automatically guarantee the conversation row exists in conversations table
+    if (status === "accepted" && data?.sender_id && data?.receiver_id) {
+      try {
+        const [user1_id, user2_id] = [data.sender_id, data.receiver_id].sort();
+        await supabaseServer.from("conversations").upsert(
+          {
+            user1_id,
+            user2_id,
+            last_message: "Chat request accepted. Say hi! 👋",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user1_id,user2_id" }
+        );
+      } catch (convErr) {
+        console.warn("[SendRequest PATCH] conversation upsert note:", convErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       request: data,

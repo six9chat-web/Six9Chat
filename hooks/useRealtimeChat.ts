@@ -1068,13 +1068,26 @@ export function useRealtimeChat() {
             }
 
             if (savedTargetId && !serverContacts.some((c) => c.id === savedTargetId)) {
-              // Only restore if a genuine conversation exists in database
+              // Only restore if a genuine conversation exists and request was accepted in database
               try {
-                const { data: convRow } = await supabase
-                  .from("conversations")
-                  .select("id, user1_id, user2_id")
-                  .or(`and(user1_id.eq.${user.id},user2_id.eq.${savedTargetId}),and(user1_id.eq.${savedTargetId},user2_id.eq.${user.id}),id.eq.${savedTargetId}`)
-                  .maybeSingle();
+                let isAuthorized = savedTargetId.startsWith("group-");
+                if (!isAuthorized) {
+                  const { data: acceptedReq } = await supabase
+                    .from("chat_requests")
+                    .select("id")
+                    .or(`and(sender_id.eq.${user.id},receiver_id.eq.${savedTargetId}),and(sender_id.eq.${savedTargetId},receiver_id.eq.${user.id})`)
+                    .eq("status", "accepted")
+                    .maybeSingle();
+                  isAuthorized = Boolean(acceptedReq);
+                }
+
+                const { data: convRow } = isAuthorized
+                  ? await supabase
+                      .from("conversations")
+                      .select("id, user1_id, user2_id")
+                      .or(`and(user1_id.eq.${user.id},user2_id.eq.${savedTargetId}),and(user1_id.eq.${savedTargetId},user2_id.eq.${user.id}),id.eq.${savedTargetId}`)
+                      .maybeSingle()
+                  : { data: null };
 
                 if (convRow) {
                   const partnerId = convRow.user1_id === user.id ? convRow.user2_id : convRow.user1_id;

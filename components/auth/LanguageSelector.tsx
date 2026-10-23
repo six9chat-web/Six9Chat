@@ -11,6 +11,7 @@ interface LanguageSelectorProps {
   onSelect?: (language: Language) => void;
   disabled?: boolean;
   compact?: boolean;
+  direction?: "auto" | "up" | "down";
   className?: string;
 }
 
@@ -19,6 +20,7 @@ export function LanguageSelector({
   onSelect: propOnSelect,
   disabled = false,
   compact = false,
+  direction = "auto",
   className = "",
 }: LanguageSelectorProps) {
   const { language: contextLanguage, setLanguage: contextSetLanguage } = useLanguage();
@@ -26,6 +28,7 @@ export function LanguageSelector({
   const currentSelected = propSelectedLanguage || contextLanguage;
 
   const [isOpen, setIsOpen] = useState(false);
+  const [openDirection, setOpenDirection] = useState<"up" | "down">("down");
   const [search, setSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -40,7 +43,25 @@ export function LanguageSelector({
     contextSetLanguage(lang);
   };
 
-  // Close when clicking outside
+  const toggleDropdown = () => {
+    setIsOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        if (direction === "up") {
+          setOpenDirection("up");
+        } else if (direction === "down") {
+          setOpenDirection("down");
+        } else if (dropdownRef.current) {
+          const rect = dropdownRef.current.getBoundingClientRect();
+          const spaceBelow = window.innerHeight - rect.bottom;
+          setOpenDirection(spaceBelow < 320 && rect.top > 300 ? "up" : "down");
+        }
+      }
+      return next;
+    });
+  };
+
+  // Close when clicking outside and focus search
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -78,7 +99,7 @@ export function LanguageSelector({
   return (
     <div
       className={`relative ${compact ? "w-auto" : "w-full"} ${className}`}
-      style={{ zIndex: isOpen ? 9999 : 30 }}
+      style={{ zIndex: isOpen ? 99999 : 30 }}
       ref={dropdownRef}
       onMouseDown={(e) => {
         // Stop bubbling so outside-click doesn't prematurely dismiss
@@ -91,7 +112,7 @@ export function LanguageSelector({
         disabled={disabled}
         onClick={(e) => {
           e.stopPropagation();
-          setIsOpen((prev) => !prev);
+          toggleDropdown();
         }}
         className={`rounded-2xl bg-[#053b53] border border-[#4D8DBA]/50 hover:border-[#97D7FF] focus:border-[#97D7FF] focus:ring-1 focus:ring-[#97D7FF] flex items-center justify-between text-slate-100 transition outline-none disabled:opacity-50 cursor-pointer shadow-sm select-none ${
           compact
@@ -127,17 +148,19 @@ export function LanguageSelector({
         />
       </button>
 
-      {/* Dropdown Menu with absolute highest z-index 9999 */}
+      {/* Dropdown Menu with absolute highest z-index 99999 and dynamic placement */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            initial={{ opacity: 0, y: openDirection === "up" ? 4 : -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            exit={{ opacity: 0, y: openDirection === "up" ? 4 : -4, scale: 0.98 }}
             transition={{ duration: 0.1, ease: "easeOut" }}
-            style={{ zIndex: 9999 }}
+            style={{ zIndex: 99999 }}
             onMouseDown={(e) => e.stopPropagation()}
-            className={`absolute top-full mt-2 bg-[#086288] border border-[#4D8DBA]/70 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden backdrop-blur-2xl ring-1 ring-[#97D7FF]/40 ${
+            className={`absolute ${
+              openDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"
+            } bg-[#086288] border border-[#4D8DBA]/70 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden backdrop-blur-2xl ring-1 ring-[#97D7FF]/40 ${
               compact ? "right-0 w-72" : "left-0 right-0"
             }`}
           >

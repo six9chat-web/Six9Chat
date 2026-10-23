@@ -12,7 +12,6 @@ import {
   FileText,
   Users,
   Phone,
-  Video,
   Trash2,
 } from "lucide-react";
 import { ChatContact, MessageStatus } from "@/types/chat";

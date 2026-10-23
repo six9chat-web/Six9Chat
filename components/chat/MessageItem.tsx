@@ -10,11 +10,8 @@ import {
   Pause,
   FileText,
   Download,
-  MapPin,
-  ExternalLink,
   Smile,
   Phone,
-  PhoneMissed,
   Video,
 } from "lucide-react";
 import { ChatMessage, MessageStatus } from "@/types/chat";

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Mail,
   Lock,
@@ -12,7 +12,6 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 

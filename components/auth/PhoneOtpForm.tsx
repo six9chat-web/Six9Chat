@@ -10,7 +10,6 @@ import {
   Edit2,
   AlertCircle,
   Loader2,
-  Sparkles,
   Info,
 } from "lucide-react";
 import { DEFAULT_COUNTRY, Country } from "@/lib/countries";

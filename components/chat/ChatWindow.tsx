@@ -1,12 +1,10 @@
 "use client";
 
 import React, { useRef, useEffect, useState, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { ChatContact, ChatMessage, MediaType, MediaMeta } from "@/types/chat";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageItem } from "@/components/chat/MessageItem";
-import { cn } from "@/lib/utils";
 
 interface ChatWindowProps {
   contact: ChatContact;

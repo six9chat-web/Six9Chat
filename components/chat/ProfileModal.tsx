@@ -358,7 +358,7 @@ export function ProfileModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-md bg-[#086288] border border-[#4D8DBA]/60 rounded-3xl shadow-2xl overflow-hidden text-slate-100"
+          className="relative w-full max-w-md bg-[#086288] border border-[#4D8DBA]/60 rounded-3xl shadow-2xl overflow-y-auto max-h-[92vh] text-slate-100 custom-scrollbar"
         >
           {/* Top Banner (Clutter-free, zero UID badges) */}
           <div className="h-28 bg-gradient-to-r from-[#086288] via-[#4D8DBA] to-[#97D7FF] relative p-4 flex justify-between items-start">
@@ -577,7 +577,7 @@ export function ProfileModal({
                     <span>{t("language", "Language")}</span>
                   </span>
                 </div>
-                <LanguageSelector />
+                <LanguageSelector direction="up" />
               </div>
             </div>
 

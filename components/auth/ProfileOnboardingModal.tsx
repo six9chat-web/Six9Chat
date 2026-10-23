@@ -14,7 +14,7 @@ import {
   Fingerprint,
 } from "lucide-react";
 import { useAuth, uploadAvatar } from "@/lib/auth";
-import { Avatar, DefaultAvatarSilhouette } from "@/components/ui/Avatar";
+import { DefaultAvatarSilhouette } from "@/components/ui/Avatar";
 
 interface ProfileOnboardingModalProps {
   isOpen: boolean;

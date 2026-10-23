@@ -57,6 +57,25 @@ export async function getOrCreateConversation(userA: string, userB: string): Pro
       return existing;
     }
 
+    // Verify an accepted chat request exists before creating a new conversation
+    const { data: requestRow } = await supabaseServer
+      .from("chat_requests")
+      .select("id, status")
+      .or(`and(sender_id.eq.${user1_id},receiver_id.eq.${user2_id}),and(sender_id.eq.${user2_id},receiver_id.eq.${user1_id})`)
+      .eq("status", "accepted")
+      .limit(1)
+      .maybeSingle();
+
+    if (!requestRow) {
+      // Do not persist conversation row without accepted request
+      return {
+        id: getCanonicalConversationId(user1_id, user2_id),
+        user1_id,
+        user2_id,
+        last_message: "",
+      };
+    }
+
     const { data: upsertedRow, error: insertErr } = await supabaseServer
       .from("conversations")
       .upsert(
@@ -385,53 +404,79 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
   const contactIds = new Set<string>();
   const lastMessageMap = new Map<string, { text: string; timestamp: string; isSelf: boolean; status: MessageStatus }>();
 
-  // 0. Fetch contacts from Supabase `conversations` table
+  // 1. Fetch strictly accepted chat requests for this user
+  const acceptedPartnerIds = new Set<string>();
   try {
-    const { data: convs, error: convErr } = await supabaseServer
-      .from("conversations")
-      .select("id, user1_id, user2_id, last_message, updated_at")
-      .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
-      .order("updated_at", { ascending: false });
+    const { data: requests, error } = await supabaseServer
+      .from("chat_requests")
+      .select("id, sender_id, receiver_id, status, updated_at, created_at")
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .eq("status", "accepted");
 
-    if (!convErr && Array.isArray(convs)) {
-      for (const c of convs) {
-        const partnerId = c.user1_id === userId ? c.user2_id : c.user1_id;
+    if (!error && Array.isArray(requests)) {
+      for (const r of requests) {
+        const partnerId = r.sender_id === userId ? r.receiver_id : r.sender_id;
         if (partnerId && partnerId !== userId) {
+          acceptedPartnerIds.add(partnerId);
           contactIds.add(partnerId);
-          if (c.last_message && !lastMessageMap.has(partnerId)) {
-            const timeStr = c.updated_at
-              ? new Date(c.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-              : "Recently";
-            lastMessageMap.set(partnerId, {
-              text: c.last_message,
-              timestamp: timeStr,
-              isSelf: false,
-              status: "read",
-            });
-          }
+          lastMessageMap.set(partnerId, {
+            text: "Chat request accepted. Say hi! 👋",
+            timestamp: "Recently",
+            isSelf: r.sender_id === userId,
+            status: "read",
+          });
         }
       }
     }
-  } catch (convNotice) {
-    console.warn("[ChatService] getUserConnectedContacts conversations note:", convNotice);
+  } catch (err) {
+    console.warn("[ChatService] getUserConnectedContacts chat_requests notice:", err);
   }
 
-  // 1. Fetch contacts from messages history (any 1-on-1 messages sent or received)
-  try {
-    const { data: recentMsgs } = await supabaseServer
-      .from("messages")
-      .select("id, conversation_id, sender_id, receiver_id, text, created_at, status, media_type")
-      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      .order("created_at", { ascending: false })
-      .limit(150);
+  // 2. Fetch conversations for strictly accepted partners to hydrate last_message
+  if (acceptedPartnerIds.size > 0) {
+    try {
+      const { data: convs, error: convErr } = await supabaseServer
+        .from("conversations")
+        .select("id, user1_id, user2_id, last_message, updated_at")
+        .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+        .order("updated_at", { ascending: false });
 
-    if (Array.isArray(recentMsgs)) {
-      for (const m of recentMsgs) {
-        if (m.conversation_id && m.conversation_id.startsWith("group-")) continue;
-        const partnerId = m.sender_id === userId ? m.receiver_id : m.sender_id;
-        if (partnerId && partnerId !== userId) {
-          contactIds.add(partnerId);
-          if (!lastMessageMap.has(partnerId)) {
+      if (!convErr && Array.isArray(convs)) {
+        for (const c of convs) {
+          const partnerId = c.user1_id === userId ? c.user2_id : c.user1_id;
+          if (partnerId && acceptedPartnerIds.has(partnerId)) {
+            if (c.last_message) {
+              const timeStr = c.updated_at
+                ? new Date(c.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                : "Recently";
+              lastMessageMap.set(partnerId, {
+                text: c.last_message,
+                timestamp: timeStr,
+                isSelf: false,
+                status: "read",
+              });
+            }
+          }
+        }
+      }
+    } catch (convNotice) {
+      console.warn("[ChatService] getUserConnectedContacts conversations note:", convNotice);
+    }
+
+    // 3. Fetch recent messages history for accepted partners
+    try {
+      const { data: recentMsgs } = await supabaseServer
+        .from("messages")
+        .select("id, conversation_id, sender_id, receiver_id, text, created_at, status, media_type")
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .order("created_at", { ascending: false })
+        .limit(150);
+
+      if (Array.isArray(recentMsgs)) {
+        for (const m of recentMsgs) {
+          if (m.conversation_id && m.conversation_id.startsWith("group-")) continue;
+          const partnerId = m.sender_id === userId ? m.receiver_id : m.sender_id;
+          if (partnerId && acceptedPartnerIds.has(partnerId)) {
             const timeStr = m.created_at
               ? new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
               : "Recently";
@@ -444,37 +489,9 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
           }
         }
       }
+    } catch (msgErr) {
+      console.warn("[ChatService] getUserConnectedContacts messages notice:", msgErr);
     }
-  } catch (msgErr) {
-    console.warn("[ChatService] getUserConnectedContacts messages notice:", msgErr);
-  }
-
-  // 2. Fetch contacts from chat_requests (strictly accepted requests)
-  try {
-    const { data: requests, error } = await supabaseServer
-      .from("chat_requests")
-      .select("id, sender_id, receiver_id, status, updated_at, created_at")
-      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      .eq("status", "accepted");
-
-    if (!error && Array.isArray(requests)) {
-      for (const r of requests) {
-        const partnerId = r.sender_id === userId ? r.receiver_id : r.sender_id;
-        if (partnerId && partnerId !== userId) {
-          contactIds.add(partnerId);
-          if (!lastMessageMap.has(partnerId)) {
-            lastMessageMap.set(partnerId, {
-              text: r.status === "accepted" ? "Connected! Start chatting" : "Chat request sent",
-              timestamp: "Recently",
-              isSelf: r.sender_id === userId,
-              status: "read",
-            });
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.warn("[ChatService] getUserConnectedContacts chat_requests notice:", err);
   }
 
   // 3. Fetch profiles for all discovered contact IDs
