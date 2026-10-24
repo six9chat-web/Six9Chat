@@ -284,6 +284,7 @@ export function ChatWorkspace() {
       <ProfileModal
         isOpen={isProfileModalOpen}
         currentUser={profileModalTarget === "self" || !activeContact ? activeUser : activeContact}
+        currentUserId={activeUser?.id}
         isOwnProfile={profileModalTarget === "self"}
         onClose={() => setIsProfileModalOpen(false)}
         onSignOut={signOut}

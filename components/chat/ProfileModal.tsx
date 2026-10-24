@@ -33,6 +33,7 @@ interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: UserProfile | ChatContact;
+  currentUserId?: string;
   isOwnProfile?: boolean;
   onSignOut?: () => void;
   onUpdateProfile?: (data: {
@@ -49,6 +50,7 @@ export function ProfileModal({
   isOpen,
   onClose,
   currentUser,
+  currentUserId,
   isOwnProfile = true,
   onSignOut,
   onUpdateProfile,
@@ -56,6 +58,13 @@ export function ProfileModal({
   onVideoCall,
 }: ProfileModalProps) {
   const { t } = useTranslation();
+
+  // 1. Profile Owner vs Contact View Detection
+  // Check if displayed profile ID matches currently logged-in user ID (isOwn = currentUserId === targetUserId)
+  const targetUserId = currentUser?.id || "";
+  const isOwn = currentUserId && targetUserId
+    ? currentUserId === targetUserId
+    : Boolean(isOwnProfile);
   // Avatar & upload states
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -364,7 +373,7 @@ export function ProfileModal({
           <div className="h-28 bg-gradient-to-r from-[#086288] via-[#4D8DBA] to-[#97D7FF] relative p-4 flex justify-between items-start">
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#053b53]/90 border border-[#4D8DBA]/60 text-xs font-medium text-[#FFEFC4] shadow-sm">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>{isOwnProfile ? "My Six9 Profile" : "Contact Information"}</span>
+              <span>{isOwn ? "My Six9 Profile" : "Contact Information"}</span>
             </div>
 
             <button
@@ -380,7 +389,7 @@ export function ProfileModal({
           <div className="px-6 -mt-12 relative flex items-end justify-between">
             <div className="relative" ref={dpMenuRef}>
               {/* Hidden file input for photo upload */}
-              {isOwnProfile && (
+              {isOwn && (
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -393,7 +402,7 @@ export function ProfileModal({
               {/* Circular DP */}
               <div
                 onClick={() => {
-                  if (isOwnProfile) {
+                  if (isOwn) {
                     setIsDpMenuOpen((prev) => !prev);
                   } else if (isCustomImage) {
                     setIsViewDpOpen(true);
@@ -401,11 +410,11 @@ export function ProfileModal({
                 }}
                 className={cn(
                   "w-24 h-24 rounded-full ring-4 ring-[#086288] bg-gradient-to-tr from-[#086288] to-[#97D7FF] flex items-center justify-center text-3xl font-bold text-white shadow-xl overflow-hidden relative select-none",
-                  isOwnProfile && "cursor-pointer hover:ring-[#97D7FF] transition-all"
+                  isOwn && "cursor-pointer hover:ring-[#97D7FF] transition-all"
                 )}
                 role="button"
                 tabIndex={0}
-                title={isOwnProfile ? "Profile picture options" : currentUser.name}
+                title={isOwn ? "Profile picture options" : currentUser.name}
               >
                 <Avatar
                   src={isCustomImage ? currentAvatar : null}
@@ -429,7 +438,7 @@ export function ProfileModal({
               )}
 
               {/* Camera Icon Button */}
-              {isOwnProfile && (
+              {isOwn && (
                 <button
                   type="button"
                   onClick={() => setIsDpMenuOpen((prev) => !prev)}
@@ -443,7 +452,7 @@ export function ProfileModal({
 
               {/* Profile Picture Popup Menu */}
               <AnimatePresence>
-                {isDpMenuOpen && isOwnProfile && (
+                {isDpMenuOpen && isOwn && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9, y: 6 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -510,7 +519,7 @@ export function ProfileModal({
                 </h2>
               </div>
 
-              {isOwnProfile && (
+              {isOwn && (
                 <button
                   type="button"
                   onClick={() => {
@@ -536,7 +545,7 @@ export function ProfileModal({
                     <MessageSquare className="w-3.5 h-3.5 text-[#97D7FF]" />
                     <span>{t("statusAbout", "About / Status")}</span>
                   </span>
-                  {isOwnProfile && (
+                  {isOwn && (
                     <button
                       type="button"
                       onClick={() => {
@@ -556,34 +565,38 @@ export function ProfileModal({
                 </p>
               </div>
 
-              {/* Clean Email Address Box */}
-              <div className="bg-[#053b53] p-3.5 rounded-2xl border border-[#4D8DBA]/40 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300 font-medium flex items-center gap-1.5 text-xs">
-                    <Mail className="w-3.5 h-3.5 text-[#97D7FF]" />
-                    <span>{t("email", "Email Address")}</span>
-                  </span>
+              {/* Clean Email Address Box - Completely hidden when viewing another user's profile */}
+              {isOwn && (
+                <div className="bg-[#053b53] p-3.5 rounded-2xl border border-[#4D8DBA]/40 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300 font-medium flex items-center gap-1.5 text-xs">
+                      <Mail className="w-3.5 h-3.5 text-[#97D7FF]" />
+                      <span>{t("email", "Email Address")}</span>
+                    </span>
+                  </div>
+                  <p className="text-sm font-mono text-slate-100 pt-1 select-all truncate">
+                    {userEmail}
+                  </p>
                 </div>
-                <p className="text-sm font-mono text-slate-100 pt-1 select-all truncate">
-                  {userEmail}
-                </p>
-              </div>
+              )}
 
-              {/* Language Selection Box */}
-              <div className="bg-[#053b53] p-3.5 rounded-2xl border border-[#4D8DBA]/40 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300 font-medium flex items-center gap-1.5 text-xs">
-                    <Globe className="w-3.5 h-3.5 text-[#97D7FF]" />
-                    <span>{t("language", "Language")}</span>
-                  </span>
+              {/* Language Selection Box - Completely hidden when viewing another user's profile */}
+              {isOwn && (
+                <div className="bg-[#053b53] p-3.5 rounded-2xl border border-[#4D8DBA]/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300 font-medium flex items-center gap-1.5 text-xs">
+                      <Globe className="w-3.5 h-3.5 text-[#97D7FF]" />
+                      <span>{t("language", "Language")}</span>
+                    </span>
+                  </div>
+                  <LanguageSelector direction="up" />
                 </div>
-                <LanguageSelector direction="up" />
-              </div>
+              )}
             </div>
 
-            {/* Bottom Actions: Single Main Log Out button */}
+            {/* Bottom Actions: Single Main Log Out button (for own profile) or Voice/Video Call (for contact view) */}
             <div className="pt-2">
-              {isOwnProfile ? (
+              {isOwn ? (
                 onSignOut && (
                   <button
                     type="button"
@@ -930,3 +943,7 @@ export function ProfileModal({
     </AnimatePresence>
   );
 }
+
+export const ContactInfoModal = ProfileModal;
+export const UserProfileModal = ProfileModal;
+export default ProfileModal;
