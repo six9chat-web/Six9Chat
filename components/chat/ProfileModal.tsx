@@ -34,6 +34,7 @@ interface ProfileModalProps {
   onClose: () => void;
   currentUser: UserProfile | ChatContact;
   currentUserId?: string;
+  targetUserId?: string;
   isOwnProfile?: boolean;
   onSignOut?: () => void;
   onUpdateProfile?: (data: {
@@ -51,6 +52,7 @@ export function ProfileModal({
   onClose,
   currentUser,
   currentUserId,
+  targetUserId,
   isOwnProfile = true,
   onSignOut,
   onUpdateProfile,
@@ -61,9 +63,9 @@ export function ProfileModal({
 
   // 1. Profile Owner vs Contact View Detection
   // Check if displayed profile ID matches currently logged-in user ID (isOwn = currentUserId === targetUserId)
-  const targetUserId = currentUser?.id || "";
-  const isOwn = currentUserId && targetUserId
-    ? currentUserId === targetUserId
+  const resolvedTargetId = targetUserId || currentUser?.id || "";
+  const isOwn = currentUserId && resolvedTargetId
+    ? currentUserId === resolvedTargetId
     : Boolean(isOwnProfile);
   // Avatar & upload states
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);

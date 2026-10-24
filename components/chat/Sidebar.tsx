@@ -101,12 +101,9 @@ export function Sidebar({
   // Pure local filter for Active Conversations Mode — strictly excludes current logged-in user
   const trimmedQuery = searchQuery.trim().toLowerCase();
   const isSelfContact = useCallback((c: ChatContact) => {
-    if (!currentUser) return false;
-    if (currentUser.id && c.id === currentUser.id) return true;
-    if (currentUser.name && c.name === currentUser.name && currentUser.name !== "You") return true;
-    if (currentUser.username && (c.name?.toLowerCase().replace(/^@+/, "") === currentUser.username.toLowerCase().replace(/^@+/, ""))) return true;
-    return false;
-  }, [currentUser]);
+    if (!currentUser?.id || !c?.id) return false;
+    return c.id === currentUser.id;
+  }, [currentUser?.id]);
 
   const filteredContacts = trimmedQuery
     ? contacts.filter(

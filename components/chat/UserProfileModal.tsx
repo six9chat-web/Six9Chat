@@ -1,8 +1,7 @@
 "use client";
 
 export {
-  ProfileModal as default,
-  ProfileModal,
+  ContactInfoModal as default,
   ContactInfoModal,
   UserProfileModal,
-} from "./ProfileModal";
+} from "./ContactInfoModal";

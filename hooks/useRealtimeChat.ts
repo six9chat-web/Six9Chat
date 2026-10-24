@@ -50,7 +50,20 @@ export type ChatFilterType =
 export function useRealtimeChat() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<UserProfile>(CURRENT_USER);
-  const [contacts, setContacts] = useState<ChatContact[]>(INITIAL_CONTACTS);
+  const [contacts, setContacts] = useState<ChatContact[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("six9chat_active_contacts");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+    return INITIAL_CONTACTS;
+  });
   const [activeContactId, setActiveContactId] = useState<string>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -89,21 +102,14 @@ export function useRealtimeChat() {
   const currentUserRef = useRef<UserProfile>(currentUser);
   const activeContactIdRef = useRef<string>(activeContactId);
 
-  // Clear any legacy local storage contacts caches to ensure strictly genuine DB state
+  // Persist active contacts into localStorage so page reloads retain conversations permanently
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && contacts && contacts.length > 0) {
       try {
-        const keysToRemove: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && (k.startsWith("six9_saved_contacts_") || k.startsWith("six9_contacts_"))) {
-            keysToRemove.push(k);
-          }
-        }
-        keysToRemove.forEach((k) => localStorage.removeItem(k));
+        localStorage.setItem("six9chat_active_contacts", JSON.stringify(contacts));
       } catch {}
     }
-  }, []);
+  }, [contacts]);
 
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -1313,12 +1319,128 @@ export function useRealtimeChat() {
             uid: assignedUid,
           });
 
-          // 1. Fetch connected contacts & groups strictly from Supabase DB conversations API
+          // 1. Fetch connected contacts & groups:
+          // Query accepted contacts from public.chat_requests AND active conversations from public.conversations & public.messages
           try {
-            const convRes = await fetch(`/api/chat/conversations?userId=${user.id}`);
-            const convData = await convRes.json();
-            const serverContacts: ChatContact[] =
-              convData.success && Array.isArray(convData.contacts) ? convData.contacts : [];
+            let serverContacts: ChatContact[] = [];
+
+            // A. Fetch from backend API
+            try {
+              const convRes = await fetch(`/api/chat/conversations?userId=${user.id}`);
+              const convData = await convRes.json();
+              if (convData.success && Array.isArray(convData.contacts)) {
+                serverContacts = [...convData.contacts];
+              }
+            } catch (err) {
+              console.warn("Server conversations fetch notice:", err);
+            }
+
+            // B. Direct Supabase Client Query for 100% resilient persistence on page refresh:
+            // 1. Fetch all accepted contacts: SELECT * FROM public.chat_requests WHERE (sender_id = userId OR receiver_id = userId) AND status = 'accepted';
+            // 2. Fetch corresponding active conversations and last messages from public.conversations and public.messages
+            try {
+              const [reqRes, convRes, msgRes] = await Promise.all([
+                supabase
+                  .from("chat_requests")
+                  .select("id, sender_id, receiver_id, status, updated_at")
+                  .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+                  .eq("status", "accepted"),
+                supabase
+                  .from("conversations")
+                  .select("id, user1_id, user2_id, last_message, updated_at")
+                  .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
+                  .order("updated_at", { ascending: false }),
+                supabase
+                  .from("messages")
+                  .select("id, conversation_id, sender_id, receiver_id, content, text, status, media_type, created_at")
+                  .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+                  .order("created_at", { ascending: false })
+                  .limit(100),
+              ]);
+
+              const acceptedReqs = reqRes.data || [];
+              const directConvs = convRes.data || [];
+              const recentMsgs = msgRes.data || [];
+
+              const partnerIds = new Set<string>();
+              acceptedReqs.forEach((r) => {
+                const pid = r.sender_id === user.id ? r.receiver_id : r.sender_id;
+                if (pid && pid !== user.id) partnerIds.add(pid);
+              });
+              directConvs.forEach((c) => {
+                const pid = c.user1_id === user.id ? c.user2_id : c.user1_id;
+                if (pid && pid !== user.id) partnerIds.add(pid);
+              });
+              recentMsgs.forEach((m) => {
+                if (m.conversation_id && !m.conversation_id.startsWith("group-")) {
+                  const pid = m.sender_id === user.id ? m.receiver_id : m.sender_id;
+                  if (pid && pid !== user.id) partnerIds.add(pid);
+                }
+              });
+
+              if (partnerIds.size > 0) {
+                const { data: partnerProfiles } = await supabase
+                  .from("profiles")
+                  .select("id, username, full_name, avatar_url, about, status, updated_at")
+                  .in("id", Array.from(partnerIds));
+
+                if (partnerProfiles && partnerProfiles.length > 0) {
+                  for (const p of partnerProfiles) {
+                    const conv = directConvs.find((c) => c.user1_id === p.id || c.user2_id === p.id);
+                    const lastMsg = recentMsgs.find(
+                      (m) =>
+                        (m.sender_id === p.id && m.receiver_id === user.id) ||
+                        (m.sender_id === user.id && m.receiver_id === p.id) ||
+                        (conv && m.conversation_id === conv.id)
+                    );
+
+                    const timeStr = lastMsg?.created_at
+                      ? new Date(lastMsg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                      : conv?.updated_at
+                      ? new Date(conv.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                      : "Recently";
+
+                    const msgText =
+                      lastMsg?.content ||
+                      lastMsg?.text ||
+                      conv?.last_message ||
+                      "Chat request accepted. Say hi! 👋";
+
+                    const resolvedContact: ChatContact = {
+                      id: p.id,
+                      conversationId: conv?.id || p.id,
+                      name: p.username || p.full_name || "Contact",
+                      avatar: p.avatar_url || "",
+                      avatarColor: "from-[#086288] to-[#4D8DBA]",
+                      status: "online",
+                      lastSeen: "Online now",
+                      about: p.about || "Connected on Six9Chat",
+                      unreadCount: 0,
+                      lastMessage: {
+                        text: msgText,
+                        timestamp: timeStr,
+                        isSelf: lastMsg?.sender_id === user.id,
+                        status: (lastMsg?.status as MessageStatus) || "read",
+                      },
+                    };
+
+                    const existingIdx = serverContacts.findIndex(
+                      (c) => c.id === p.id || c.conversationId === resolvedContact.conversationId
+                    );
+                    if (existingIdx >= 0) {
+                      serverContacts[existingIdx] = {
+                        ...serverContacts[existingIdx],
+                        ...resolvedContact,
+                      };
+                    } else {
+                      serverContacts.push(resolvedContact);
+                    }
+                  }
+                }
+              }
+            } catch (directErr) {
+              console.warn("Direct Supabase contacts fetch notice:", directErr);
+            }
 
             // Check if there was an active contact ID stored in URL search param or localStorage
             let savedTargetId = "";
@@ -1340,7 +1462,7 @@ export function useRealtimeChat() {
                 let partnerId = savedTargetId;
                 let foundConvId = "";
 
-                // 1. Check if savedTargetId is a conversation UUID in conversations table
+                // Check conversations table
                 const { data: convRecord } = await supabase
                   .from("conversations")
                   .select("id, user1_id, user2_id")
@@ -1352,7 +1474,7 @@ export function useRealtimeChat() {
                   partnerId = convRecord.user1_id === user.id ? convRecord.user2_id : convRecord.user1_id;
                 }
 
-                // 2. Or check if messages exist with conversation_id = savedTargetId
+                // Or check messages
                 if (!convRecord) {
                   const { data: sampleMsg } = await supabase
                     .from("messages")
@@ -1371,32 +1493,7 @@ export function useRealtimeChat() {
                   }
                 }
 
-                // 3. Or check groups
-                if (savedTargetId.startsWith("group-")) {
-                  const { data: grpData } = await supabase
-                    .from("groups")
-                    .select("*")
-                    .eq("id", savedTargetId)
-                    .maybeSingle();
-
-                  if (grpData) {
-                    const restoredGroup: ChatContact = {
-                      id: grpData.id,
-                      conversationId: grpData.id,
-                      name: grpData.name,
-                      avatar: grpData.avatar_url || "",
-                      avatarColor: "from-[#086288] via-[#4D8DBA] to-[#97D7FF]",
-                      status: "online",
-                      lastSeen: `${(grpData.members || []).length} members`,
-                      about: grpData.description || "Six9Chat Group",
-                      isGroup: true,
-                      groupMembers: grpData.members || [],
-                      unreadCount: 0,
-                    };
-                    serverContacts.unshift(restoredGroup);
-                  }
-                } else if (partnerId && partnerId !== user.id) {
-                  // Fetch partner profile
+                if (partnerId && partnerId !== user.id) {
                   const { data: partnerProfile } = await supabase
                     .from("profiles")
                     .select("id, full_name, username, avatar_url, about")
@@ -1444,8 +1541,32 @@ export function useRealtimeChat() {
                 )
               : serverContacts;
 
-            setContacts(hydratedContacts);
-            setActiveContactId(initialActiveId);
+            // Only update contacts if serverContacts has entries; otherwise preserve cached local state!
+            if (hydratedContacts.length > 0) {
+              setContacts(hydratedContacts);
+              if (typeof window !== "undefined") {
+                try {
+                  localStorage.setItem("six9chat_active_contacts", JSON.stringify(hydratedContacts));
+                } catch {}
+              }
+            } else if (typeof window !== "undefined") {
+              try {
+                const cached = localStorage.getItem("six9chat_active_contacts");
+                if (cached) {
+                  const parsed = JSON.parse(cached);
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    setContacts(parsed);
+                    if (!initialActiveId && parsed[0]?.id) {
+                      initialActiveId = parsed[0].id;
+                    }
+                  }
+                }
+              } catch {}
+            }
+
+            if (initialActiveId) {
+              setActiveContactId(initialActiveId);
+            }
 
             if (initialActiveId && user.id) {
               Promise.resolve(
@@ -1458,9 +1579,8 @@ export function useRealtimeChat() {
               ).catch(() => {});
             }
           } catch (e) {
-            console.warn("Could not load conversations from API:", e);
-            setContacts([]);
-            setActiveContactId("");
+            console.warn("Could not load conversations:", e);
+            // Never wipe contacts on network/server error; keep cached local state
           }
 
           // 2. Fetch pending chat requests from Supabase
