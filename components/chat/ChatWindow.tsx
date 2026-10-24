@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChatContact, ChatMessage, MediaType, MediaMeta } from "@/types/chat";
+import { ChatContact, ChatMessage, MediaType, MediaMeta, UserProfile } from "@/types/chat";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageItem } from "@/components/chat/MessageItem";
@@ -22,6 +22,8 @@ import {
 interface ChatWindowProps {
   contact: ChatContact;
   messages: ChatMessage[];
+  currentUserId?: string;
+  currentUser?: UserProfile;
   allContacts?: ChatContact[];
   isTyping?: boolean;
   onSendMessage: (
@@ -48,6 +50,8 @@ interface ChatWindowProps {
 export function ChatWindow({
   contact,
   messages,
+  currentUserId,
+  currentUser,
   allContacts = [],
   isTyping = false,
   onSendMessage,
@@ -95,15 +99,38 @@ export function ChatWindow({
     }, 2400);
   };
 
+  // Ensure the chat header and replies display the OTHER USER'S name (test1 if logged in as test2)
+  const resolvedContact = useMemo(() => {
+    if (currentUserId && contact?.id === currentUserId) {
+      const other = allContacts?.find((c) => c.id !== currentUserId);
+      if (other) return other;
+    }
+    return contact;
+  }, [contact, currentUserId, allContacts]);
+
   // 1. Reply Action
   const handleReply = (msg: ChatMessage) => {
-    const senderLabel = msg.isSelf ? "You" : (contact.name || msg.senderName || "User");
+    const msgSenderId = msg.senderId || (msg as any).sender_id || "";
+    const isMsgFromSelf = currentUserId
+      ? msgSenderId === currentUserId
+      : Boolean(msg.isSelf);
+
+    const otherName =
+      resolvedContact?.name && resolvedContact.name !== "You"
+        ? resolvedContact.name
+        : msg.senderName && msg.senderName !== "You"
+        ? msg.senderName
+        : "Contact";
+
+    const senderLabel = isMsgFromSelf ? "You" : otherName;
     const previewText = msg.text || (msg.mediaType ? `[${msg.mediaType.toUpperCase()}]` : "Attachment");
+
     setReplyingTo({
       id: msg.id,
       senderName: senderLabel,
       text: previewText,
-    });
+      senderId: msgSenderId,
+    } as any);
   };
 
   // 2. Copy Action
@@ -351,7 +378,7 @@ export function ChatWindow({
         </div>
       ) : (
         <ChatHeader
-          contact={contact}
+          contact={resolvedContact}
           isTyping={isTyping}
           onBackToSidebar={onBackToSidebar}
           onVoiceCall={onVoiceCall}
@@ -434,13 +461,25 @@ export function ChatWindow({
             {/* Message Items with Chevron Dropdown, Copy, Forward, Select, Delete */}
             {group.items.map((msg, index) => {
               const prevMsg = group.items[index - 1];
-              const isFirstInGroup =
-                !prevMsg || prevMsg.senderId !== msg.senderId;
+              const prevSender = prevMsg ? (prevMsg.senderId || (prevMsg as any).sender_id) : "";
+              const msgSenderId = msg.senderId || (msg as any).sender_id || "";
+              const isFirstInGroup = !prevMsg || prevSender !== msgSenderId;
+
+              // CHAT BUBBLE SENDER DISCRIMINATION LOGIC
+              // Compare each message's sender_id with currentUserId:
+              // IF message.sender_id === currentUserId -> OUTGOING (Right-aligned, blue accent)
+              // IF message.sender_id !== currentUserId -> INCOMING (Left-aligned, contrasting dark teal/grey)
+              const isOutgoing = currentUserId
+                ? msgSenderId === currentUserId
+                : Boolean(msg.isSelf);
 
               return (
                 <MessageItem
                   key={msg.id}
                   message={msg}
+                  currentUserId={currentUserId}
+                  isOutgoing={isOutgoing}
+                  contactName={resolvedContact?.name}
                   isFirstInGroup={isFirstInGroup}
                   onReact={onReactToMessage}
                   onReply={handleReply}
@@ -461,24 +500,24 @@ export function ChatWindow({
         {isTyping && (
           <div className="flex items-center gap-2 px-3 py-1 text-xs text-[#97D7FF] font-medium animate-pulse">
             <span className="w-2 h-2 rounded-full bg-[#97D7FF] animate-bounce" />
-            <span>{contact.name} is typing...</span>
+            <span>{(resolvedContact || contact).name} is typing...</span>
           </div>
         )}
       </div>
 
       {/* 4. Bottom Input Dock or Action Footers */}
-      {contact.isBlocked ? (
+      {(resolvedContact || contact).isBlocked ? (
         <div className="p-4 bg-[#032433]/95 border-t border-[#4D8DBA]/35 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left z-20 shrink-0 select-none">
           <div className="flex items-center gap-2.5 text-xs text-rose-300 font-semibold">
             <span className="p-1.5 rounded-full bg-rose-500/20 text-rose-400 shrink-0">
               <ShieldAlert className="w-4 h-4" />
             </span>
-            <span>{contact.name} is blocked</span>
+            <span>{(resolvedContact || contact).name} is blocked</span>
           </div>
           {onUnblockUser && (
             <button
               type="button"
-              onClick={() => onUnblockUser(contact.id)}
+              onClick={() => onUnblockUser((resolvedContact || contact).id)}
               className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#4D8DBA] to-[#97D7FF] text-[#086288] font-bold text-xs hover:brightness-105 active:scale-95 transition cursor-pointer shadow-md shadow-[#086288]/40"
             >
               Unblock
@@ -528,14 +567,14 @@ export function ChatWindow({
             )}
           </div>
         </div>
-      ) : contact.isUnfriendedByPartner ? (
+      ) : (resolvedContact || contact).isUnfriendedByPartner ? (
         <div className="p-4 bg-[#032433]/95 border-t border-[#4D8DBA]/35 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left z-20 shrink-0 select-none">
           <div className="flex items-center gap-2.5 text-xs text-amber-200 font-medium">
             <span className="p-1.5 rounded-full bg-amber-500/20 text-amber-400 shrink-0">
               <UserMinus className="w-4 h-4" />
             </span>
             <span>
-              <strong className="text-white">{contact.name}</strong> unfriended you. Send request to reconnect?
+              <strong className="text-white">{(resolvedContact || contact).name}</strong> unfriended you. Send request to reconnect?
             </span>
           </div>
           <div className="shrink-0">

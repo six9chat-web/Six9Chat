@@ -136,11 +136,16 @@ export function useRealtimeChat() {
 
   // Active contact lookup (resolves by partner id OR conversation UUID)
   const activeContact = useMemo(() => {
+    // Exclude currentUser from ever being considered activeContact in 1-on-1 chats
+    const validContacts = currentUser?.id
+      ? contacts.filter((c) => c.id !== currentUser.id)
+      : contacts;
+
     return (
-      contacts.find((c) => c.id === activeContactId || c.conversationId === activeContactId) ||
-      (contacts.length > 0 ? contacts[0] : null)
+      validContacts.find((c) => c.id === activeContactId || c.conversationId === activeContactId) ||
+      (validContacts.length > 0 ? validContacts[0] : null)
     );
-  }, [contacts, activeContactId]);
+  }, [contacts, activeContactId, currentUser?.id]);
 
   // Current conversation messages (checks activeContactId, conversationId, or contact.id)
   const activeMessages = useMemo(() => {
@@ -1711,16 +1716,18 @@ export function useRealtimeChat() {
         }
 
         if (messagesList.length > 0) {
+          const partnerName = contactObj?.name || "Contact";
           const formatted: ChatMessage[] = messagesList.map((m: any) => {
-            const isSelf = activeUserId ? m.sender_id === activeUserId || m.isSelf : m.isSelf ?? false;
+            const msgSender = String(m.sender_id || m.senderId || "");
+            const isSelf = activeUserId ? msgSender === activeUserId : Boolean(m.isSelf);
             const contentText = String(m.content || m.text || "");
             const createdDate = m.created_at || m.createdAt ? new Date(m.created_at || m.createdAt) : new Date();
 
             return {
               id: String(m.id),
               conversationId: targetConvId,
-              senderId: String(m.sender_id || m.senderId || "other"),
-              senderName: String(m.sender_name || m.senderName || (isSelf ? "You" : "Contact")),
+              senderId: msgSender || (isSelf ? activeUserId : "other"),
+              senderName: String(m.sender_name || m.senderName || (isSelf ? "You" : partnerName)),
               senderAvatar: String(m.sender_avatar || m.senderAvatar || ""),
               isSelf,
               text: contentText,

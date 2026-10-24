@@ -26,6 +26,9 @@ import { useClickOutside } from "@/hooks/useClickOutside";
 
 export interface MessageItemProps {
   message: ChatMessage;
+  currentUserId?: string;
+  isOutgoing?: boolean;
+  contactName?: string;
   isFirstInGroup?: boolean;
   onReact?: (messageId: string, emoji: string) => void;
   onReply?: (message: ChatMessage) => void;
@@ -40,6 +43,9 @@ export interface MessageItemProps {
 
 export function MessageItem({
   message,
+  currentUserId,
+  isOutgoing,
+  contactName,
   isFirstInGroup = true,
   onReact,
   onReply,
@@ -51,6 +57,16 @@ export function MessageItem({
   isSelected = false,
   onToggleSelect,
 }: MessageItemProps) {
+  // CHAT BUBBLE SENDER DISCRIMINATION LOGIC
+  // If message.sender_id === currentUserId -> isSelf = true (OUTGOING, right-aligned, blue accent)
+  // If message.sender_id !== currentUserId -> isSelf = false (INCOMING, left-aligned, dark teal/grey)
+  const msgSenderId = message.senderId || (message as any).sender_id || "";
+  const isSelf = isOutgoing !== undefined
+    ? isOutgoing
+    : currentUserId
+    ? msgSenderId === currentUserId
+    : Boolean(message.isSelf);
+
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -156,7 +172,7 @@ export function MessageItem({
       transition={{ duration: 0.18, ease: "easeOut" }}
       className={cn(
         "group relative flex items-end gap-2 w-full my-1 px-2 sm:px-4",
-        message.isSelf ? "justify-end" : "justify-start"
+        isSelf ? "justify-end" : "justify-start"
       )}
     >
       {/* Multi-Selection Checkbox (WhatsApp Web style) */}
@@ -168,7 +184,7 @@ export function MessageItem({
           }}
           className={cn(
             "self-center p-1 cursor-pointer shrink-0 z-20",
-            message.isSelf ? "order-last ml-1" : "order-first mr-1"
+            isSelf ? "order-last ml-1" : "order-first mr-1"
           )}
           title={isSelected ? "Deselect message" : "Select message"}
         >
@@ -186,8 +202,8 @@ export function MessageItem({
       )}
 
       {/* Bubble Container:
-          - Outgoing (Self): #086288 or #97D7FF (Ocean blue accent bubble)
-          - Incoming: #053b53 or #FFEFC4 (Dark slate/cream bubble)
+          - Outgoing (Self): #086288 (Ocean blue accent bubble, right-aligned)
+          - Incoming: #053b53 (Dark teal/grey bubble, left-aligned)
           - WhatsApp-style double-click / double-tap to reply
       */}
       <div
@@ -206,7 +222,7 @@ export function MessageItem({
         title={isSelectionMode ? "Click to toggle selection" : "Double-click or double-tap to reply"}
         className={cn(
           "relative max-w-[85%] sm:max-w-[70%] md:max-w-[60%] rounded-2xl shadow-md transition-all select-text cursor-pointer",
-          message.isSelf
+          isSelf
             ? "bg-[#086288] text-white rounded-br-xs border border-[#4D8DBA]/50 shadow-[#086288]/30"
             : "bg-[#053b53] text-white rounded-bl-xs border border-[#4D8DBA]/40 shadow-[#053b53]/40",
           isSelectionMode && isSelected && "ring-2 ring-[#97D7FF] brightness-105"
@@ -245,7 +261,7 @@ export function MessageItem({
                   transition={{ duration: 0.12 }}
                   className={cn(
                     "absolute top-7 z-50 min-w-[170px] py-1.5 rounded-xl bg-[#032433] border border-[#4D8DBA]/50 shadow-2xl backdrop-blur-xl text-left text-xs select-none",
-                    message.isSelf ? "right-0" : "right-0 sm:left-0 sm:right-auto"
+                    isSelf ? "right-0" : "right-0 sm:left-0 sm:right-auto"
                   )}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -322,7 +338,7 @@ export function MessageItem({
         )}
 
         {/* Sender Name in group chats only (NEVER show static Contact label in 1-on-1 chats) */}
-        {!message.isSelf &&
+        {!isSelf &&
           isFirstInGroup &&
           message.conversationId?.startsWith("group-") &&
           message.senderName &&
@@ -333,16 +349,28 @@ export function MessageItem({
           )}
 
         {/* WhatsApp-Style Quoted / Reply Preview Box */}
-        {message.replyTo && (
-          <div className="mx-2 mt-2 p-2 rounded-lg bg-black/25 border-l-4 border-[#97D7FF] text-left text-xs select-none">
-            <div className="font-bold text-[#97D7FF] text-[11px] truncate">
-              {message.replyTo.senderName || "User"}
+        {message.replyTo && (() => {
+          const replySenderId = (message.replyTo as any)?.senderId || (message.replyTo as any)?.sender_id;
+          const isReplyToSelf = currentUserId && replySenderId
+            ? replySenderId === currentUserId
+            : message.replyTo.senderName === "You" || (isSelf && !message.replyTo.senderName);
+          const replyAuthor = isReplyToSelf
+            ? "You"
+            : message.replyTo.senderName && message.replyTo.senderName !== "You"
+            ? message.replyTo.senderName
+            : contactName || "Contact";
+
+          return (
+            <div className="mx-2 mt-2 p-2 rounded-lg bg-black/25 border-l-4 border-[#97D7FF] text-left text-xs select-none">
+              <div className="font-bold text-[#97D7FF] text-[11px] truncate">
+                {replyAuthor}
+              </div>
+              <div className="text-slate-200 text-xs truncate max-w-xs mt-0.5 opacity-90">
+                {message.replyTo.text || "Media"}
+              </div>
             </div>
-            <div className="text-slate-200 text-xs truncate max-w-xs mt-0.5 opacity-90">
-              {message.replyTo.text || "Media"}
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Media: Image Card */}
         {message.mediaType === "image" && (
@@ -444,10 +472,10 @@ export function MessageItem({
         )}
 
 
-        {/* Timestamp and Delivery Status Bar */}
+        {/* Timestamp and Delivery Status Bar (ticks only for outgoing messages) */}
         <div className="flex items-center justify-end gap-1 px-3 pb-1.5 -mt-0.5 text-[10px] font-medium text-slate-300 select-none">
           <span>{message.timestamp}</span>
-          {message.isSelf && renderStatusTicks(message.status)}
+          {isSelf && renderStatusTicks(message.status)}
         </div>
 
         {/* Message Reaction Badges (e.g. 🌹, 😂, ❤️) */}
@@ -482,7 +510,7 @@ export function MessageItem({
       <div
         className={cn(
           "opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 relative",
-          message.isSelf ? "order-first" : "order-last"
+          isSelf ? "order-first" : "order-last"
         )}
       >
         <button

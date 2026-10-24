@@ -213,6 +213,8 @@ export function ChatWorkspace() {
             <ChatWindow
               contact={activeContact}
               messages={activeMessages}
+              currentUserId={activeUser?.id || currentUser?.id}
+              currentUser={activeUser || currentUser}
               allContacts={allContacts}
               isTyping={isTyping}
               onSendMessage={sendMessage}
