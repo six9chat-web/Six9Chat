@@ -61,6 +61,7 @@ export interface ChatMessage {
 
 export interface ChatContact {
   id: string;
+  conversationId?: string;
   name: string;
   avatar: string;
   avatarColor?: string;

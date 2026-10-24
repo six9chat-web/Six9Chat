@@ -62,9 +62,24 @@ export function useRealtimeChat() {
     }
     return "";
   });
-  const [messagesMap, setMessagesMap] = useState<Record<string, ChatMessage[]>>(
-    INITIAL_MESSAGES_BY_CONTACT
-  );
+  const [messagesMap, setMessagesMap] = useState<Record<string, ChatMessage[]>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const urlId = new URLSearchParams(window.location.search).get("c");
+        const saved = urlId || localStorage.getItem("six9chat_active_chat");
+        if (saved) {
+          const cached = localStorage.getItem(`six9_messages_${saved}`);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              return { [saved]: parsed };
+            }
+          }
+        }
+      } catch {}
+    }
+    return INITIAL_MESSAGES_BY_CONTACT;
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<ChatFilterType>("all");
   const [isTyping, setIsTyping] = useState(false);
@@ -113,15 +128,23 @@ export function useRealtimeChat() {
   );
   const [channelConnected, setChannelConnected] = useState(false);
 
-  // Active contact lookup
+  // Active contact lookup (resolves by partner id OR conversation UUID)
   const activeContact = useMemo(() => {
-    return contacts.find((c) => c.id === activeContactId) || (contacts.length > 0 ? contacts[0] : null);
+    return (
+      contacts.find((c) => c.id === activeContactId || c.conversationId === activeContactId) ||
+      (contacts.length > 0 ? contacts[0] : null)
+    );
   }, [contacts, activeContactId]);
 
-  // Current conversation messages
+  // Current conversation messages (checks activeContactId, conversationId, or contact.id)
   const activeMessages = useMemo(() => {
-    return messagesMap[activeContactId] || [];
-  }, [messagesMap, activeContactId]);
+    return (
+      messagesMap[activeContactId] ||
+      (activeContact?.conversationId ? messagesMap[activeContact.conversationId] : undefined) ||
+      (activeContact?.id ? messagesMap[activeContact.id] : undefined) ||
+      []
+    );
+  }, [messagesMap, activeContactId, activeContact]);
 
   // Filtered contacts based on search and tab filter
   const filteredContacts = useMemo(() => {
@@ -900,10 +923,16 @@ export function useRealtimeChat() {
       };
 
       // 1. Optimistic update
-      setMessagesMap((prev) => ({
-        ...prev,
-        [destId]: [...(prev[destId] || []), newMsg],
-      }));
+      setMessagesMap((prev) => {
+        const nextList = [...(prev[destId] || []), newMsg];
+        try {
+          localStorage.setItem(`six9_messages_${destId}`, JSON.stringify(nextList.slice(-100)));
+        } catch {}
+        return {
+          ...prev,
+          [destId]: nextList,
+        };
+      });
 
       // 2. Update contact list preview
       setContacts((prev) =>
@@ -1302,55 +1331,83 @@ export function useRealtimeChat() {
               } catch {}
             }
 
-            if (savedTargetId && !serverContacts.some((c) => c.id === savedTargetId)) {
-              // Only restore if a genuine conversation exists and request was accepted in database
+            const matchedExisting = serverContacts.find(
+              (c) => c.id === savedTargetId || c.conversationId === savedTargetId
+            );
+
+            if (savedTargetId && !matchedExisting) {
               try {
-                let isAuthorized = savedTargetId.startsWith("group-");
-                if (!isAuthorized) {
-                  const { data: acceptedReq } = await supabase
-                    .from("chat_requests")
-                    .select("id")
-                    .or(`and(sender_id.eq.${user.id},receiver_id.eq.${savedTargetId}),and(sender_id.eq.${savedTargetId},receiver_id.eq.${user.id})`)
-                    .eq("status", "accepted")
-                    .maybeSingle();
-                  isAuthorized = Boolean(acceptedReq);
+                let partnerId = savedTargetId;
+                let foundConvId = "";
+
+                // 1. Check if savedTargetId is a conversation UUID in conversations table
+                const { data: convRecord } = await supabase
+                  .from("conversations")
+                  .select("id, user1_id, user2_id")
+                  .eq("id", savedTargetId)
+                  .maybeSingle();
+
+                if (convRecord) {
+                  foundConvId = convRecord.id;
+                  partnerId = convRecord.user1_id === user.id ? convRecord.user2_id : convRecord.user1_id;
                 }
 
-                if (isAuthorized) {
-                  let partnerId = savedTargetId;
-                  if (!savedTargetId.startsWith("group-")) {
-                    const [u1, u2] = [user.id, savedTargetId].sort();
-                    try {
-                      const { data: convRow } = await supabase
-                        .from("conversations")
-                        .upsert(
-                          {
-                            user1_id: u1,
-                            user2_id: u2,
-                            last_message: "Chat request accepted. Say hi! 👋",
-                            updated_at: new Date().toISOString(),
-                          },
-                          { onConflict: "user1_id,user2_id" }
-                        )
-                        .select("id, user1_id, user2_id")
-                        .maybeSingle();
+                // 2. Or check if messages exist with conversation_id = savedTargetId
+                if (!convRecord) {
+                  const { data: sampleMsg } = await supabase
+                    .from("messages")
+                    .select("sender_id, receiver_id, conversation_id")
+                    .eq("conversation_id", savedTargetId)
+                    .limit(1)
+                    .maybeSingle();
 
-                      if (convRow) {
-                        partnerId = convRow.user1_id === user.id ? convRow.user2_id : convRow.user1_id;
-                      }
-                    } catch {}
+                  if (sampleMsg) {
+                    foundConvId = sampleMsg.conversation_id;
+                    if (sampleMsg.sender_id !== user.id) {
+                      partnerId = sampleMsg.sender_id;
+                    } else if (sampleMsg.receiver_id && sampleMsg.receiver_id !== user.id) {
+                      partnerId = sampleMsg.receiver_id;
+                    }
                   }
+                }
 
+                // 3. Or check groups
+                if (savedTargetId.startsWith("group-")) {
+                  const { data: grpData } = await supabase
+                    .from("groups")
+                    .select("*")
+                    .eq("id", savedTargetId)
+                    .maybeSingle();
+
+                  if (grpData) {
+                    const restoredGroup: ChatContact = {
+                      id: grpData.id,
+                      conversationId: grpData.id,
+                      name: grpData.name,
+                      avatar: grpData.avatar_url || "",
+                      avatarColor: "from-[#086288] via-[#4D8DBA] to-[#97D7FF]",
+                      status: "online",
+                      lastSeen: `${(grpData.members || []).length} members`,
+                      about: grpData.description || "Six9Chat Group",
+                      isGroup: true,
+                      groupMembers: grpData.members || [],
+                      unreadCount: 0,
+                    };
+                    serverContacts.unshift(restoredGroup);
+                  }
+                } else if (partnerId && partnerId !== user.id) {
+                  // Fetch partner profile
                   const { data: partnerProfile } = await supabase
                     .from("profiles")
                     .select("id, full_name, username, avatar_url, about")
                     .eq("id", partnerId)
                     .maybeSingle();
 
-                  if (partnerProfile && partnerProfile.id !== user.id) {
+                  if (partnerProfile) {
                     const restoredContact: ChatContact = {
                       id: partnerProfile.id,
-                      name: partnerProfile.username || partnerProfile.full_name || "User",
+                      conversationId: foundConvId || partnerProfile.id,
+                      name: partnerProfile.username || partnerProfile.full_name || "Contact",
                       avatar: partnerProfile.avatar_url || "",
                       avatarColor: "from-[#086288] to-[#4D8DBA]",
                       status: "online",
@@ -1359,25 +1416,20 @@ export function useRealtimeChat() {
                       unreadCount: 0,
                     };
                     serverContacts.unshift(restoredContact);
-                    savedTargetId = partnerProfile.id;
                   }
-                } else {
-                  // No verified conversation exists! Clear stale target to prevent unapproved chats
-                  savedTargetId = "";
-                  try {
-                    localStorage.removeItem("six9chat_active_chat");
-                    const url = new URL(window.location.href);
-                    if (url.searchParams.has("c")) {
-                      url.searchParams.delete("c");
-                      window.history.replaceState({}, "", url.toString());
-                    }
-                  } catch {}
                 }
-              } catch {}
+              } catch (e) {
+                console.warn("Could not resolve saved conversation target:", e);
+              }
             }
 
             let initialActiveId = "";
-            if (savedTargetId && serverContacts.some((c) => c.id === savedTargetId)) {
+            const resolvedActive = serverContacts.find(
+              (c) => c.id === savedTargetId || c.conversationId === savedTargetId
+            );
+            if (resolvedActive) {
+              initialActiveId = resolvedActive.id;
+            } else if (savedTargetId) {
               initialActiveId = savedTargetId;
             } else if (serverContacts.length > 0) {
               initialActiveId = serverContacts[0].id;
@@ -1385,7 +1437,11 @@ export function useRealtimeChat() {
 
             // Immediately clear unreadCount for the currently open active contact room
             const hydratedContacts = initialActiveId
-              ? serverContacts.map((c) => (c.id === initialActiveId ? { ...c, unreadCount: 0 } : c))
+              ? serverContacts.map((c) =>
+                  c.id === initialActiveId || c.conversationId === initialActiveId
+                    ? { ...c, unreadCount: 0 }
+                    : c
+                )
               : serverContacts;
 
             setContacts(hydratedContacts);
@@ -1472,58 +1528,209 @@ export function useRealtimeChat() {
     };
   }, []);
 
-  // 3. Load conversation message history whenever active chat contact changes
+  // 3. Permanent Message Fetching Directly from Supabase (Task 1)
+  const fetchHistoricalMessages = useCallback(
+    async (targetConvId: string, partnerUserId?: string) => {
+      if (!targetConvId) return;
+
+      const activeUserId = currentUserRef.current?.id || "";
+
+      // 1. Fetch historical messages directly from Supabase DB:
+      // SELECT * FROM public.messages WHERE conversation_id = :activeConversationId ORDER BY created_at ASC;
+      try {
+        const contactObj = contacts.find(
+          (c) => c.id === targetConvId || c.conversationId === targetConvId
+        );
+        const resolvedConvId = contactObj?.conversationId || targetConvId;
+        const resolvedPartnerId = partnerUserId || (contactObj ? contactObj.id : targetConvId);
+
+        let query = supabase
+          .from("messages")
+          .select("*")
+          .order("created_at", { ascending: true });
+
+        const orClauses: string[] = [];
+        if (resolvedConvId) {
+          orClauses.push(`conversation_id.eq.${resolvedConvId}`);
+        }
+        if (targetConvId && targetConvId !== resolvedConvId) {
+          orClauses.push(`conversation_id.eq.${targetConvId}`);
+        }
+        if (resolvedPartnerId && resolvedPartnerId !== targetConvId && resolvedPartnerId !== resolvedConvId) {
+          orClauses.push(`conversation_id.eq.${resolvedPartnerId}`);
+        }
+        if (activeUserId && resolvedPartnerId && !resolvedConvId.startsWith("group-")) {
+          orClauses.push(`and(sender_id.eq.${activeUserId},receiver_id.eq.${resolvedPartnerId})`);
+          orClauses.push(`and(sender_id.eq.${resolvedPartnerId},receiver_id.eq.${activeUserId})`);
+        }
+
+        if (orClauses.length > 0) {
+          query = query.or(orClauses.join(","));
+        } else {
+          query = query.eq("conversation_id", targetConvId);
+        }
+
+        const { data: dbData, error } = await query;
+
+        let messagesList: any[] = [];
+        if (!error && Array.isArray(dbData) && dbData.length > 0) {
+          messagesList = dbData;
+        } else {
+          // Fallback via server API route to ensure complete retrieval
+          try {
+            const apiRes = await fetch(
+              `/api/chat/messages?conversationId=${encodeURIComponent(resolvedConvId)}&userA=${encodeURIComponent(
+                activeUserId
+              )}&userB=${encodeURIComponent(resolvedPartnerId)}`
+            );
+            const apiJson = await apiRes.json();
+            if (apiJson.success && Array.isArray(apiJson.messages) && apiJson.messages.length > 0) {
+              messagesList = apiJson.messages;
+            }
+          } catch {}
+        }
+
+        if (messagesList.length > 0) {
+          const formatted: ChatMessage[] = messagesList.map((m: any) => {
+            const isSelf = activeUserId ? m.sender_id === activeUserId || m.isSelf : m.isSelf ?? false;
+            const contentText = String(m.content || m.text || "");
+            const createdDate = m.created_at || m.createdAt ? new Date(m.created_at || m.createdAt) : new Date();
+
+            return {
+              id: String(m.id),
+              conversationId: targetConvId,
+              senderId: String(m.sender_id || m.senderId || "other"),
+              senderName: String(m.sender_name || m.senderName || (isSelf ? "You" : "Contact")),
+              senderAvatar: String(m.sender_avatar || m.senderAvatar || ""),
+              isSelf,
+              text: contentText,
+              timestamp: createdDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              date:
+                createdDate.toDateString() === new Date().toDateString()
+                  ? "Today"
+                  : createdDate.toLocaleDateString([], { month: "short", day: "numeric" }),
+              status: (m.status as MessageStatus) || "delivered",
+              mediaType: (m.media_type || m.mediaType || "text") as MediaType,
+              mediaUrl: m.media_url || m.mediaUrl || undefined,
+              mediaMeta: m.media_meta || m.mediaMeta || undefined,
+              reactions: m.reactions || [],
+              replyTo: m.reply_to || m.replyTo || undefined,
+              replyToId: m.reply_to_id || m.replyToId || undefined,
+            };
+          });
+
+          // Filter out deleted messages for this user
+          let finalMessages = formatted;
+          if (activeUserId) {
+            try {
+              const key = `six9_deleted_msg_${activeUserId}`;
+              const deletedForMe: string[] = JSON.parse(localStorage.getItem(key) || "[]");
+              if (deletedForMe && deletedForMe.length > 0) {
+                finalMessages = finalMessages.filter((msg) => !deletedForMe.includes(msg.id));
+              }
+            } catch {}
+          }
+
+          // Populate the chat messages array in state before rendering without overwriting existing messages with empty arrays
+          setMessagesMap((prev) => {
+            const existing = prev[targetConvId] || prev[resolvedConvId] || [];
+            if (finalMessages.length === 0 && existing.length > 0) {
+              return prev;
+            }
+
+            const map = new Map<string, ChatMessage>();
+            existing.forEach((item) => map.set(item.id, item));
+            finalMessages.forEach((item) => map.set(item.id, item));
+            const merged = Array.from(map.values());
+
+            try {
+              localStorage.setItem(`six9_messages_${targetConvId}`, JSON.stringify(merged.slice(-100)));
+              if (resolvedConvId && resolvedConvId !== targetConvId) {
+                localStorage.setItem(`six9_messages_${resolvedConvId}`, JSON.stringify(merged.slice(-100)));
+              }
+              if (resolvedPartnerId && resolvedPartnerId !== targetConvId) {
+                localStorage.setItem(`six9_messages_${resolvedPartnerId}`, JSON.stringify(merged.slice(-100)));
+              }
+            } catch {}
+
+            return {
+              ...prev,
+              [targetConvId]: merged,
+              ...(resolvedConvId !== targetConvId ? { [resolvedConvId]: merged } : {}),
+              ...(resolvedPartnerId !== targetConvId ? { [resolvedPartnerId]: merged } : {}),
+            };
+          });
+        }
+      } catch (err) {
+        console.warn("fetchHistoricalMessages error:", err);
+      }
+    },
+    [contacts]
+  );
+
+  // 4. On conversation select or component mount (listening to activeContactId / conversation_id)
   useEffect(() => {
-    if (!activeContactId || !currentUser?.id) return;
+    if (!activeContactId) return;
 
     // Immediately set unread_count to 0 for this conversation in local state
     setContacts((prev) =>
-      prev.map((c) => (c.id === activeContactId && c.unreadCount > 0 ? { ...c, unreadCount: 0 } : c))
+      prev.map((c) =>
+        (c.id === activeContactId || c.conversationId === activeContactId) && c.unreadCount > 0
+          ? { ...c, unreadCount: 0 }
+          : c
+      )
     );
 
-    // Trigger Supabase query/RPC update to mark incoming unread messages as is_read = true
-    Promise.resolve(
-      supabase
-        .from("messages")
-        .update({ is_read: true, status: "read" })
-        .eq("receiver_id", currentUser.id)
-        .eq("is_read", false)
-        .or(`sender_id.eq.${activeContactId},conversation_id.eq.${activeContactId}`)
-    ).catch((e: unknown) => console.warn("Supabase mark read note:", e));
+    // Fetch all historical messages permanently from Supabase
+    fetchHistoricalMessages(activeContactId);
 
-    let isMounted = true;
-    async function fetchMessages() {
-      try {
-        const res = await fetch(
-          `/api/chat/messages?conversationId=${activeContactId}&userA=${currentUser.id}&userB=${activeContactId}`
-        );
-        const data = await res.json();
-        if (isMounted && data.success && Array.isArray(data.messages)) {
-          let visibleMessages = data.messages;
-          try {
-            const key = `six9_deleted_msg_${currentUser.id}`;
-            const deletedForMe: string[] = JSON.parse(localStorage.getItem(key) || "[]");
-            if (deletedForMe && deletedForMe.length > 0) {
-              visibleMessages = visibleMessages.filter((m: ChatMessage) => !deletedForMe.includes(m.id));
-            }
-          } catch {}
-
-          setMessagesMap((prev) => ({
-            ...prev,
-            [activeContactId]: visibleMessages,
-          }));
-        }
-
-      } catch (err) {
-        console.warn("Could not load messages history:", err);
-      }
+    // Trigger Supabase query to mark incoming unread messages as read
+    if (currentUserRef.current?.id) {
+      Promise.resolve(
+        supabase
+          .from("messages")
+          .update({ is_read: true, status: "read" })
+          .eq("receiver_id", currentUserRef.current.id)
+          .eq("is_read", false)
+          .or(`sender_id.eq.${activeContactId},conversation_id.eq.${activeContactId}`)
+      ).catch(() => {});
     }
+  }, [activeContactId, fetchHistoricalMessages]);
 
-    fetchMessages();
-    return () => {
-      isMounted = false;
+  // Auto-reconnect Supabase Realtime channel upon browser focus or network recovery (Task 2)
+  useEffect(() => {
+    const handleReconnect = () => {
+      const activeId = activeContactIdRef.current;
+      if (activeId) {
+        fetchHistoricalMessages(activeId);
+      }
+      if (!channelConnected && channelRef.current) {
+        try {
+          channelRef.current.subscribe((status: string) => {
+            if (status === "SUBSCRIBED") {
+              setChannelConnected(true);
+            }
+          });
+        } catch {}
+      }
     };
-  }, [activeContactId, currentUser?.id]);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        handleReconnect();
+      }
+    };
+
+    window.addEventListener("focus", handleReconnect);
+    window.addEventListener("online", handleReconnect);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleReconnect);
+      window.removeEventListener("online", handleReconnect);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [channelConnected, fetchHistoricalMessages]);
 
   // Accept a pending chat request
   const acceptChatRequest = useCallback(async (req: ChatRequest) => {
@@ -2060,6 +2267,7 @@ export function useRealtimeChat() {
     deleteMessage,
     deleteMultipleMessages,
     unfriendUser,
+    fetchHistoricalMessages,
     signOut: handleSignOut,
   };
 }

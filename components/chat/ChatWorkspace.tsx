@@ -65,6 +65,7 @@ export function ChatWorkspace() {
     deleteMessage,
     deleteMultipleMessages,
     unfriendUser,
+    fetchHistoricalMessages,
   } = useRealtimeChat();
 
 
@@ -228,6 +229,7 @@ export function ChatWorkspace() {
               onUnblockUser={unblockUser}
               onSendChatRequest={sendChatRequest}
               onDeleteConversation={deleteChat}
+              onRefreshMessages={fetchHistoricalMessages}
             />
 
           ) : (

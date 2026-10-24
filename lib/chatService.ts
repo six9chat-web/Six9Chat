@@ -278,6 +278,38 @@ export async function getConversationMessages(
   userA?: string,
   userB?: string
 ): Promise<ChatMessage[]> {
+  // If conversationId is a conversation UUID and userA/userB are missing, resolve them
+  if (conversationId && (!userA || !userB)) {
+    try {
+      const { data: convRow } = await supabaseServer
+        .from("conversations")
+        .select("id, user1_id, user2_id")
+        .eq("id", conversationId)
+        .maybeSingle();
+
+      if (convRow) {
+        if (!userA) userA = convRow.user1_id;
+        if (!userB) userB = convRow.user2_id;
+      }
+    } catch {}
+  }
+
+  // If userB was passed as a conversation UUID instead of partner user ID, resolve actual partner
+  if (userB && userA && userB !== userA) {
+    try {
+      const { data: convCheck } = await supabaseServer
+        .from("conversations")
+        .select("id, user1_id, user2_id")
+        .eq("id", userB)
+        .maybeSingle();
+
+      if (convCheck) {
+        userB = convCheck.user1_id === userA ? convCheck.user2_id : convCheck.user1_id;
+        if (!conversationId) conversationId = convCheck.id;
+      }
+    } catch {}
+  }
+
   const canonicalId =
     userA && userB
       ? getCanonicalConversationId(userA, userB)
@@ -305,6 +337,15 @@ export async function getConversationMessages(
       .select("*")
       .order("created_at", { ascending: true });
 
+    const orFilters: string[] = [];
+
+    if (conversationId) {
+      orFilters.push(`conversation_id.eq.${conversationId}`);
+    }
+    if (canonicalId && canonicalId !== conversationId) {
+      orFilters.push(`conversation_id.eq.${canonicalId}`);
+    }
+
     if (userA && userB && !canonicalId.startsWith("group-")) {
       let convUuid = "";
       try {
@@ -312,21 +353,18 @@ export async function getConversationMessages(
         if (conv?.id) convUuid = conv.id;
       } catch {}
 
-      const orFilters = [
-        `and(sender_id.eq.${userA},receiver_id.eq.${userB})`,
-        `and(sender_id.eq.${userB},receiver_id.eq.${userA})`,
-      ];
-      if (convUuid) orFilters.push(`conversation_id.eq.${convUuid}`);
-      if (canonicalId && canonicalId !== convUuid) orFilters.push(`conversation_id.eq.${canonicalId}`);
-      if (conversationId && conversationId !== convUuid && conversationId !== canonicalId) {
-        orFilters.push(`conversation_id.eq.${conversationId}`);
+      orFilters.push(`and(sender_id.eq.${userA},receiver_id.eq.${userB})`);
+      orFilters.push(`and(sender_id.eq.${userB},receiver_id.eq.${userA})`);
+      if (convUuid && !orFilters.includes(`conversation_id.eq.${convUuid}`)) {
+        orFilters.push(`conversation_id.eq.${convUuid}`);
       }
+      if (userB && !orFilters.includes(`conversation_id.eq.${userB}`)) {
+        orFilters.push(`conversation_id.eq.${userB}`);
+      }
+    }
 
+    if (orFilters.length > 0) {
       query = query.or(orFilters.join(","));
-    } else {
-      query = query.or(
-        `conversation_id.eq.${canonicalId},conversation_id.eq.${conversationId}`
-      );
     }
 
     const { data: dbData, error } = await query;
@@ -660,6 +698,7 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
 
           contactsMap.set(p.id, {
             id: p.id,
+            conversationId: conv?.id || p.id,
             name: p.username ? p.username : (p.full_name || "Contact"),
             avatar: p.avatar_url || "",
             avatarColor: "from-[#086288] to-[#4D8DBA]",
@@ -698,6 +737,7 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
       for (const g of groups) {
         contactsMap.set(g.id, {
           id: g.id,
+          conversationId: g.id,
           name: g.name,
           avatar: g.avatar_url || "",
           avatarColor: "from-[#086288] via-[#4D8DBA] to-[#97D7FF]",

@@ -42,6 +42,7 @@ interface ChatWindowProps {
   onUnblockUser?: (contactId: string) => void;
   onSendChatRequest?: (targetUserId: string) => Promise<void> | void;
   onDeleteConversation?: (contactId: string) => void;
+  onRefreshMessages?: (conversationId: string) => void;
 }
 
 export function ChatWindow({
@@ -60,6 +61,7 @@ export function ChatWindow({
   onUnblockUser,
   onSendChatRequest,
   onDeleteConversation,
+  onRefreshMessages,
 }: ChatWindowProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [chatSearchQuery, setChatSearchQuery] = useState("");
@@ -268,6 +270,15 @@ export function ChatWindow({
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  const activeConversationId = contact?.conversationId || contact?.id;
+
+  // Permanent message fetch on conversation select / component mount (Task 1)
+  useEffect(() => {
+    if (activeConversationId) {
+      onRefreshMessages?.(activeConversationId);
+    }
+  }, [activeConversationId, onRefreshMessages]);
 
   useEffect(() => {
     setHasSentRequest(false);
