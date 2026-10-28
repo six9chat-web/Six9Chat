@@ -18,6 +18,7 @@ import {
 import { MediaType, MediaMeta } from "@/types/chat";
 import { EmojiPicker } from "./EmojiPicker";
 import { useTranslation } from "@/lib/LanguageContext";
+import { supabase } from "@/lib/supabaseClient";
 
 interface ChatInputProps {
   onSendMessage: (
@@ -136,40 +137,74 @@ export function ChatInput({
       setShowAttachMenu(false);
       setUploadStatus(`Uploading ${file.name}...`);
 
-      const formData = new FormData();
-      formData.append("file", file);
+      let publicUrl = "";
+      let mediaType: MediaType = "document";
+      if (file.type.startsWith("image/")) mediaType = "image";
+      else if (file.type.startsWith("video/")) mediaType = "video";
+      else if (file.type.startsWith("audio/")) mediaType = "audio";
 
-      const res = await fetch("/api/chat/upload", {
-        method: "POST",
-        body: formData,
-      });
+      const fileSizeStr =
+        file.size > 1024 * 1024
+          ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+          : `${(file.size / 1024).toFixed(0)} KB`;
 
-      const data = await res.json();
-      if (data.success && data.url) {
+      // 1. Direct Supabase Storage upload to 'chat-attachments' bucket
+      try {
+        const fileExt = file.name.split(".").pop() || "bin";
+        const filePath = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("chat-attachments")
+          .upload(filePath, file, { cacheControl: "3600", upsert: true });
+
+        if (!uploadError && uploadData?.path) {
+          const { data: pubUrlData } = supabase.storage
+            .from("chat-attachments")
+            .getPublicUrl(uploadData.path);
+          if (pubUrlData?.publicUrl) {
+            publicUrl = pubUrlData.publicUrl;
+          }
+        }
+      } catch (clientErr) {
+        console.warn("Client Supabase upload notice:", clientErr);
+      }
+
+      // 2. Server API route upload fallback
+      if (!publicUrl) {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch("/api/chat/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (data.success && data.url) {
+          publicUrl = data.url;
+          if (data.mediaType) mediaType = data.mediaType;
+        }
+      }
+
+      if (publicUrl) {
         onSendMessage(
           "",
-          data.mediaType || "document",
+          mediaType,
           {
-            fileName: data.fileName || file.name,
-            fileSize: data.fileSize,
+            fileName: file.name,
+            fileSize: fileSizeStr,
           },
-          data.url
+          publicUrl
         );
       } else {
-        // Fallback to FileReader DataURL
+        // High-performance local FileReader fallback if both fail
         const reader = new FileReader();
         reader.onload = () => {
-          let mediaType: MediaType = "document";
-          if (file.type.startsWith("image/")) mediaType = "image";
-          else if (file.type.startsWith("video/")) mediaType = "video";
-          else if (file.type.startsWith("audio/")) mediaType = "audio";
-
           onSendMessage(
             "",
             mediaType,
             {
               fileName: file.name,
-              fileSize: `${(file.size / 1024).toFixed(0)} KB`,
+              fileSize: fileSizeStr,
             },
             reader.result as string
           );

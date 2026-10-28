@@ -19,6 +19,8 @@ import {
   Forward,
   CheckSquare,
   Trash2,
+  Maximize2,
+  X,
 } from "lucide-react";
 import { ChatMessage, MessageStatus } from "@/types/chat";
 import { cn, getCleanDisplayName } from "@/lib/utils";
@@ -73,6 +75,7 @@ export function MessageItem({
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<number>(0);
 
@@ -374,16 +377,29 @@ export function MessageItem({
           );
         })()}
 
-        {/* Media: Image Card */}
+        {/* Media: Image Card with Lightbox Modal */}
         {message.mediaType === "image" && (
           <div className="p-1.5 pb-0">
-            <div className="relative rounded-xl overflow-hidden bg-[#032433] border border-black/10">
+            <div
+              onClick={(e) => {
+                if (!isSelectionMode) {
+                  e.stopPropagation();
+                  setIsLightboxOpen(true);
+                }
+              }}
+              className="relative rounded-xl overflow-hidden bg-[#032433] border border-black/10 cursor-pointer group/img"
+            >
               <img
                 src={message.mediaUrl || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80"}
                 alt="Shared image"
-                className="w-full max-h-72 object-cover"
+                className="w-full max-h-72 object-cover transition-transform duration-200 group-hover/img:scale-[1.02]"
                 loading="lazy"
               />
+              <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover/img:opacity-100">
+                <span className="p-2 rounded-full bg-black/60 text-white backdrop-blur-sm shadow-md">
+                  <Maximize2 className="w-4 h-4" />
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -556,6 +572,48 @@ export function MessageItem({
           )}
         </AnimatePresence>
       </div>
+
+      {/* Full-Screen Image Lightbox Modal */}
+      <AnimatePresence>
+        {isLightboxOpen && message.mediaUrl && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsLightboxOpen(false);
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsLightboxOpen(false)}
+              className="absolute top-4 right-4 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition cursor-pointer z-50 shadow-lg"
+              title="Close image"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <a
+              href={message.mediaUrl}
+              download={message.mediaMeta?.fileName || "image"}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-4 right-16 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition cursor-pointer z-50 shadow-lg"
+              title="Download image"
+            >
+              <Download className="w-6 h-6" />
+            </a>
+            <motion.img
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              src={message.mediaUrl}
+              alt="Expanded preview"
+              className="max-w-[95vw] max-h-[90vh] object-contain rounded-xl shadow-2xl select-none"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

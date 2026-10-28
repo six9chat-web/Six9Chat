@@ -39,7 +39,21 @@ export async function POST(req: Request) {
           upsert: true,
         });
 
-      if (!error && data?.path) {
+      if (error && (error as any).message?.toLowerCase().includes("not found")) {
+        await supabaseServer.storage.createBucket("chat-attachments", { public: true });
+        const retry = await supabaseServer.storage
+          .from("chat-attachments")
+          .upload(safeName, buffer, {
+            contentType: mimeType,
+            upsert: true,
+          });
+        if (!retry.error && retry.data?.path) {
+          const { data: pubData } = supabaseServer.storage
+            .from("chat-attachments")
+            .getPublicUrl(retry.data.path);
+          publicUrl = pubData.publicUrl;
+        }
+      } else if (!error && data?.path) {
         const { data: pubData } = supabaseServer.storage
           .from("chat-attachments")
           .getPublicUrl(data.path);
