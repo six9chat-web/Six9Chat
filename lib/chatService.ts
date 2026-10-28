@@ -1,5 +1,6 @@
 import { supabaseServer } from "@/lib/authService";
 import { ChatContact, ChatMessage, MediaMeta, MediaType, MessageReaction, MessageStatus, generateUUID } from "@/types/chat";
+import { isUuid, getCleanDisplayName } from "@/lib/utils";
 
 export interface DBMessage {
   id: string;
@@ -721,7 +722,8 @@ export async function getUserConnectedContacts(userId: string): Promise<ChatCont
           contactsMap.set(p.id, {
             id: p.id,
             conversationId: conv?.id || p.id,
-            name: p.username ? p.username : (p.full_name || "Contact"),
+            name: getCleanDisplayName(p.full_name, p.username, "Contact"),
+            username: p.username || undefined,
             avatar: p.avatar_url || "",
             avatarColor: "from-[#086288] to-[#4D8DBA]",
             status: "online",

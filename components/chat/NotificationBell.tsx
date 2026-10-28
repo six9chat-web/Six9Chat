@@ -13,7 +13,7 @@ import {
 import { ChatRequest } from "@/types/chat";
 import { Avatar } from "@/components/ui/Avatar";
 import { useTranslation } from "@/lib/LanguageContext";
-import { cn } from "@/lib/utils";
+import { cn, getCleanDisplayName } from "@/lib/utils";
 
 interface NotificationBellProps {
   requests: ChatRequest[];
@@ -63,7 +63,7 @@ export function NotificationBell({
     try {
       setActionInProgress(req.id);
       await onAccept(req);
-      const display = req.senderUsername || req.senderName || "User";
+      const display = getCleanDisplayName(req.senderName, req.senderUsername, "User");
       setToastMessage(`Accepted request from ${display}`);
       setTimeout(() => setToastMessage(null), 3000);
     } catch (err) {
@@ -188,8 +188,7 @@ export function NotificationBell({
                 ) : (
                   pendingRequests.map((req) => {
                     const isBusy = actionInProgress === req.id;
-                    // Exact username display preserved from Supabase
-                    const cleanUsername = req.senderUsername || req.senderName || "User";
+                    const cleanUsername = getCleanDisplayName(req.senderName, req.senderUsername, "User");
 
                     return (
                       <motion.div

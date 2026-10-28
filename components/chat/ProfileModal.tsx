@@ -27,7 +27,7 @@ import { uploadAvatar, checkUsername } from "@/lib/auth";
 import { Avatar, DefaultAvatarSilhouette } from "@/components/ui/Avatar";
 import { LanguageSelector } from "@/components/auth/LanguageSelector";
 import { useTranslation } from "@/lib/LanguageContext";
-import { cn } from "@/lib/utils";
+import { cn, isUuid, getCleanDisplayName } from "@/lib/utils";
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -83,10 +83,15 @@ export function ProfileModal({
 
   // User Record
   const userRecord = currentUser as unknown as Record<string, unknown>;
-  const currentUsername =
-    (typeof userRecord.username === "string" && userRecord.username ? userRecord.username : null) ||
-    currentUser.name ||
-    "user";
+  const rawUsername =
+    typeof userRecord.username === "string" && userRecord.username && !isUuid(userRecord.username)
+      ? userRecord.username
+      : null;
+  const rawName =
+    currentUser.name && !isUuid(currentUser.name) && currentUser.name !== "You"
+      ? currentUser.name
+      : null;
+  const currentUsername = rawUsername || rawName || "user";
 
   const initialAbout =
     (typeof userRecord.statusText === "string" ? userRecord.statusText : null) ||
@@ -102,7 +107,7 @@ export function ProfileModal({
     "you@six9chat.com";
 
   // Editable fields in state
-  const [nameDisplay, setNameDisplay] = useState(currentUser.name || currentUsername);
+  const [nameDisplay, setNameDisplay] = useState(rawName || rawUsername || "User");
   const [usernameDisplay, setUsernameDisplay] = useState(
     currentUsername.replace(/^@/, "")
   );
@@ -131,7 +136,7 @@ export function ProfileModal({
   );
   if (prevUserKey !== `${currentUser?.id}_${currentUsername}_${initialAbout}`) {
     setPrevUserKey(`${currentUser?.id}_${currentUsername}_${initialAbout}`);
-    setNameDisplay(currentUser.name || currentUsername);
+    setNameDisplay(rawName || rawUsername || "User");
     setUsernameDisplay(currentUsername.replace(/^@/, ""));
     setAboutDisplay(initialAbout);
     setEditUsernameInput(currentUsername.replace(/^@/, ""));

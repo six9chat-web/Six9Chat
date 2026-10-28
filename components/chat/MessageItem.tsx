@@ -21,7 +21,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { ChatMessage, MessageStatus } from "@/types/chat";
-import { cn } from "@/lib/utils";
+import { cn, getCleanDisplayName } from "@/lib/utils";
 import { useClickOutside } from "@/hooks/useClickOutside";
 
 export interface MessageItemProps {
@@ -347,7 +347,7 @@ export function MessageItem({
           message.senderName &&
           message.senderName !== "Contact" && (
             <div className="px-3.5 pt-2 pb-0.5 text-xs font-bold text-[#97D7FF] flex items-center gap-1.5">
-              <span>{message.senderName}</span>
+              <span>{getCleanDisplayName(message.senderName, undefined, "User")}</span>
             </div>
           )}
 
@@ -357,11 +357,10 @@ export function MessageItem({
           const isReplyToSelf = currentUserId && replySenderId
             ? replySenderId === currentUserId
             : message.replyTo.senderName === "You" || (isSelf && !message.replyTo.senderName);
+          const rawReplyName = message.replyTo.senderName && message.replyTo.senderName !== "You" ? message.replyTo.senderName : contactName;
           const replyAuthor = isReplyToSelf
             ? "You"
-            : message.replyTo.senderName && message.replyTo.senderName !== "You"
-            ? message.replyTo.senderName
-            : contactName || "Contact";
+            : getCleanDisplayName(rawReplyName, undefined, "Contact");
 
           return (
             <div className="mx-2 mt-2 p-2 rounded-lg bg-black/25 border-l-4 border-[#97D7FF] text-left text-xs select-none">

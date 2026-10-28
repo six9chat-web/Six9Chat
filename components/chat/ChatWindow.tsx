@@ -18,6 +18,7 @@ import {
   X,
   Forward,
 } from "lucide-react";
+import { getCleanDisplayName, isUuid } from "@/lib/utils";
 
 interface ChatWindowProps {
   contact: ChatContact;
@@ -133,11 +134,13 @@ export function ChatWindow({
       ? msgSenderId === currentUserId
       : Boolean(msg.isSelf);
 
+    const resolvedDisplayName = getCleanDisplayName(resolvedContact?.name, resolvedContact?.username, "");
+    const msgSenderDisplayName = getCleanDisplayName(msg.senderName, undefined, "");
     const otherName =
-      resolvedContact?.name && resolvedContact.name !== "You"
-        ? resolvedContact.name
-        : msg.senderName && msg.senderName !== "You"
-        ? msg.senderName
+      resolvedDisplayName && resolvedDisplayName !== "You"
+        ? resolvedDisplayName
+        : msgSenderDisplayName && msgSenderDisplayName !== "You"
+        ? msgSenderDisplayName
         : "Contact";
 
     const senderLabel = isMsgFromSelf ? "You" : otherName;

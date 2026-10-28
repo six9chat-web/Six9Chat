@@ -64,6 +64,7 @@ export interface ChatContact {
   id: string;
   conversationId?: string;
   name: string;
+  username?: string;
   avatar: string;
   avatarColor?: string;
   status: "online" | "offline" | "typing" | "away";

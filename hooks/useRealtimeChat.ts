@@ -28,6 +28,7 @@ import {
   signOut as authSignOut,
   getCurrentUserUid,
 } from "@/lib/auth";
+import { getCleanDisplayName, isUuid } from "@/lib/utils";
 
 const INITIAL_CHAT_REQUESTS: ChatRequest[] = [];
 
@@ -1446,7 +1447,8 @@ export function useRealtimeChat() {
                     const resolvedContact: ChatContact = {
                       id: p.id,
                       conversationId: conv?.id || p.id,
-                      name: p.username || p.full_name || "Contact",
+                      name: getCleanDisplayName(p.full_name, p.username, "Contact"),
+                      username: p.username || undefined,
                       avatar: p.avatar_url || "",
                       avatarColor: "from-[#086288] to-[#4D8DBA]",
                       status: "online",
@@ -1469,7 +1471,8 @@ export function useRealtimeChat() {
                       serverContacts[existingIdx] = {
                         ...resolvedContact,
                         ...prevContact,
-                        name: p.username || p.full_name || prevContact.name || "Contact",
+                        name: getCleanDisplayName(p.full_name, p.username, prevContact.name || "Contact"),
+                        username: p.username || prevContact.username || undefined,
                         unreadCount: prevContact.unreadCount > 0 ? prevContact.unreadCount : partnerUnreadCount,
                       };
                     } else {
@@ -1544,7 +1547,8 @@ export function useRealtimeChat() {
                     const restoredContact: ChatContact = {
                       id: partnerProfile.id,
                       conversationId: foundConvId || partnerProfile.id,
-                      name: partnerProfile.username || partnerProfile.full_name || "Contact",
+                      name: getCleanDisplayName(partnerProfile.full_name, partnerProfile.username, "Contact"),
+                      username: partnerProfile.username || undefined,
                       avatar: partnerProfile.avatar_url || "",
                       avatarColor: "from-[#086288] to-[#4D8DBA]",
                       status: "online",
@@ -2043,11 +2047,12 @@ export function useRealtimeChat() {
     setChatRequests((prev) => prev.filter((r) => r.id !== req.id));
 
     // 4. Automatically add requester to user's contacts and open chat
-    const displayName = req.senderUsername || req.senderName || "Contact";
+    const displayName = getCleanDisplayName(req.senderName, req.senderUsername, "Contact");
 
     const newContact: ChatContact = {
       id: req.senderId,
       name: displayName,
+      username: req.senderUsername || undefined,
       avatar: req.senderAvatar || "",
       avatarColor: "from-[#086288] to-[#4D8DBA]",
       status: "online",

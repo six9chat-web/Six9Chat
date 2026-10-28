@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { ChatContact, MessageStatus } from "@/types/chat";
 import { Avatar } from "@/components/ui/Avatar";
-import { cn } from "@/lib/utils";
+import { cn, getCleanDisplayName } from "@/lib/utils";
 
 interface ChatListProps {
   contacts: ChatContact[];
@@ -191,7 +191,7 @@ export function ChatList({
                         : "text-slate-100 group-hover:text-white"
                     )}
                   >
-                    <span className="truncate">{contact.name}</span>
+                    <span className="truncate">{getCleanDisplayName(contact.name, contact.username, "User")}</span>
                     {contact.isBlocked && (
                       <span className="text-[10px] font-bold text-rose-300 bg-rose-500/20 px-1.5 py-0.2 rounded-md shrink-0">
                         Blocked
