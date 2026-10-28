@@ -50,6 +50,20 @@ export type ChatFilterType =
 export function useRealtimeChat() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<UserProfile>(CURRENT_USER);
+  const [isLoadingContacts, setIsLoadingContacts] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("six9chat_active_contacts");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return false;
+          }
+        }
+      } catch {}
+    }
+    return true;
+  });
   const [contacts, setContacts] = useState<ChatContact[]>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -180,7 +194,9 @@ export function useRealtimeChat() {
   const handleSelectContact = useCallback((id: string) => {
     setActiveContactId(id);
     setContacts((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
+      prev.map((c) =>
+        (c.id === id || c.conversationId === id) ? { ...c, unreadCount: 0 } : c
+      )
     );
     if (currentUser?.id && id) {
       Promise.resolve(
@@ -191,6 +207,16 @@ export function useRealtimeChat() {
           .eq("is_read", false)
           .or(`sender_id.eq.${id},conversation_id.eq.${id}`)
       ).catch(() => {});
+
+      fetch("/api/chat/messages", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          partnerId: id,
+          conversationId: id,
+        }),
+      }).catch(() => {});
     }
   }, [currentUser?.id]);
 
@@ -1357,7 +1383,7 @@ export function useRealtimeChat() {
                   .order("updated_at", { ascending: false }),
                 supabase
                   .from("messages")
-                  .select("id, conversation_id, sender_id, receiver_id, content, text, status, media_type, created_at")
+                  .select("id, conversation_id, sender_id, receiver_id, content, text, status, media_type, created_at, is_read")
                   .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
                   .order("created_at", { ascending: false })
                   .limit(100),
@@ -1411,6 +1437,10 @@ export function useRealtimeChat() {
                       conv?.last_message ||
                       "Chat request accepted. Say hi! 👋";
 
+                    const partnerUnreadCount = recentMsgs.filter(
+                      (m: any) => m.sender_id === p.id && m.receiver_id === user.id && (m.is_read === false || m.is_read === "false")
+                    ).length;
+
                     const resolvedContact: ChatContact = {
                       id: p.id,
                       conversationId: conv?.id || p.id,
@@ -1420,7 +1450,7 @@ export function useRealtimeChat() {
                       status: "online",
                       lastSeen: "Online now",
                       about: p.about || "Connected on Six9Chat",
-                      unreadCount: 0,
+                      unreadCount: partnerUnreadCount,
                       lastMessage: {
                         text: msgText,
                         timestamp: timeStr,
@@ -1433,9 +1463,12 @@ export function useRealtimeChat() {
                       (c) => c.id === p.id || c.conversationId === resolvedContact.conversationId
                     );
                     if (existingIdx >= 0) {
+                      const prevContact = serverContacts[existingIdx];
                       serverContacts[existingIdx] = {
-                        ...serverContacts[existingIdx],
                         ...resolvedContact,
+                        ...prevContact,
+                        name: p.username || p.full_name || prevContact.name || "Contact",
+                        unreadCount: prevContact.unreadCount > 0 ? prevContact.unreadCount : partnerUnreadCount,
                       };
                     } else {
                       serverContacts.push(resolvedContact);
@@ -1582,10 +1615,22 @@ export function useRealtimeChat() {
                   .eq("is_read", false)
                   .or(`sender_id.eq.${initialActiveId},conversation_id.eq.${initialActiveId}`)
               ).catch(() => {});
+
+              fetch("/api/chat/messages", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  userId: user.id,
+                  partnerId: initialActiveId,
+                  conversationId: initialActiveId,
+                }),
+              }).catch(() => {});
             }
           } catch (e) {
             console.warn("Could not load conversations:", e);
             // Never wipe contacts on network/server error; keep cached local state
+          } finally {
+            setIsLoadingContacts(false);
           }
 
           // 2. Fetch pending chat requests from Supabase
@@ -1812,15 +1857,26 @@ export function useRealtimeChat() {
     fetchHistoricalMessages(activeContactId);
 
     // Trigger Supabase query to mark incoming unread messages as read
-    if (currentUserRef.current?.id) {
+    const activeUserId = currentUserRef.current?.id;
+    if (activeUserId) {
       Promise.resolve(
         supabase
           .from("messages")
           .update({ is_read: true, status: "read" })
-          .eq("receiver_id", currentUserRef.current.id)
+          .eq("receiver_id", activeUserId)
           .eq("is_read", false)
           .or(`sender_id.eq.${activeContactId},conversation_id.eq.${activeContactId}`)
       ).catch(() => {});
+
+      fetch("/api/chat/messages", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: activeUserId,
+          partnerId: activeContactId,
+          conversationId: activeContactId,
+        }),
+      }).catch(() => {});
     }
   }, [activeContactId, fetchHistoricalMessages]);
 
@@ -2359,6 +2415,7 @@ export function useRealtimeChat() {
     currentUser,
     contacts: filteredContacts,
     allContacts: contacts,
+    isLoadingContacts,
     activeContact,
     activeContactId,
     activeMessages,

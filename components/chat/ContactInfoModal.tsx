@@ -31,8 +31,11 @@ export function ContactInfoModal(props: ContactInfoModalProps) {
   const currentUserId = props.currentUserId || "";
   const targetUserId = props.targetUserId || props.currentUser?.id || "";
   
-  // Explicit check: isOwnProfile = (currentUserId === targetUserId)
-  const isOwnProfile = currentUserId && targetUserId
+  // Explicit check: If isOwnProfile is explicitly false, it is strictly false.
+  // Otherwise check if currentUserId === targetUserId, or fallback to props.isOwnProfile.
+  const isOwnProfile = props.isOwnProfile === false
+    ? false
+    : currentUserId && targetUserId
     ? currentUserId === targetUserId
     : (props.isOwnProfile ?? false);
 

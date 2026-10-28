@@ -79,7 +79,7 @@ export function ChatHeader({
         {/* Name + "click here for contact info" */}
         <div className="flex flex-col min-w-0">
           <h2 className="text-sm sm:text-base font-bold text-white truncate group-hover:text-[#FFEFC4] transition-colors max-w-[130px] xs:max-w-[180px] sm:max-w-xs md:max-w-sm">
-            {contact.name}
+            {contact?.name && contact.name !== "You" ? contact.name : (contact as any)?.username || "Chat"}
           </h2>
 
           <p className="text-[11px] sm:text-xs text-slate-300 group-hover:text-[#97D7FF] truncate transition-colors leading-tight">

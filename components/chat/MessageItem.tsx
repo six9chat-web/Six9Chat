@@ -60,11 +60,14 @@ export function MessageItem({
   // CHAT BUBBLE SENDER DISCRIMINATION LOGIC
   // If message.sender_id === currentUserId -> isSelf = true (OUTGOING, right-aligned, blue accent)
   // If message.sender_id !== currentUserId -> isSelf = false (INCOMING, left-aligned, dark teal/grey)
-  const msgSenderId = message.senderId || (message as any).sender_id || "";
+  const effectiveUserId = String(currentUserId || "");
+  const msgSenderId = String(
+    (message as any).sender_id || message.senderId || ""
+  );
   const isSelf = isOutgoing !== undefined
     ? isOutgoing
-    : currentUserId
-    ? msgSenderId === currentUserId
+    : effectiveUserId && msgSenderId
+    ? msgSenderId === effectiveUserId || msgSenderId === "You"
     : Boolean(message.isSelf);
 
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);

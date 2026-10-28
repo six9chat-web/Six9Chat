@@ -27,6 +27,7 @@ interface ChatListProps {
   contacts: ChatContact[];
   activeContactId: string;
   onSelectContact: (id: string) => void;
+  isLoading?: boolean;
   onBlockUser?: (id: string) => void;
   onUnblockUser?: (id: string) => void;
   onClearChat?: (id: string) => void;
@@ -39,6 +40,7 @@ export function ChatList({
   contacts,
   activeContactId,
   onSelectContact,
+  isLoading = false,
   onBlockUser,
   onUnblockUser,
   onClearChat,
@@ -99,6 +101,28 @@ export function ChatList({
       return <Phone className="w-3.5 h-3.5 text-[#FFEFC4] inline mr-1 shrink-0" />;
     return null;
   };
+
+  if (isLoading && contacts.length === 0) {
+    return (
+      <div className="flex-1 overflow-hidden px-2 py-2 space-y-2 select-none">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[#086288]/15 animate-pulse border border-[#4D8DBA]/20"
+          >
+            <div className="w-12 h-12 rounded-full bg-[#4D8DBA]/30 shrink-0" />
+            <div className="flex-1 space-y-2 min-w-0">
+              <div className="flex justify-between items-center">
+                <div className="h-3.5 bg-[#4D8DBA]/40 rounded-md w-28" />
+                <div className="h-2.5 bg-[#4D8DBA]/25 rounded-md w-12" />
+              </div>
+              <div className="h-2.5 bg-[#4D8DBA]/20 rounded-md w-40" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (contacts.length === 0) {
     return (

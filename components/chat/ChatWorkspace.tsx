@@ -31,6 +31,7 @@ export function ChatWorkspace() {
     currentUser,
     contacts,
     allContacts,
+    isLoadingContacts,
     activeContact,
     activeContactId,
     activeMessages,
@@ -166,6 +167,7 @@ export function ChatWorkspace() {
           <Sidebar
             currentUser={activeUser}
             contacts={contacts}
+            isLoadingContacts={isLoadingContacts}
             activeContactId={activeContactId}
             onSelectContact={handleSelectContactMobile}
             searchQuery={searchQuery}

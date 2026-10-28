@@ -90,6 +90,48 @@ export async function POST(req: Request) {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { userId, partnerId, conversationId } = body;
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: "userId is required" },
+        { status: 400 }
+      );
+    }
+
+    const { supabaseServer } = await import("@/lib/authService");
+
+    if (partnerId) {
+      await supabaseServer
+        .from("messages")
+        .update({ is_read: true, status: "read" })
+        .eq("receiver_id", userId)
+        .eq("sender_id", partnerId)
+        .eq("is_read", false);
+    }
+
+    if (conversationId) {
+      await supabaseServer
+        .from("messages")
+        .update({ is_read: true, status: "read" })
+        .eq("receiver_id", userId)
+        .eq("conversation_id", conversationId)
+        .eq("is_read", false);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[Messages PATCH error]:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to mark messages as read" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
@@ -119,4 +161,5 @@ export async function DELETE(req: NextRequest) {
     );
   }
 }
+
 

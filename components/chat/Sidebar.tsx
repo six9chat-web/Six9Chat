@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 interface SidebarProps {
   currentUser: UserProfile;
   contacts: ChatContact[];
+  isLoadingContacts?: boolean;
   activeContactId: string;
   onSelectContact: (id: string) => void;
   searchQuery: string;
@@ -58,6 +59,7 @@ interface SidebarProps {
 export function Sidebar({
   currentUser,
   contacts,
+  isLoadingContacts = false,
   activeContactId,
   onSelectContact,
   searchQuery,
@@ -105,14 +107,24 @@ export function Sidebar({
     return c.id === currentUser.id;
   }, [currentUser?.id]);
 
-  const filteredContacts = trimmedQuery
-    ? contacts.filter(
-        (c) =>
-          !isSelfContact(c) &&
-          (c.name.toLowerCase().includes(trimmedQuery) ||
-          (c.phone && c.phone.toLowerCase().includes(trimmedQuery)))
-      )
-    : contacts.filter((c) => !isSelfContact(c));
+  const filteredContacts = React.useMemo(() => {
+    return contacts.filter((c) => {
+      if (isSelfContact(c)) return false;
+
+      const matchesQuery = !trimmedQuery ||
+        c.name.toLowerCase().includes(trimmedQuery) ||
+        (c.phone && c.phone.toLowerCase().includes(trimmedQuery)) ||
+        (c.lastMessage && c.lastMessage.text.toLowerCase().includes(trimmedQuery));
+
+      if (!matchesQuery) return false;
+
+      if (activeFilter === "unread") return (c.unreadCount || 0) > 0;
+      if (activeFilter === "pinned") return Boolean(c.isPinned || c.isFavourite);
+      if (activeFilter === "groups") return Boolean(c.isGroup);
+
+      return true;
+    });
+  }, [contacts, trimmedQuery, isSelfContact, activeFilter]);
 
   // Handler to close search mode and instantly restore Active Conversations list
   const handleCloseSearch = useCallback(() => {
@@ -310,6 +322,7 @@ export function Sidebar({
               <ChatList
                 contacts={filteredContacts}
                 activeContactId={activeContactId}
+                isLoading={isLoadingContacts}
                 onSelectContact={onSelectContact}
                 onBlockUser={onBlockUser}
                 onUnblockUser={onUnblockUser}

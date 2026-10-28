@@ -101,12 +101,30 @@ export function ChatWindow({
 
   // Ensure the chat header and replies display the OTHER USER'S name (test1 if logged in as test2)
   const resolvedContact = useMemo(() => {
-    if (currentUserId && contact?.id === currentUserId) {
-      const other = allContacts?.find((c) => c.id !== currentUserId);
+    const myId = String(currentUserId || currentUser?.id || "");
+    const myUsername = currentUser?.username || currentUser?.name;
+
+    // 1. If contact ID accidentally matches logged in user ID, find the actual partner in allContacts
+    if (myId && contact?.id === myId) {
+      const other = allContacts?.find((c) => c.id !== myId);
       if (other) return other;
     }
+
+    // 2. If contact name is "You" or matches logged in user's name, find the other contact
+    if (
+      contact &&
+      (contact.name === "You" || (myUsername && contact.name === myUsername))
+    ) {
+      const other = allContacts?.find(
+        (c) => c.id !== myId && (c.id === contact.id || c.conversationId === contact.conversationId)
+      );
+      if (other && other.name && other.name !== "You" && other.name !== myUsername) {
+        return other;
+      }
+    }
+
     return contact;
-  }, [contact, currentUserId, allContacts]);
+  }, [contact, currentUserId, currentUser, allContacts]);
 
   // 1. Reply Action
   const handleReply = (msg: ChatMessage) => {
@@ -466,18 +484,23 @@ export function ChatWindow({
               const isFirstInGroup = !prevMsg || prevSender !== msgSenderId;
 
               // CHAT BUBBLE SENDER DISCRIMINATION LOGIC
-              // Compare each message's sender_id with currentUserId:
-              // IF message.sender_id === currentUserId -> OUTGOING (Right-aligned, blue accent)
-              // IF message.sender_id !== currentUserId -> INCOMING (Left-aligned, contrasting dark teal/grey)
-              const isOutgoing = currentUserId
-                ? msgSenderId === currentUserId
+              // Compare each message's sender_id with currentUser.id:
+              // IF message.sender_id === currentUser.id -> OUTGOING (Right-aligned, blue accent)
+              // IF message.sender_id !== currentUser.id -> INCOMING (Left-aligned, contrasting dark teal/grey)
+              const effectiveUserId = String(currentUserId || currentUser?.id || "");
+              const rawSenderId = String(
+                (msg as any).sender_id || msg.senderId || ""
+              );
+
+              const isOutgoing = effectiveUserId && rawSenderId
+                ? rawSenderId === effectiveUserId || rawSenderId === "You"
                 : Boolean(msg.isSelf);
 
               return (
                 <MessageItem
                   key={msg.id}
                   message={msg}
-                  currentUserId={currentUserId}
+                  currentUserId={effectiveUserId}
                   isOutgoing={isOutgoing}
                   contactName={resolvedContact?.name}
                   isFirstInGroup={isFirstInGroup}
