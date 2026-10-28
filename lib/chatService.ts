@@ -332,63 +332,85 @@ export async function getConversationMessages(
 
   // 1. Try fetching from Supabase messages table
   try {
-    let query = supabaseServer
-      .from("messages")
-      .select("*")
-      .order("created_at", { ascending: true });
+    const convIdsToFetch = new Set<string>();
+    if (conversationId) convIdsToFetch.add(conversationId);
+    if (canonicalId) convIdsToFetch.add(canonicalId);
+    if (userB) convIdsToFetch.add(userB);
 
-    const orFilters: string[] = [];
-
-    if (conversationId) {
-      orFilters.push(`conversation_id.eq.${conversationId}`);
-    }
-    if (canonicalId && canonicalId !== conversationId) {
-      orFilters.push(`conversation_id.eq.${canonicalId}`);
-    }
-
+    let convUuid = "";
     if (userA && userB && !canonicalId.startsWith("group-")) {
-      let convUuid = "";
       try {
         const conv = await getOrCreateConversation(userA, userB);
-        if (conv?.id) convUuid = conv.id;
+        if (conv?.id) {
+          convUuid = conv.id;
+          convIdsToFetch.add(conv.id);
+        }
       } catch {}
-
-      orFilters.push(`and(sender_id.eq.${userA},receiver_id.eq.${userB})`);
-      orFilters.push(`and(sender_id.eq.${userB},receiver_id.eq.${userA})`);
-      if (convUuid && !orFilters.includes(`conversation_id.eq.${convUuid}`)) {
-        orFilters.push(`conversation_id.eq.${convUuid}`);
-      }
-      if (userB && !orFilters.includes(`conversation_id.eq.${userB}`)) {
-        orFilters.push(`conversation_id.eq.${userB}`);
-      }
     }
 
-    if (orFilters.length > 0) {
-      query = query.or(orFilters.join(","));
+    const dbPromises: Promise<any>[] = [];
+
+    // Query A: By conversation_id matching active room or canonical IDs
+    if (convIdsToFetch.size > 0) {
+      dbPromises.push(
+        Promise.resolve(
+          supabaseServer
+            .from("messages")
+            .select("*")
+            .in("conversation_id", Array.from(convIdsToFetch))
+            .order("created_at", { ascending: true })
+        )
+      );
     }
 
-    const { data: dbData, error } = await query;
-    if (!error && Array.isArray(dbData)) {
-      for (const row of dbData) {
-        if (!seenIds.has(row.id)) {
-          seenIds.add(row.id);
-          resultMessages.push({
-            id: row.id,
-            conversation_id: row.conversation_id,
-            sender_id: row.sender_id,
-            receiver_id: row.receiver_id,
-            sender_name: row.sender_name,
-            sender_avatar: row.sender_avatar,
-            text: row.content || row.text || "",
-            media_type: row.media_type,
-            media_url: row.media_url,
-            media_meta: row.media_meta,
-            reply_to: row.reply_to || (row.reply_to_id ? { id: row.reply_to_id, senderName: "", text: "" } : undefined),
-            reply_to_id: row.reply_to_id,
-            reactions: row.reactions || [],
-            status: row.status,
-            created_at: row.created_at,
-          });
+    // Query B: Bi-directional queries between userA and userB
+    if (userA && userB && !canonicalId.startsWith("group-")) {
+      dbPromises.push(
+        Promise.resolve(
+          supabaseServer
+            .from("messages")
+            .select("*")
+            .eq("sender_id", userA)
+            .eq("receiver_id", userB)
+            .order("created_at", { ascending: true })
+        )
+      );
+      dbPromises.push(
+        Promise.resolve(
+          supabaseServer
+            .from("messages")
+            .select("*")
+            .eq("sender_id", userB)
+            .eq("receiver_id", userA)
+            .order("created_at", { ascending: true })
+        )
+      );
+    }
+
+    const dbResults = await Promise.allSettled(dbPromises);
+    for (const res of dbResults) {
+      if (res.status === "fulfilled" && !res.value.error && Array.isArray(res.value.data)) {
+        for (const row of res.value.data) {
+          if (!seenIds.has(row.id)) {
+            seenIds.add(row.id);
+            resultMessages.push({
+              id: row.id,
+              conversation_id: row.conversation_id,
+              sender_id: row.sender_id,
+              receiver_id: row.receiver_id,
+              sender_name: row.sender_name,
+              sender_avatar: row.sender_avatar,
+              text: row.content || row.text || "",
+              media_type: row.media_type,
+              media_url: row.media_url,
+              media_meta: row.media_meta,
+              reply_to: row.reply_to || (row.reply_to_id ? { id: row.reply_to_id, senderName: "", text: "" } : undefined),
+              reply_to_id: row.reply_to_id,
+              reactions: row.reactions || [],
+              status: row.status,
+              created_at: row.created_at,
+            });
+          }
         }
       }
     }

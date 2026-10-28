@@ -57,6 +57,7 @@ export interface ChatMessage {
     text: string;
   };
   replyToId?: string;
+  createdAt?: string;
 }
 
 export interface ChatContact {

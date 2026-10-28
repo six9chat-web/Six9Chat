@@ -190,7 +190,7 @@ export function useRealtimeChat() {
     });
   }, [contacts, searchQuery, activeFilter]);
 
-  // Mark unread as read when switching conversations
+  // Mark unread as read and instantly fetch history when switching conversations
   const handleSelectContact = useCallback((id: string) => {
     setActiveContactId(id);
     setContacts((prev) =>
@@ -198,6 +198,8 @@ export function useRealtimeChat() {
         (c.id === id || c.conversationId === id) ? { ...c, unreadCount: 0 } : c
       )
     );
+    // Instant fetch historical messages without waiting for effect
+    fetchHistoricalMessages(id);
     if (currentUser?.id && id) {
       Promise.resolve(
         supabase
@@ -1703,64 +1705,105 @@ export function useRealtimeChat() {
     async (targetConvId: string, partnerUserId?: string) => {
       if (!targetConvId) return;
 
-      const activeUserId = currentUserRef.current?.id || "";
+      const activeUserId = currentUserRef.current?.id || currentUser?.id || "";
 
-      // 1. Fetch historical messages directly from Supabase DB:
-      // SELECT * FROM public.messages WHERE conversation_id = :activeConversationId ORDER BY created_at ASC;
+      // Fetch historical messages directly from Supabase DB:
+      // SELECT * FROM public.messages WHERE conversation_id = activeConversationId OR (bidirectional between auth.uid() and partner) ORDER BY created_at ASC;
       try {
         const contactObj = contacts.find(
           (c) => c.id === targetConvId || c.conversationId === targetConvId
         );
         const resolvedConvId = contactObj?.conversationId || targetConvId;
-        const resolvedPartnerId = partnerUserId || (contactObj ? contactObj.id : targetConvId);
+        const resolvedPartnerId = partnerUserId || (contactObj && contactObj.id !== activeUserId ? contactObj.id : (targetConvId !== resolvedConvId ? targetConvId : ""));
 
-        let query = supabase
-          .from("messages")
-          .select("*")
-          .order("created_at", { ascending: true });
+        const convIds = new Set<string>();
+        if (targetConvId) convIds.add(targetConvId);
+        if (resolvedConvId) convIds.add(resolvedConvId);
+        if (contactObj?.conversationId) convIds.add(contactObj.conversationId);
+        if (contactObj?.id) convIds.add(contactObj.id);
 
-        const orClauses: string[] = [];
-        if (resolvedConvId) {
-          orClauses.push(`conversation_id.eq.${resolvedConvId}`);
-        }
-        if (targetConvId && targetConvId !== resolvedConvId) {
-          orClauses.push(`conversation_id.eq.${targetConvId}`);
-        }
-        if (resolvedPartnerId && resolvedPartnerId !== targetConvId && resolvedPartnerId !== resolvedConvId) {
-          orClauses.push(`conversation_id.eq.${resolvedPartnerId}`);
-        }
-        if (activeUserId && resolvedPartnerId && !resolvedConvId.startsWith("group-")) {
-          orClauses.push(`and(sender_id.eq.${activeUserId},receiver_id.eq.${resolvedPartnerId})`);
-          orClauses.push(`and(sender_id.eq.${resolvedPartnerId},receiver_id.eq.${activeUserId})`);
-        }
+        const dbQueries: Promise<any>[] = [];
 
-        if (orClauses.length > 0) {
-          query = query.or(orClauses.join(","));
-        } else {
-          query = query.eq("conversation_id", targetConvId);
+        // 1. Direct query: SELECT * FROM public.messages WHERE conversation_id IN (...) ORDER BY created_at ASC;
+        if (convIds.size > 0) {
+          dbQueries.push(
+            Promise.resolve(
+              supabase
+                .from("messages")
+                .select("*")
+                .in("conversation_id", Array.from(convIds))
+                .order("created_at", { ascending: true })
+            )
+          );
         }
 
-        const { data: dbData, error } = await query;
+        // 2. Direct query: Bi-directional between auth.uid() and selected other_user_id
+        if (
+          activeUserId &&
+          resolvedPartnerId &&
+          resolvedPartnerId !== activeUserId &&
+          !targetConvId.startsWith("group-")
+        ) {
+          dbQueries.push(
+            Promise.resolve(
+              supabase
+                .from("messages")
+                .select("*")
+                .eq("sender_id", activeUserId)
+                .eq("receiver_id", resolvedPartnerId)
+                .order("created_at", { ascending: true })
+            )
+          );
+          dbQueries.push(
+            Promise.resolve(
+              supabase
+                .from("messages")
+                .select("*")
+                .eq("sender_id", resolvedPartnerId)
+                .eq("receiver_id", activeUserId)
+                .order("created_at", { ascending: true })
+            )
+          );
+        }
 
-        let messagesList: any[] = [];
-        if (!error && Array.isArray(dbData) && dbData.length > 0) {
-          messagesList = dbData;
-        } else {
-          // Fallback via server API route to ensure complete retrieval
-          try {
-            const apiRes = await fetch(
-              `/api/chat/messages?conversationId=${encodeURIComponent(resolvedConvId)}&userA=${encodeURIComponent(
-                activeUserId
-              )}&userB=${encodeURIComponent(resolvedPartnerId)}`
-            );
-            const apiJson = await apiRes.json();
-            if (apiJson.success && Array.isArray(apiJson.messages) && apiJson.messages.length > 0) {
-              messagesList = apiJson.messages;
+        const results = await Promise.allSettled(dbQueries);
+        const rawMap = new Map<string, any>();
+
+        for (const res of results) {
+          if (res.status === "fulfilled" && !res.value.error && Array.isArray(res.value.data)) {
+            for (const item of res.value.data) {
+              rawMap.set(String(item.id), item);
             }
-          } catch {}
+          }
         }
+
+        // Fallback / supplement via server API route to guarantee 100% retrieval under service role
+        try {
+          const apiRes = await fetch(
+            `/api/chat/messages?conversationId=${encodeURIComponent(resolvedConvId)}&userA=${encodeURIComponent(
+              activeUserId
+            )}&userB=${encodeURIComponent(resolvedPartnerId)}`
+          );
+          const apiJson = await apiRes.json();
+          if (apiJson.success && Array.isArray(apiJson.messages) && apiJson.messages.length > 0) {
+            for (const item of apiJson.messages) {
+              if (!rawMap.has(String(item.id))) {
+                rawMap.set(String(item.id), item);
+              }
+            }
+          }
+        } catch {}
+
+        const messagesList = Array.from(rawMap.values());
 
         if (messagesList.length > 0) {
+          // Sort chronologically ascending by created_at
+          messagesList.sort((a, b) => {
+            const timeA = new Date(a.created_at || a.createdAt || 0).getTime();
+            const timeB = new Date(b.created_at || b.createdAt || 0).getTime();
+            return timeA - timeB;
+          });
+
           const partnerName = contactObj?.name || "Contact";
           const formatted: ChatMessage[] = messagesList.map((m: any) => {
             const msgSender = String(m.sender_id || m.senderId || "");
@@ -1788,6 +1831,7 @@ export function useRealtimeChat() {
               reactions: m.reactions || [],
               replyTo: m.reply_to || m.replyTo || undefined,
               replyToId: m.reply_to_id || m.replyToId || undefined,
+              createdAt: createdDate.toISOString(),
             };
           });
 
@@ -1813,7 +1857,11 @@ export function useRealtimeChat() {
             const map = new Map<string, ChatMessage>();
             existing.forEach((item) => map.set(item.id, item));
             finalMessages.forEach((item) => map.set(item.id, item));
-            const merged = Array.from(map.values());
+            const merged = Array.from(map.values()).sort((a, b) => {
+              const timeA = new Date(a.createdAt || 0).getTime();
+              const timeB = new Date(b.createdAt || 0).getTime();
+              return timeA - timeB;
+            });
 
             try {
               localStorage.setItem(`six9_messages_${targetConvId}`, JSON.stringify(merged.slice(-100)));
@@ -1837,7 +1885,7 @@ export function useRealtimeChat() {
         console.warn("fetchHistoricalMessages error:", err);
       }
     },
-    [contacts]
+    [contacts, currentUser?.id]
   );
 
   // 4. On conversation select or component mount (listening to activeContactId / conversation_id)

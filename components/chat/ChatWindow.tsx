@@ -44,7 +44,7 @@ interface ChatWindowProps {
   onUnblockUser?: (contactId: string) => void;
   onSendChatRequest?: (targetUserId: string) => Promise<void> | void;
   onDeleteConversation?: (contactId: string) => void;
-  onRefreshMessages?: (conversationId: string) => void;
+  onRefreshMessages?: (conversationId: string, partnerUserId?: string) => void;
 }
 
 export function ChatWindow({
@@ -321,9 +321,10 @@ export function ChatWindow({
   // Permanent message fetch on conversation select / component mount (Task 1)
   useEffect(() => {
     if (activeConversationId) {
-      onRefreshMessages?.(activeConversationId);
+      const partnerId = contact?.id && contact.id !== activeConversationId ? contact.id : undefined;
+      onRefreshMessages?.(activeConversationId, partnerId);
     }
-  }, [activeConversationId, onRefreshMessages]);
+  }, [activeConversationId, contact?.id, onRefreshMessages]);
 
   useEffect(() => {
     setHasSentRequest(false);
